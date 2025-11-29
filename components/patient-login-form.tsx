@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -11,10 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { GraduationCap } from "lucide-react"
 import Link from "next/link"
+import { loadPatients } from "@/lib/data-storage"
 
-export function StudentLoginForm() {
+export function PatientLoginForm() {
   const router = useRouter()
-  const [studentId, setStudentId] = useState("")
+  const [patientId, setPatientId] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -24,18 +24,32 @@ export function StudentLoginForm() {
     setError("")
     setIsLoading(true)
 
-    // Form validation
-    if (!studentId || !password) {
+    if (!patientId || !password) {
       setError("患者担当者IDとパスワードを入力してください")
       setIsLoading(false)
       return
     }
 
-    // Simulate login - In production, this would call an API
+    const patients = loadPatients()
+    const patient = patients.find((p) => p.email === patientId && p.password === password)
+
+    if (!patient) {
+      setError("患者担当者IDまたはパスワードが正しくありません")
+      setIsLoading(false)
+      return
+    }
+
+    // Store logged-in patient info
+    sessionStorage.setItem("patientId", patient.id)
+    sessionStorage.setItem("patientName", JSON.stringify(patient.name))
+    sessionStorage.setItem("patientEmail", JSON.stringify(patient.email))
+    sessionStorage.setItem("patientRoom", JSON.stringify(patient.roomNumber))
+    sessionStorage.setItem("assignedStudentIds", JSON.stringify(patient.assignedStudents))
+
     setTimeout(() => {
       setIsLoading(false)
-      router.push("/student/exam-info")
-    }, 1000)
+      router.push("/patient/exam-info")
+    }, 500)
   }
 
   return (
@@ -56,13 +70,13 @@ export function StudentLoginForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="studentId">患者担当者ID</Label>
+            <Label htmlFor="patientId">患者担当者ID</Label>
             <Input
-              id="studentId"
+              id="patientId"
               type="text"
               placeholder="例: 2024-PT-001"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
+              value={patientId}
+              onChange={(e) => setPatientId(e.target.value)}
               required
             />
           </div>

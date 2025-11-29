@@ -22,7 +22,7 @@ export default function HomePage() {
               <CardDescription className="text-base">患者担当の方はこちらからログイン下さい</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/student/login">
+              <Link href="/patient/login">
                 <Button className="w-full" size="lg">
                   患者担当者としてログイン
                 </Button>

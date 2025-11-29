@@ -5,11 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock, FileText, AlertCircle } from "lucide-react"
 
-export function ExamInfoScreen() {
+interface ExamInfoScreenProps {
+  examPath?: string
+}
+
+export function ExamInfoScreen({ examPath = "/student/exam" }: ExamInfoScreenProps) {
   const router = useRouter()
 
   const handleStartExam = () => {
-    router.push("/student/exam")
+    router.push(examPath)
   }
 
   return (

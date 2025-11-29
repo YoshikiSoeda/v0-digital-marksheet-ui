@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { loadTeachers } from "@/lib/data-storage"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -24,20 +24,32 @@ export function TeacherLoginForm() {
     setError("")
     setIsLoading(true)
 
-    // Form validation
     if (!teacherId || !password) {
       setError("教員IDとパスワードを入力してください")
       setIsLoading(false)
       return
     }
 
-    sessionStorage.setItem("teacherId", teacherId)
+    const teachers = loadTeachers()
+    const teacher = teachers.find((t) => t.email === teacherId && t.password === password)
 
-    // Simulate login - In production, this would call an API
+    if (!teacher) {
+      setError("教員IDまたはパスワードが正しくありません")
+      setIsLoading(false)
+      return
+    }
+
+    // Store logged-in teacher info
+    sessionStorage.setItem("teacherId", teacher.id)
+    sessionStorage.setItem("teacherName", JSON.stringify(teacher.name))
+    sessionStorage.setItem("teacherEmail", JSON.stringify(teacher.email))
+    sessionStorage.setItem("teacherRoom", JSON.stringify(teacher.roomNumber))
+    sessionStorage.setItem("assignedStudentIds", JSON.stringify(teacher.assignedStudents))
+
     setTimeout(() => {
       setIsLoading(false)
       router.push("/teacher/exam-info")
-    }, 1000)
+    }, 500)
   }
 
   return (
