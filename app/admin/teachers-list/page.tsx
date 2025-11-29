@@ -8,22 +8,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadTeachers, saveTeachers, type Teacher } from "@/lib/data-storage"
+import { loadTeachers, saveTeachers, loadRooms, type Teacher } from "@/lib/data-storage"
 
 export default function TeachersListPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
+  const [rooms, setRooms] = useState<Array<{ roomNumber: string; roomName: string }>>([])
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
     password: "",
+    role: "general" as "general" | "admin",
     assignedStudents: "",
     roomNumber: "",
   })
 
   useEffect(() => {
     setTeachers(loadTeachers())
+    setRooms(loadRooms())
   }, [])
 
   const filteredTeachers = teachers.filter(
@@ -38,6 +41,7 @@ export default function TeachersListPage() {
       name: teacher.name,
       email: teacher.email,
       password: teacher.password,
+      role: teacher.role,
       assignedStudents: teacher.assignedStudents.join(", "),
       roomNumber: teacher.roomNumber,
     })
@@ -46,11 +50,6 @@ export default function TeachersListPage() {
   const handleSaveEdit = () => {
     if (!editingTeacher) return
 
-    if (editForm.roomNumber && !/^\d+$/.test(editForm.roomNumber)) {
-      alert("部屋番号は数字のみで入力してください")
-      return
-    }
-
     const updatedTeachers = teachers.map((t) =>
       t.id === editingTeacher.id
         ? {
@@ -58,6 +57,7 @@ export default function TeachersListPage() {
             name: editForm.name,
             email: editForm.email,
             password: editForm.password,
+            role: editForm.role,
             assignedStudents: editForm.assignedStudents
               .split(",")
               .map((s) => s.trim())
@@ -97,8 +97,16 @@ export default function TeachersListPage() {
         "ログインパスワード",
         "評価対象の学生（IDをセミコロン区切り）",
         "担当部屋番号",
+        "権限",
       ],
-      ...teachers.map((t) => [t.name, t.email, t.password, t.assignedStudents.join(";"), t.roomNumber || ""]),
+      ...teachers.map((t) => [
+        t.name,
+        t.email,
+        t.password,
+        t.assignedStudents.join(";"),
+        t.roomNumber || "",
+        t.role === "admin" ? "管理者" : "一般",
+      ]),
     ]
       .map((row) => row.join(","))
       .join("\n")
@@ -108,6 +116,11 @@ export default function TeachersListPage() {
     link.href = URL.createObjectURL(blob)
     link.download = `教員一覧_${new Date().toISOString().split("T")[0]}.csv`
     link.click()
+  }
+
+  const isValidRoom = (roomNumber: string) => {
+    if (!roomNumber) return true
+    return rooms.some((r) => r.roomNumber === roomNumber)
   }
 
   return (
@@ -170,6 +183,7 @@ export default function TeachersListPage() {
                     <th className="text-left p-2">氏名</th>
                     <th className="text-left p-2">メールアドレス（ログインID）</th>
                     <th className="text-left p-2">ログインパスワード</th>
+                    <th className="text-left p-2">権限</th>
                     <th className="text-left p-2">評価対象の学生</th>
                     <th className="text-left p-2">担当部屋番号</th>
                     <th className="text-center p-2">操作</th>
@@ -178,7 +192,7 @@ export default function TeachersListPage() {
                 <tbody>
                   {filteredTeachers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center p-8 text-muted-foreground">
+                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
                         登録されている教員がいません
                       </td>
                     </tr>
@@ -188,8 +202,30 @@ export default function TeachersListPage() {
                         <td className="p-2">{teacher.name}</td>
                         <td className="p-2">{teacher.email}</td>
                         <td className="p-2">{"*".repeat(8)}</td>
+                        <td className="p-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              teacher.role === "admin"
+                                ? "bg-primary/10 text-primary"
+                                : "bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            {teacher.role === "admin" ? "管理者" : "一般"}
+                          </span>
+                        </td>
                         <td className="p-2">{teacher.assignedStudents.join("; ") || "-"}</td>
-                        <td className="p-2">{teacher.roomNumber || "-"}</td>
+                        <td className="p-2">
+                          <span
+                            className={
+                              teacher.roomNumber && !isValidRoom(teacher.roomNumber) ? "text-red-600 font-bold" : ""
+                            }
+                          >
+                            {teacher.roomNumber || "-"}
+                            {teacher.roomNumber && !isValidRoom(teacher.roomNumber) && (
+                              <AlertTriangle className="w-3 h-3 inline ml-1" />
+                            )}
+                          </span>
+                        </td>
                         <td className="p-2 text-center">
                           <div className="flex justify-center gap-2">
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(teacher)}>
@@ -245,6 +281,19 @@ export default function TeachersListPage() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="edit-role">権限 *</Label>
+                <select
+                  id="edit-role"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "general" | "admin" })}
+                >
+                  <option value="general">一般</option>
+                  <option value="admin">管理者</option>
+                </select>
+                <p className="text-xs text-muted-foreground">一般: 採点機能のみ / 管理者: 全機能アクセス可</p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="edit-students">評価対象の学生（カンマ区切り）</Label>
                 <Input
                   id="edit-students"
@@ -254,16 +303,26 @@ export default function TeachersListPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-room">担当部屋番号（数字のみ）</Label>
-                <Input
-                  id="edit-room"
-                  placeholder="101"
-                  value={editForm.roomNumber}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, "")
-                    setEditForm({ ...editForm, roomNumber: value })
-                  }}
-                />
+                <Label htmlFor="edit-room">担当部屋番号</Label>
+                {rooms.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    部屋が登録されていません。先に部屋マスターを登録してください。
+                  </div>
+                ) : (
+                  <select
+                    id="edit-room"
+                    value={editForm.roomNumber}
+                    onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">選択してください</option>
+                    {rooms.map((room) => (
+                      <option key={room.roomNumber} value={room.roomNumber}>
+                        {room.roomNumber} - {room.roomName}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2">

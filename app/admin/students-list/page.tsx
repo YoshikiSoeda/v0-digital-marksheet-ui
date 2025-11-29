@@ -5,8 +5,8 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Home, Download, Trash2, Search, Edit } from "lucide-react"
-import { loadStudents, saveStudents, type Student } from "@/lib/data-storage"
+import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
+import { loadStudents, saveStudents, loadRooms, type Student } from "@/lib/data-storage"
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ export default function StudentsListPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
+  const [rooms, setRooms] = useState<Array<{ roomNumber: string; roomName: string }>>([])
   const [editForm, setEditForm] = useState({
     studentId: "",
     name: "",
@@ -31,6 +32,7 @@ export default function StudentsListPage() {
 
   useEffect(() => {
     setStudents(loadStudents())
+    setRooms(loadRooms())
   }, [])
 
   const filteredStudents = students.filter(
@@ -107,6 +109,10 @@ export default function StudentsListPage() {
     link.href = URL.createObjectURL(blob)
     link.download = `students_${new Date().toISOString().split("T")[0]}.csv`
     link.click()
+  }
+
+  const isValidRoom = (roomNumber: string) => {
+    return rooms.some((r) => r.roomNumber === roomNumber)
   }
 
   return (
@@ -186,7 +192,12 @@ export default function StudentsListPage() {
                         <td className="p-2">{student.name}</td>
                         <td className="p-2">{student.email || "-"}</td>
                         <td className="p-2">{student.department || "-"}</td>
-                        <td className="p-2">{student.roomNumber}</td>
+                        <td className="p-2">
+                          <span className={!isValidRoom(student.roomNumber) ? "text-red-600 font-bold" : ""}>
+                            {student.roomNumber}
+                            {!isValidRoom(student.roomNumber) && <AlertTriangle className="w-3 h-3 inline ml-1" />}
+                          </span>
+                        </td>
                         <td className="p-2 text-center">
                           <div className="flex gap-1 justify-center">
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(student)}>
@@ -249,11 +260,25 @@ export default function StudentsListPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-roomNumber">部屋番号</Label>
-              <Input
-                id="edit-roomNumber"
-                value={editForm.roomNumber}
-                onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value.replace(/\D/g, "") })}
-              />
+              {rooms.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  部屋が登録されていません。先に部屋マスターを登録してください。
+                </div>
+              ) : (
+                <select
+                  id="edit-roomNumber"
+                  value={editForm.roomNumber}
+                  onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">選択してください</option>
+                  {rooms.map((room) => (
+                    <option key={room.roomNumber} value={room.roomNumber}>
+                      {room.roomNumber} - {room.roomName}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
           <DialogFooter>

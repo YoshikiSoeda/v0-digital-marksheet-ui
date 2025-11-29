@@ -10,16 +10,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2 } from "lucide-react"
-import { savePatients, loadPatients, type Patient } from "@/lib/data-storage"
+import { savePatients, loadPatients, loadRooms, type Patient, type Room } from "@/lib/data-storage"
 
 export function PatientRoleRegistration() {
   const router = useRouter()
   const [patients, setPatients] = useState<Patient[]>([])
+  const [rooms, setRooms] = useState<Room[]>([]) // Add rooms state
   const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
+    role: "general" as "general" | "admin", // Add role field
     assignedStudents: "",
     roomNumber: "",
   })
@@ -27,7 +29,9 @@ export function PatientRoleRegistration() {
 
   useEffect(() => {
     const data = loadPatients()
+    const roomData = loadRooms() // Load rooms data
     setPatients(data)
+    setRooms(roomData)
     setIsLoading(false)
   }, [])
 
@@ -37,23 +41,28 @@ export function PatientRoleRegistration() {
       return
     }
 
-    if (formData.roomNumber && !/^\d+$/.test(formData.roomNumber)) {
-      alert("部屋番号は数字のみで入力してください")
-      return
+    if (formData.roomNumber) {
+      const roomExists = rooms.some((r) => r.roomNumber === formData.roomNumber)
+      if (!roomExists) {
+        alert("選択された部屋番号が部屋マスターに存在しません")
+        return
+      }
     }
 
     const newPatient: Patient = {
       id: Date.now().toString(),
+      patientId: Date.now().toString(), // Add patientId
       name: formData.name,
       email: formData.email,
       password: formData.password,
+      role: formData.role, // Add role
       assignedStudents: formData.assignedStudents ? formData.assignedStudents.split(",").map((s) => s.trim()) : [],
       roomNumber: formData.roomNumber,
       createdAt: new Date().toISOString(),
     }
 
     setPatients([...patients, newPatient])
-    setFormData({ name: "", email: "", password: "", assignedStudents: "", roomNumber: "" })
+    setFormData({ name: "", email: "", password: "", role: "general", assignedStudents: "", roomNumber: "" })
   }
 
   const handleDeletePatient = (id: string) => {
@@ -65,13 +74,15 @@ export function PatientRoleRegistration() {
     const newPatients: Patient[] = []
 
     for (let i = 1; i < lines.length; i++) {
-      const [name, email, password, assignedStudents, roomNumber] = lines[i].split(",").map((s) => s.trim())
+      const [name, email, password, role, assignedStudents, roomNumber] = lines[i].split(",").map((s) => s.trim())
       if (name && email && password) {
         newPatients.push({
           id: `${Date.now()}-${i}`,
+          patientId: `${Date.now()}-${i}`,
           name,
           email,
           password,
+          role: (role === "admin" ? "admin" : "general") as "general" | "admin",
           assignedStudents: assignedStudents ? assignedStudents.split(";").map((s) => s.trim()) : [],
           roomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
@@ -137,9 +148,12 @@ export function PatientRoleRegistration() {
 
   const handleExportCSV = () => {
     const csvContent =
-      "氏名,メールアドレス（ログインID）,ログインパスワード,評価対象の学生（IDをセミコロン区切り）,担当部屋番号\n" +
+      "氏名,メールアドレス（ログインID）,ログインパスワード,権限,評価対象の学生（IDをセミコロン区切り）,担当部屋番号\n" +
       patients
-        .map((p) => `${p.name},${p.email},${p.password},${p.assignedStudents.join(";")},${p.roomNumber}`)
+        .map(
+          (p) =>
+            `${p.name},${p.email},${p.password},${p.role === "admin" ? "管理者" : "一般"},${p.assignedStudents.join(";")},${p.roomNumber}`,
+        )
         .join("\n")
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
@@ -151,7 +165,7 @@ export function PatientRoleRegistration() {
 
   const handleDownloadTemplate = () => {
     const template =
-      "氏名,メールアドレス（ログインID）,ログインパスワード,評価対象の学生（IDをセミコロン区切り）,担当部屋番号\n高橋様,takahashi@example.com,password123,2024001;2024002,101\n伊藤様,ito@example.com,password456,2024003;2024004,102"
+      "氏名,メールアドレス（ログインID）,ログインパスワード,権限,評価対象の学生（IDをセミコロン区切り）,担当部屋番号\n高橋様,takahashi@example.com,password123,一般,2024001;2024002,101\n伊藤様,ito@example.com,password456,管理者,2024003;2024004,102"
     const blob = new Blob([template], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -240,6 +254,18 @@ export function PatientRoleRegistration() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="role">権限 *</Label>
+                    <select
+                      id="role"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value as "general" | "admin" })}
+                    >
+                      <option value="general">一般</option>
+                      <option value="admin">管理者</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="assignedStudents">評価対象の学生（カンマ区切り）</Label>
                     <Input
                       id="assignedStudents"
@@ -249,16 +275,26 @@ export function PatientRoleRegistration() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="roomNumber">担当部屋番号（数字のみ）</Label>
-                    <Input
-                      id="roomNumber"
-                      placeholder="101"
-                      value={formData.roomNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, "")
-                        setFormData({ ...formData, roomNumber: value })
-                      }}
-                    />
+                    <Label htmlFor="roomNumber">担当部屋番号</Label>
+                    {rooms.length === 0 ? (
+                      <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
+                        部屋が登録されていません。先に部屋マスターで部屋を登録してください。
+                      </div>
+                    ) : (
+                      <select
+                        id="roomNumber"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        value={formData.roomNumber}
+                        onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+                      >
+                        <option value="">部屋を選択してください（任意）</option>
+                        {rooms.map((room) => (
+                          <option key={room.id} value={room.roomNumber}>
+                            {room.roomNumber} - {room.roomName}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
                 <Button onClick={handleAddPatient} className="w-full" size="lg">
@@ -305,9 +341,9 @@ export function PatientRoleRegistration() {
                   <div className="bg-muted p-4 rounded-lg">
                     <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-                      氏名,メールアドレス（ログインID）,ログインパスワード,評価対象の学生（IDをセミコロン区切り）,担当部屋番号
+                      氏名,メールアドレス（ログインID）,ログインパスワード,権限,評価対象の学生（IDをセミコロン区切り）,担当部屋番号
                       {"\n"}
-                      高橋様,takahashi@example.com,password123,2024001;2024002,101
+                      高橋様,takahashi@example.com,password123,一般,2024001;2024002,101
                     </pre>
                   </div>
                 </div>
@@ -342,6 +378,7 @@ export function PatientRoleRegistration() {
                       <th className="text-left p-3 font-semibold">氏名</th>
                       <th className="text-left p-3 font-semibold">メールアドレス（ログインID）</th>
                       <th className="text-left p-3 font-semibold">ログインパスワード</th>
+                      <th className="text-left p-3 font-semibold">権限</th>
                       <th className="text-left p-3 font-semibold">評価対象の学生</th>
                       <th className="text-left p-3 font-semibold">担当部屋番号</th>
                       <th className="text-center p-3 font-semibold">操作</th>
@@ -353,6 +390,15 @@ export function PatientRoleRegistration() {
                         <td className="p-3">{patient.name}</td>
                         <td className="p-3">{patient.email}</td>
                         <td className="p-3">{"*".repeat(8)}</td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-semibold ${
+                              patient.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {patient.role === "admin" ? "管理者" : "一般"}
+                          </span>
+                        </td>
                         <td className="p-3">{patient.assignedStudents.join("; ") || "-"}</td>
                         <td className="p-3">{patient.roomNumber || "-"}</td>
                         <td className="p-3 text-center">

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Users, Clock, CheckCircle, XCircle, FileText, Settings, DoorOpen, Home } from "lucide-react"
+import { Users, Clock, CheckCircle, XCircle, FileText, Settings, DoorOpen, Home, Building2 } from "lucide-react"
 import {
   loadStudents,
   loadTeachers,
@@ -34,28 +35,68 @@ interface RoomData {
   }>
 }
 
+interface Room {
+  roomNumber: string
+  teacherName: string
+  patientName: string
+  roomName?: string
+}
+
+interface Student {
+  studentId: string
+  name: string
+  email?: string
+  roomNumber: string
+}
+
+interface Teacher {
+  name: string
+  roomNumber: string
+}
+
+interface PatientRole {
+  name: string
+  roomNumber: string
+}
+
+interface AttendanceRecord {
+  studentId: string
+  status: string
+}
+
 export function AdminDashboard() {
-  const [roomData, setRoomData] = useState<RoomData[]>([])
-  const [selectedRoom, setSelectedRoom] = useState<RoomData | null>(null)
-  const [stats, setStats] = useState({
-    totalPresent: 0,
-    totalRooms: 0,
-    inProgress: 0,
-    completed: 0,
-    absent: 0,
-  })
+  const router = useRouter()
+  const [userRole, setUserRole] = useState<"admin" | "general" | null>(null)
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [students, setStudents] = useState<Student[]>([])
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [patients, setPatients] = useState<PatientRole[]>([])
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
 
   useEffect(() => {
-    const students = loadStudents()
-    const teachers = loadTeachers()
-    const patients = loadPatients()
-    const attendance = loadAttendanceRecords()
-    const evaluations = loadEvaluationResults()
+    const role = sessionStorage.getItem("userRole") as "admin" | "general" | null
+    setUserRole(role)
+
+    if (!role) {
+      router.push("/admin/login")
+      return
+    }
+
+    const fetchedStudents = loadStudents()
+    const fetchedTeachers = loadTeachers()
+    const fetchedPatients = loadPatients()
+    const fetchedAttendanceRecords = loadAttendanceRecords()
+    const fetchedEvaluationResults = loadEvaluationResults()
+
+    setStudents(fetchedStudents)
+    setTeachers(fetchedTeachers)
+    setPatients(fetchedPatients)
+    setAttendanceRecords(fetchedAttendanceRecords)
 
     const roomMap = new Map<string, RoomData>()
 
-    // Initialize rooms from teachers and patients
-    teachers.forEach((teacher) => {
+    fetchedTeachers.forEach((teacher) => {
       if (!roomMap.has(teacher.roomNumber)) {
         roomMap.set(teacher.roomNumber, {
           roomNumber: teacher.roomNumber,
@@ -74,7 +115,7 @@ export function AdminDashboard() {
       }
     })
 
-    patients.forEach((patient) => {
+    fetchedPatients.forEach((patient) => {
       if (!roomMap.has(patient.roomNumber)) {
         roomMap.set(patient.roomNumber, {
           roomNumber: patient.roomNumber,
@@ -93,14 +134,13 @@ export function AdminDashboard() {
       }
     })
 
-    // Process attendance and evaluations
     let totalPresent = 0
     let totalInProgress = 0
     let totalCompleted = 0
     let totalAbsent = 0
 
-    students.forEach((student) => {
-      const attendanceRecord = attendance.find((a) => a.studentId === student.studentId)
+    fetchedStudents.forEach((student) => {
+      const attendanceRecord = fetchedAttendanceRecords.find((a) => a.studentId === student.studentId)
       const status = attendanceRecord?.status || "pending"
       const roomNumber = student.roomNumber
 
@@ -119,7 +159,7 @@ export function AdminDashboard() {
       }
 
       const room = roomMap.get(roomNumber)!
-      const studentEvaluations = evaluations.filter((e) => e.studentId === student.studentId)
+      const studentEvaluations = fetchedEvaluationResults.filter((e) => e.studentId === student.studentId)
       const teacherEval = studentEvaluations.find((e) => e.evaluatorType === "teacher")
       const patientEval = studentEvaluations.find((e) => e.evaluatorType === "patient")
 
@@ -147,7 +187,6 @@ export function AdminDashboard() {
         statusText = "欠席"
       }
 
-      // Alert if present but no progress after certain time
       if (status === "present" && progress === 0) {
         room.alertCount++
       }
@@ -163,7 +202,6 @@ export function AdminDashboard() {
       })
     })
 
-    // Calculate average scores per room
     roomMap.forEach((room) => {
       const presentStudents = room.students.filter((s) => s.status === "present")
       if (presentStudents.length > 0) {
@@ -172,28 +210,57 @@ export function AdminDashboard() {
       }
     })
 
-    const rooms = Array.from(roomMap.values()).sort((a, b) => {
+    const roomList = Array.from(roomMap.values()).sort((a, b) => {
       const aNum = Number.parseInt(a.roomNumber) || 0
       const bNum = Number.parseInt(b.roomNumber) || 0
       return aNum - bNum
     })
 
-    setRoomData(rooms)
-    setStats({
-      totalPresent,
-      totalRooms: rooms.length,
-      inProgress: totalInProgress,
-      completed: totalCompleted,
-      absent: totalAbsent,
-    })
-  }, [])
+    setRooms(roomList)
+    setAttendanceRecords(fetchedAttendanceRecords)
+  }, [router])
 
-  const presentStudents = roomData.flatMap((room) => room.students.filter((s) => s.status === "present"))
+  const presentStudents = rooms.flatMap((room) => room.students.filter((s) => s.status === "present"))
+
+  if (userRole === null) {
+    return (
+      <div className="min-h-screen bg-secondary/30 p-4 md:p-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-semibold">認証確認中...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (userRole === "general") {
+    return (
+      <div className="min-h-screen bg-secondary/30 p-4 md:p-8 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle>アクセス権限がありません</CardTitle>
+            <CardDescription>この画面は管理者権限が必要です</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">一般ユーザーは採点画面のみ利用できます。</p>
+            <div className="flex gap-2 flex-wrap">
+              <Link href="/teacher/exam-info" className="flex-1">
+                <Button className="w-full">採点画面へ</Button>
+              </Link>
+              <Link href="/" className="flex-1">
+                <Button variant="outline" className="w-full bg-transparent">
+                  トップページ
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-primary">管理者ダッシュボード</h1>
@@ -201,76 +268,38 @@ export function AdminDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <Link href="/">
-              <Button variant="outline">
+              <Button variant="outline" size="sm">
                 <Home className="w-4 h-4 mr-2" />
                 トップページ
+              </Button>
+            </Link>
+            <Link href="/admin/account-management">
+              <Button variant="outline" size="sm">
+                <Users className="w-4 h-4 mr-2" />
+                アカウント管理
+              </Button>
+            </Link>
+            <Link href="/admin/questions">
+              <Button variant="outline" size="sm">
+                <FileText className="w-4 h-4 mr-2" />
+                問題管理
+              </Button>
+            </Link>
+            <Link href="/admin/settings">
+              <Button variant="outline" size="sm">
+                <Settings className="w-4 h-4 mr-2" />
+                設定
+              </Button>
+            </Link>
+            <Link href="/admin/room-management">
+              <Button variant="outline" size="sm">
+                <Building2 className="w-4 h-4 mr-2" />
+                部屋マスター管理
               </Button>
             </Link>
           </div>
         </div>
 
-        {/* Navigation Cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Home className="w-5 h-5" />
-                ダッシュボード
-              </CardTitle>
-              <CardDescription>統計情報と進捗確認</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-2">現在表示中</p>
-            </CardContent>
-          </Card>
-
-          <Link href="/admin/account-management">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  アカウント管理
-                </CardTitle>
-                <CardDescription>学生・教員・患者役</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">登録と一覧管理</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/admin/questions">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  問題管理
-                </CardTitle>
-                <CardDescription>問題の登録と管理</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">手動・CSV取込</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/admin/settings">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="w-5 h-5" />
-                  設定
-                </CardTitle>
-                <CardDescription>システム設定</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">各種設定の変更</p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
-        {/* Stats cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -278,7 +307,7 @@ export function AdminDashboard() {
               <Users className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{stats.totalPresent}</div>
+              <div className="text-3xl font-bold text-primary">{presentStudents.length}</div>
               <p className="text-xs text-muted-foreground mt-1">出席者のみ</p>
             </CardContent>
           </Card>
@@ -289,7 +318,7 @@ export function AdminDashboard() {
               <DoorOpen className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{stats.totalRooms}</div>
+              <div className="text-3xl font-bold text-primary">{rooms.length}</div>
               <p className="text-xs text-muted-foreground mt-1">登録済み部屋</p>
             </CardContent>
           </Card>
@@ -300,7 +329,9 @@ export function AdminDashboard() {
               <Clock className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{stats.inProgress}</div>
+              <div className="text-3xl font-bold text-blue-600">
+                {rooms.reduce((sum, room) => sum + room.presentCount, 0)}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">出席・未完了</p>
             </CardContent>
           </Card>
@@ -311,7 +342,9 @@ export function AdminDashboard() {
               <CheckCircle className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-600">{stats.completed}</div>
+              <div className="text-3xl font-bold text-green-600">
+                {rooms.reduce((sum, room) => sum + room.completedCount, 0)}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">評価完了</p>
             </CardContent>
           </Card>
@@ -322,35 +355,40 @@ export function AdminDashboard() {
               <XCircle className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-orange-600">{stats.absent}</div>
+              <div className="text-3xl font-bold text-orange-600">
+                {rooms.reduce((sum, room) => sum + room.absentCount, 0)}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">欠席者</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Room progress */}
         <Card>
           <CardHeader>
             <CardTitle>部屋別進捗状況</CardTitle>
             <CardDescription>各部屋の出席状況と評価進捗を表示</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
-              {roomData.map((room) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[800px] overflow-y-auto">
+              {rooms.map((room) => (
                 <Card key={room.roomNumber} className="bg-accent/30 hover:bg-accent/50 transition-colors">
-                  <CardContent className="p-3">
-                    <div className="space-y-2">
-                      <div className="font-bold text-lg text-primary text-center">部屋 {room.roomNumber}</div>
-                      <div className="text-xs space-y-1">
+                  <CardContent className="p-2">
+                    <div className="space-y-1.5">
+                      <div className="text-center border-b pb-1">
+                        <div className="font-bold text-base text-primary">
+                          部屋{room.roomNumber} {room.roomName || ""}
+                        </div>
+                      </div>
+                      <div className="text-xs space-y-0.5">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">教員:</span>
-                          <span className="font-medium">{room.teacherName}</span>
+                          <span className="font-medium truncate ml-1">{room.teacherName}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">患者役:</span>
-                          <span className="font-medium">{room.patientName}</span>
+                          <span className="text-muted-foreground">患者:</span>
+                          <span className="font-medium truncate ml-1">{room.patientName}</span>
                         </div>
-                        <div className="border-t pt-1 mt-1">
+                        <div className="border-t pt-1 mt-1 space-y-0.5">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">出席:</span>
                             <span className="font-semibold text-green-600">{room.presentCount}</span>
@@ -371,13 +409,17 @@ export function AdminDashboard() {
                           )}
                           {room.averageScore > 0 && (
                             <div className="text-center pt-1 border-t">
-                              <span className="text-muted-foreground">平均: </span>
-                              <span className="font-bold text-primary">{room.averageScore}点</span>
+                              <span className="text-muted-foreground text-xs">平均: </span>
+                              <span className="font-bold text-primary text-xs">{room.averageScore}点</span>
                             </div>
                           )}
                         </div>
                       </div>
-                      <Button size="sm" className="w-full mt-2" onClick={() => setSelectedRoom(room)}>
+                      <Button
+                        size="sm"
+                        className="w-full mt-1.5 text-xs py-1"
+                        onClick={() => setSelectedRoom(room.roomNumber)}
+                      >
                         詳細
                       </Button>
                     </div>
@@ -388,7 +430,6 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Student list */}
         <Card>
           <CardHeader>
             <CardTitle>受験者一覧</CardTitle>
@@ -413,9 +454,7 @@ export function AdminDashboard() {
                     <tr key={index} className="border-b">
                       <td className="py-2">{student.studentId}</td>
                       <td className="py-2">{student.name}</td>
-                      <td className="py-2">
-                        {roomData.find((r) => r.students.some((s) => s.studentId === student.studentId))?.roomNumber}
-                      </td>
+                      <td className="py-2">{student.roomNumber}</td>
                       <td className="py-2">{student.email || "-"}</td>
                       <td className="py-2">{student.progress}/100</td>
                       <td className="py-2 font-medium">{student.score}点</td>
@@ -441,31 +480,39 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Room Details Modal */}
       <Dialog open={selectedRoom !== null} onOpenChange={() => setSelectedRoom(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>部屋 {selectedRoom?.roomNumber} - 詳細</DialogTitle>
+            <DialogTitle>部屋 {selectedRoom} - 詳細</DialogTitle>
             <DialogDescription>
-              教員: {selectedRoom?.teacherName} / 患者役: {selectedRoom?.patientName}
+              教員: {rooms.find((room) => room.roomNumber === selectedRoom)?.teacherName} / 患者役:{" "}
+              {rooms.find((room) => room.roomNumber === selectedRoom)?.patientName}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-4 gap-4">
               <div className="text-center p-3 bg-green-50 rounded">
-                <div className="text-2xl font-bold text-green-600">{selectedRoom?.presentCount}</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {rooms.find((room) => room.roomNumber === selectedRoom)?.presentCount}
+                </div>
                 <div className="text-xs text-muted-foreground">出席</div>
               </div>
               <div className="text-center p-3 bg-orange-50 rounded">
-                <div className="text-2xl font-bold text-orange-600">{selectedRoom?.absentCount}</div>
+                <div className="text-2xl font-bold text-orange-600">
+                  {rooms.find((room) => room.roomNumber === selectedRoom)?.absentCount}
+                </div>
                 <div className="text-xs text-muted-foreground">欠席</div>
               </div>
               <div className="text-center p-3 bg-blue-50 rounded">
-                <div className="text-2xl font-bold text-blue-600">{selectedRoom?.completedCount}</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {rooms.find((room) => room.roomNumber === selectedRoom)?.completedCount}
+                </div>
                 <div className="text-xs text-muted-foreground">完了</div>
               </div>
               <div className="text-center p-3 bg-gray-50 rounded">
-                <div className="text-2xl font-bold text-primary">{selectedRoom?.averageScore}</div>
+                <div className="text-2xl font-bold text-primary">
+                  {rooms.find((room) => room.roomNumber === selectedRoom)?.averageScore}
+                </div>
                 <div className="text-xs text-muted-foreground">平均点</div>
               </div>
             </div>
@@ -484,7 +531,7 @@ export function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedRoom?.students.map((student, index) => (
+                    {presentStudents.map((student, index) => (
                       <tr key={index} className="border-b">
                         <td className="py-2">{student.studentId}</td>
                         <td className="py-2">{student.name}</td>

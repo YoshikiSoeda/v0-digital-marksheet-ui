@@ -60,14 +60,14 @@ const TeacherExamTabs = () => {
     const students = getAssignedStudents()
     setAssignedStudents(students)
 
-    const teacherEmailJson = sessionStorage.getItem("teacherEmail")
-    const teacherRoomJson = sessionStorage.getItem("teacherRoom")
-    const teacherNameJson = sessionStorage.getItem("teacherName")
-    if (teacherEmailJson && teacherRoomJson && teacherNameJson) {
+    const teacherEmail = sessionStorage.getItem("teacherEmail")
+    const teacherRoom = sessionStorage.getItem("teacherRoom")
+    const teacherName = sessionStorage.getItem("teacherName")
+    if (teacherEmail && teacherRoom && teacherName) {
       setLoginInfo({
-        email: JSON.parse(teacherEmailJson),
-        roomNumber: JSON.parse(teacherRoomJson),
-        name: JSON.parse(teacherNameJson),
+        email: teacherEmail,
+        roomNumber: teacherRoom,
+        name: teacherName,
       })
     }
 

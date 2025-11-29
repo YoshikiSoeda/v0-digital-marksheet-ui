@@ -25,7 +25,7 @@ export function TeacherLoginForm() {
     setIsLoading(true)
 
     if (!teacherId || !password) {
-      setError("教員IDとパスワードを入力してください")
+      setError("IDとパスワードを入力してください")
       setIsLoading(false)
       return
     }
@@ -34,16 +34,16 @@ export function TeacherLoginForm() {
     const teacher = teachers.find((t) => t.email === teacherId && t.password === password)
 
     if (!teacher) {
-      setError("教員IDまたはパスワードが正しくありません")
+      setError("IDまたはパスワードが正しくありません")
       setIsLoading(false)
       return
     }
 
-    // Store logged-in teacher info
     sessionStorage.setItem("teacherId", teacher.id)
-    sessionStorage.setItem("teacherName", JSON.stringify(teacher.name))
-    sessionStorage.setItem("teacherEmail", JSON.stringify(teacher.email))
-    sessionStorage.setItem("teacherRoom", JSON.stringify(teacher.roomNumber))
+    sessionStorage.setItem("teacherName", teacher.name)
+    sessionStorage.setItem("teacherEmail", teacher.email)
+    sessionStorage.setItem("teacherRole", teacher.role)
+    sessionStorage.setItem("teacherRoom", teacher.roomNumber)
     sessionStorage.setItem("assignedStudentIds", JSON.stringify(teacher.assignedStudents))
 
     setTimeout(() => {
@@ -59,7 +59,7 @@ export function TeacherLoginForm() {
           <UserCircle className="w-6 h-6 text-primary" />
         </div>
         <CardTitle className="text-2xl text-center">教員ログイン</CardTitle>
-        <CardDescription className="text-center">教員IDとパスワードを入力してください</CardDescription>
+        <CardDescription className="text-center">IDとパスワードを入力してください</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -70,11 +70,11 @@ export function TeacherLoginForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="teacherId">教員ID</Label>
+            <Label htmlFor="teacherId">ID</Label>
             <Input
               id="teacherId"
               type="text"
-              placeholder="例: 2024-TC-001"
+              placeholder="メールアドレスまたはID"
               value={teacherId}
               onChange={(e) => setTeacherId(e.target.value)}
               required
@@ -97,7 +97,13 @@ export function TeacherLoginForm() {
             {isLoading ? "ログイン中..." : "ログイン"}
           </Button>
 
-          <div className="text-center pt-4">
+          <div className="text-center space-y-2 pt-2">
+            <Link href="/reset-password" className="text-sm text-primary hover:underline">
+              パスワードを忘れた方はこちら
+            </Link>
+          </div>
+
+          <div className="text-center pt-2">
             <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
               ← トップページに戻る
             </Link>

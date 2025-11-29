@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Clock, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
 import {
   loadStudents,
   loadAttendanceRecords,
@@ -14,7 +14,16 @@ import {
   type EvaluationResult,
 } from "@/lib/data-storage"
 
-export default function PatientExamTabs() {
+interface Answer {
+  [key: number]: number
+}
+
+interface StudentData {
+  id: string
+  name: string
+}
+
+const PatientExamTabs = () => {
   const getAssignedStudents = () => {
     if (typeof window === "undefined") return []
 
@@ -40,6 +49,7 @@ export default function PatientExamTabs() {
   const [loginInfo, setLoginInfo] = useState<{ email: string; roomNumber: string; name: string } | null>(null)
   const router = useRouter()
 
+  // Generate 100 questions
   const questions = Array.from({ length: 100 }, (_, i) => ({
     id: i + 1,
     text: `評価項目 ${i + 1}`,
@@ -50,14 +60,14 @@ export default function PatientExamTabs() {
     const students = getAssignedStudents()
     setAssignedStudents(students)
 
-    const patientEmailJson = sessionStorage.getItem("patientEmail")
-    const patientRoomJson = sessionStorage.getItem("patientRoom")
-    const patientNameJson = sessionStorage.getItem("patientName")
-    if (patientEmailJson && patientRoomJson && patientNameJson) {
+    const patientEmail = sessionStorage.getItem("patientEmail")
+    const patientRoom = sessionStorage.getItem("patientRoom")
+    const patientName = sessionStorage.getItem("patientName")
+    if (patientEmail && patientRoom && patientName) {
       setLoginInfo({
-        email: JSON.parse(patientEmailJson),
-        roomNumber: JSON.parse(patientRoomJson),
-        name: JSON.parse(patientNameJson),
+        email: patientEmail,
+        roomNumber: patientRoom,
+        name: patientName,
       })
     }
 
@@ -95,34 +105,18 @@ export default function PatientExamTabs() {
     return () => clearInterval(timer)
   }, [])
 
-  const handleAttendanceChange = (studentId: string, status: "present" | "absent") => {
-    if (!loginInfo) return
-
-    setAttendanceStatus((prev) => ({
-      ...prev,
-      [studentId]: status,
-    }))
-
-    const attendanceRecords = loadAttendanceRecords()
-    const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
-
-    const newRecord: AttendanceRecord = {
-      studentId,
-      status,
-      markedBy: loginInfo.email,
-      markedByType: "patient",
-      roomNumber: loginInfo.roomNumber,
-      timestamp: new Date().toISOString(),
-    }
-
-    if (existingIndex >= 0) {
-      attendanceRecords[existingIndex] = newRecord
-    } else {
-      attendanceRecords.push(newRecord)
-    }
-
-    saveAttendanceRecords(attendanceRecords)
+  if (assignedStudents.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-medium">評価対象の学生が割り当てられていません</p>
+          <p className="text-sm text-muted-foreground mt-2">管理者にお問い合わせください</p>
+        </div>
+      </div>
+    )
   }
+
+  const answers = studentAnswers[assignedStudents[activeStudentIndex].id] || {}
 
   const handleAnswerChange = (questionId: number, value: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
@@ -186,11 +180,42 @@ export default function PatientExamTabs() {
     return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
   }
 
-  const answeredCount = Object.keys(studentAnswers[assignedStudents[activeStudentIndex]?.id] || {}).length
-  const totalScore = calculateScore(assignedStudents[activeStudentIndex]?.id || "")
+  const answeredCount = Object.keys(answers).length
+  const totalScore = calculateScore(assignedStudents[activeStudentIndex].id)
+
+  const activeStudent = assignedStudents[activeStudentIndex]
 
   const handleComplete = () => {
     router.push("/patient/results")
+  }
+
+  const handleAttendanceChange = (studentId: string, status: "present" | "absent") => {
+    if (!loginInfo) return
+
+    setAttendanceStatus((prev) => ({
+      ...prev,
+      [studentId]: status,
+    }))
+
+    const attendanceRecords = loadAttendanceRecords()
+    const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
+
+    const newRecord: AttendanceRecord = {
+      studentId,
+      status,
+      markedBy: loginInfo.email,
+      markedByType: "patient",
+      roomNumber: loginInfo.roomNumber,
+      timestamp: new Date().toISOString(),
+    }
+
+    if (existingIndex >= 0) {
+      attendanceRecords[existingIndex] = newRecord
+    } else {
+      attendanceRecords.push(newRecord)
+    }
+
+    saveAttendanceRecords(attendanceRecords)
   }
 
   return (
@@ -275,30 +300,30 @@ export default function PatientExamTabs() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4">
-        {attendanceStatus[assignedStudents[activeStudentIndex]?.id] === "absent" && (
+        {attendanceStatus[activeStudent.id] === "absent" && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-800 font-medium">この学生は欠席です。評価を入力できません。</p>
           </div>
         )}
 
-        {attendanceStatus[assignedStudents[activeStudentIndex]?.id] === "pending" && (
+        {attendanceStatus[activeStudent.id] === "pending" && (
           <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-yellow-800 font-medium">出席・欠席ボタンを押してください。</p>
           </div>
         )}
 
         <div className="mb-4">
-          <h2 className="text-xl font-bold">{assignedStudents[activeStudentIndex]?.name}の評価</h2>
+          <h2 className="text-xl font-bold">{activeStudent.name}の評価</h2>
           <p className="text-sm text-muted-foreground">
-            {assignedStudents[activeStudentIndex]?.id} - {answeredCount}/{questions.length}回答済み
+            {activeStudent.id} - {answeredCount}/{questions.length}回答済み
           </p>
         </div>
 
         <div className="space-y-1">
           {questions.map((question) => {
-            const selectedAnswer = studentAnswers[assignedStudents[activeStudentIndex]?.id]?.[question.id]
+            const selectedAnswer = answers[question.id]
             const isAnswered = selectedAnswer !== undefined
-            const isDisabled = attendanceStatus[assignedStudents[activeStudentIndex]?.id] !== "present"
+            const isDisabled = attendanceStatus[activeStudent.id] !== "present"
 
             return (
               <div key={question.id} className="border rounded-md p-2 bg-card hover:bg-accent/5 transition-colors">
@@ -344,3 +369,5 @@ export default function PatientExamTabs() {
     </div>
   )
 }
+
+export default PatientExamTabs

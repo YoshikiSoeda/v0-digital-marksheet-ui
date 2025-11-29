@@ -10,30 +10,39 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2 } from "lucide-react"
-import { saveStudents, loadStudents, type Student } from "@/lib/data-storage"
+import { saveStudents, loadStudents, loadRooms, type Student, type Room } from "@/lib/data-storage"
 
 export function StudentRegistration() {
   const router = useRouter()
   const [students, setStudents] = useState<Student[]>([])
+  const [rooms, setRooms] = useState<Room[]>([]) // Add rooms state
   const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
     name: "",
     studentId: "",
     email: "",
-    department: "", // Added department field instead of furigana
+    department: "",
     roomNumber: "",
   })
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
     const data = loadStudents()
+    const roomData = loadRooms() // Load rooms data
     setStudents(data)
+    setRooms(roomData)
     setIsLoading(false)
   }, [])
 
   const handleAddStudent = () => {
     if (!formData.name || !formData.studentId || !formData.department || !formData.roomNumber) {
       alert("学籍番号、氏名、学部・学科、部屋番号は必須です")
+      return
+    }
+
+    const roomExists = rooms.some((r) => r.roomNumber === formData.roomNumber)
+    if (!roomExists) {
+      alert("選択された部屋番号が部屋マスターに存在しません")
       return
     }
 
@@ -58,10 +67,16 @@ export function StudentRegistration() {
   const parseCSV = (text: string) => {
     const lines = text.split("\n").filter((line) => line.trim())
     const newStudents: Student[] = []
+    const invalidRooms: string[] = [] // Track invalid room numbers
 
     for (let i = 1; i < lines.length; i++) {
       const [studentId, name, email, department, roomNumber] = lines[i].split(",").map((s) => s.trim())
       if (studentId && name && department && roomNumber) {
+        const roomExists = rooms.some((r) => r.roomNumber === roomNumber)
+        if (!roomExists) {
+          invalidRooms.push(roomNumber)
+        }
+
         newStudents.push({
           id: `${Date.now()}-${i}`,
           studentId,
@@ -75,7 +90,14 @@ export function StudentRegistration() {
     }
 
     setStudents([...students, ...newStudents])
-    alert(`${newStudents.length}名の学生を追加しました`)
+
+    if (invalidRooms.length > 0) {
+      alert(
+        `${newStudents.length}名の学生を追加しました\n\n警告: 以下の部屋番号が部屋マスターに存在しません:\n${[...new Set(invalidRooms)].join(", ")}\n\n部屋マスターに登録後、学生一覧から修正してください。`,
+      )
+    } else {
+      alert(`${newStudents.length}名の学生を追加しました`)
+    }
   }
 
   const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -251,21 +273,28 @@ export function StudentRegistration() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="roomNumber">部屋番号 *</Label>
-                    <Input
-                      id="roomNumber"
-                      type="text"
-                      pattern="[0-9]*"
-                      inputMode="numeric"
-                      placeholder="1"
-                      value={formData.roomNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^0-9]/g, "")
-                        setFormData({ ...formData, roomNumber: value })
-                      }}
-                    />
+                    {rooms.length === 0 ? (
+                      <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
+                        部屋が登録されていません。先に部屋マスターで部屋を登録してください。
+                      </div>
+                    ) : (
+                      <select
+                        id="roomNumber"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        value={formData.roomNumber}
+                        onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+                      >
+                        <option value="">部屋を選択してください</option>
+                        {rooms.map((room) => (
+                          <option key={room.id} value={room.roomNumber}>
+                            {room.roomNumber} - {room.roomName}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
-                <Button onClick={handleAddStudent} className="w-full" size="lg">
+                <Button onClick={handleAddStudent} className="w-full" size="lg" disabled={rooms.length === 0}>
                   <UserPlus className="w-4 h-4 mr-2" />
                   学生を追加
                 </Button>

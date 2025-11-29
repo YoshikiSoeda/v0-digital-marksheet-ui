@@ -41,14 +41,20 @@ export function PatientLoginForm() {
 
     // Store logged-in patient info
     sessionStorage.setItem("patientId", patient.id)
-    sessionStorage.setItem("patientName", JSON.stringify(patient.name))
-    sessionStorage.setItem("patientEmail", JSON.stringify(patient.email))
-    sessionStorage.setItem("patientRoom", JSON.stringify(patient.roomNumber))
+    sessionStorage.setItem("patientName", patient.name)
+    sessionStorage.setItem("patientEmail", patient.email)
+    sessionStorage.setItem("patientRoom", patient.roomNumber)
+    sessionStorage.setItem("userRole", patient.role)
     sessionStorage.setItem("assignedStudentIds", JSON.stringify(patient.assignedStudents))
 
     setTimeout(() => {
       setIsLoading(false)
-      router.push("/patient/exam-info")
+      // Redirect based on role
+      if (patient.role === "admin") {
+        router.push("/admin/dashboard")
+      } else {
+        router.push("/patient/exam-info")
+      }
     }, 500)
   }
 
@@ -97,7 +103,13 @@ export function PatientLoginForm() {
             {isLoading ? "ログイン中..." : "ログイン"}
           </Button>
 
-          <div className="text-center pt-4">
+          <div className="text-center space-y-2 pt-2">
+            <Link href="/reset-password" className="text-sm text-primary hover:underline">
+              パスワードを忘れた方はこちら
+            </Link>
+          </div>
+
+          <div className="text-center pt-2">
             <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
               ← トップページに戻る
             </Link>

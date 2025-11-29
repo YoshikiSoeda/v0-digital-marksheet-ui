@@ -8,22 +8,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadPatients, savePatients, type Patient } from "@/lib/data-storage"
+import { loadPatients, savePatients, loadRooms, type Patient } from "@/lib/data-storage"
 
 export default function PatientsListPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
+  const [rooms, setRooms] = useState<Array<{ roomNumber: string; roomName: string }>>([])
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
     password: "",
+    role: "general" as "general" | "admin",
     assignedStudents: "",
     roomNumber: "",
   })
 
   useEffect(() => {
     setPatients(loadPatients())
+    setRooms(loadRooms())
   }, [])
 
   const filteredPatients = patients.filter(
@@ -38,6 +41,7 @@ export default function PatientsListPage() {
       name: patient.name,
       email: patient.email,
       password: patient.password,
+      role: patient.role,
       assignedStudents: patient.assignedStudents.join(", "),
       roomNumber: patient.roomNumber,
     })
@@ -58,6 +62,7 @@ export default function PatientsListPage() {
             name: editForm.name,
             email: editForm.email,
             password: editForm.password,
+            role: editForm.role,
             assignedStudents: editForm.assignedStudents
               .split(",")
               .map((s) => s.trim())
@@ -97,8 +102,16 @@ export default function PatientsListPage() {
         "ログインパスワード",
         "評価対象の学生（IDをセミコロン区切り）",
         "担当部屋番号",
+        "権限",
       ],
-      ...patients.map((p) => [p.name, p.email, p.password, p.assignedStudents.join(";"), p.roomNumber || ""]),
+      ...patients.map((p) => [
+        p.name,
+        p.email,
+        p.password,
+        p.assignedStudents.join(";"),
+        p.roomNumber || "",
+        p.role === "admin" ? "管理者" : "一般",
+      ]),
     ]
       .map((row) => row.join(","))
       .join("\n")
@@ -108,6 +121,11 @@ export default function PatientsListPage() {
     link.href = URL.createObjectURL(blob)
     link.download = `患者役一覧_${new Date().toISOString().split("T")[0]}.csv`
     link.click()
+  }
+
+  const isValidRoom = (roomNumber: string) => {
+    if (!roomNumber) return true
+    return rooms.some((r) => r.roomNumber === roomNumber)
   }
 
   return (
@@ -172,13 +190,14 @@ export default function PatientsListPage() {
                     <th className="text-left p-2">ログインパスワード</th>
                     <th className="text-left p-2">評価対象の学生</th>
                     <th className="text-left p-2">担当部屋番号</th>
+                    <th className="text-left p-2">権限</th>
                     <th className="text-center p-2">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPatients.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center p-8 text-muted-foreground">
+                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
                         登録されている患者役がいません
                       </td>
                     </tr>
@@ -189,7 +208,27 @@ export default function PatientsListPage() {
                         <td className="p-2">{patient.email}</td>
                         <td className="p-2">{"*".repeat(8)}</td>
                         <td className="p-2">{patient.assignedStudents.join("; ") || "-"}</td>
-                        <td className="p-2">{patient.roomNumber || "-"}</td>
+                        <td className="p-2">
+                          <span
+                            className={
+                              patient.roomNumber && !isValidRoom(patient.roomNumber) ? "text-red-600 font-bold" : ""
+                            }
+                          >
+                            {patient.roomNumber || "-"}
+                            {patient.roomNumber && !isValidRoom(patient.roomNumber) && (
+                              <AlertTriangle className="w-3 h-3 inline ml-1" />
+                            )}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-semibold ${
+                              patient.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                            }`}
+                          >
+                            {patient.role === "admin" ? "管理者" : "一般"}
+                          </span>
+                        </td>
                         <td className="p-2 text-center">
                           <div className="flex justify-center gap-2">
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(patient)}>
@@ -245,6 +284,18 @@ export default function PatientsListPage() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="edit-role">権限 *</Label>
+                <select
+                  id="edit-role"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "general" | "admin" })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="general">一般</option>
+                  <option value="admin">管理者</option>
+                </select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="edit-students">評価対象の学生（カンマ区切り）</Label>
                 <Input
                   id="edit-students"
@@ -254,16 +305,26 @@ export default function PatientsListPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-room">担当部屋番号（数字のみ）</Label>
-                <Input
-                  id="edit-room"
-                  placeholder="101"
-                  value={editForm.roomNumber}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, "")
-                    setEditForm({ ...editForm, roomNumber: value })
-                  }}
-                />
+                <Label htmlFor="edit-room">担当部屋番号</Label>
+                {rooms.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    部屋が登録されていません。先に部屋マスターを登録してください。
+                  </div>
+                ) : (
+                  <select
+                    id="edit-room"
+                    value={editForm.roomNumber}
+                    onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">選択してください</option>
+                    {rooms.map((room) => (
+                      <option key={room.roomNumber} value={room.roomNumber}>
+                        {room.roomNumber} - {room.roomName}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2">

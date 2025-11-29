@@ -16,6 +16,7 @@ export interface Teacher {
   name: string // 氏名
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
+  role: "general" | "admin" // 権限（一般 or 管理者）
   assignedStudents: string[] // 評価対象の学生ID配列
   roomNumber: string // 担当部屋番号
   createdAt: string
@@ -28,6 +29,7 @@ export interface Patient {
   name: string // 氏名
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
+  role: "general" | "admin" // 権限（一般 or 管理者）
   assignedStudents: string[] // 評価対象の学生ID配列
   roomNumber: string // 担当部屋番号
   createdAt: string
@@ -58,6 +60,13 @@ export interface EvaluationResult {
   updatedAt: string
 }
 
+export interface Room {
+  id: string
+  roomNumber: string
+  roomName: string
+  createdAt: string
+}
+
 // localStorage キー
 const STORAGE_KEYS = {
   students: "medical_exam_students",
@@ -65,6 +74,7 @@ const STORAGE_KEYS = {
   patients: "medical_exam_patients",
   attendance: "medical_exam_attendance",
   evaluations: "medical_exam_evaluations",
+  rooms: "medical_exam_rooms", // Adding rooms key
 }
 
 // 学生データの保存
@@ -164,6 +174,26 @@ export function loadEvaluationResults(): EvaluationResult[] {
   if (typeof window === "undefined") return []
 
   const data = localStorage.getItem(STORAGE_KEYS.evaluations)
+  if (!data) return []
+
+  try {
+    return JSON.parse(data)
+  } catch {
+    return []
+  }
+}
+
+export function saveRooms(rooms: Room[]) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEYS.rooms, JSON.stringify(rooms))
+  }
+  return { success: true }
+}
+
+export function loadRooms(): Room[] {
+  if (typeof window === "undefined") return []
+
+  const data = localStorage.getItem(STORAGE_KEYS.rooms)
   if (!data) return []
 
   try {
