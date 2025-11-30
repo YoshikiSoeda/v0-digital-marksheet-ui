@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Shield } from "lucide-react"
 import Link from "next/link"
-import { loadTeachers } from "@/lib/data-storage" // 教員データを読み込むための関数を追加
+import { loadTeachers } from "@/lib/data-storage"
 
 const MASTER_ACCOUNT = {
   id: "admin",
@@ -40,35 +40,41 @@ export function AdminLoginForm() {
 
     if (adminId === MASTER_ACCOUNT.id && password === MASTER_ACCOUNT.password) {
       console.log("[v0] Master account login successful")
+      const loginInfo = {
+        role: "admin",
+        userId: adminId,
+        userName: "マスター管理者",
+      }
+      sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
       sessionStorage.setItem("userRole", "admin")
       sessionStorage.setItem("userId", adminId)
       sessionStorage.setItem("userName", "マスター管理者")
-      console.log("[v0] Redirecting to /admin/dashboard")
-      setTimeout(() => {
-        setIsLoading(false)
-        router.push("/admin/dashboard")
-      }, 500)
+      console.log("[v0] Session storage set, redirecting to /admin/dashboard")
+
+      window.location.href = "/admin/dashboard"
       return
     }
 
-    const teachers = loadTeachers()
-    console.log("[v0] Loaded teachers:", teachers.length)
+    const teachers = await loadTeachers()
+    console.log("[v0] Loaded teachers data:", teachers)
     const teacher = teachers.find((t) => t.email === adminId && t.password === password)
 
     if (teacher) {
       console.log("[v0] Teacher found:", { name: teacher.name, role: teacher.role })
       if (teacher.role === "admin") {
-        // 管理者権限を持つ教員 → 管理者ダッシュボードへ
+        const loginInfo = {
+          role: "admin",
+          userId: teacher.id,
+          userName: teacher.name,
+        }
+        sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
         sessionStorage.setItem("userRole", "admin")
         sessionStorage.setItem("userId", teacher.id)
         sessionStorage.setItem("userName", teacher.name)
-        console.log("[v0] Redirecting to /admin/dashboard")
-        setTimeout(() => {
-          setIsLoading(false)
-          router.push("/admin/dashboard")
-        }, 500)
+        console.log("[v0] Session storage set, redirecting to /admin/dashboard")
+
+        window.location.href = "/admin/dashboard"
       } else {
-        // 一般権限の教員 → エラー
         console.log("[v0] Teacher does not have admin role")
         setError("管理者権限がありません。一般教員は採点画面からログインしてください。")
         setIsLoading(false)

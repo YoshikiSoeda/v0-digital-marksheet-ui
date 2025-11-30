@@ -149,13 +149,20 @@ export async function loadStudents(): Promise<Student[]> {
     return []
   }
 
-  return (data || []).map((row) => ({
+  console.log("[v0] Loaded students data:", data)
+
+  if (!data || !Array.isArray(data)) {
+    console.error("[v0] Students data is not an array:", data)
+    return []
+  }
+
+  return data.map((row) => ({
     id: row.id,
     studentId: row.student_id,
     name: row.name,
     email: row.email,
     department: row.department,
-    roomNumber: row.room_number,
+    roomNumber: row.room_number || "",
     createdAt: row.created_at,
   }))
 }
@@ -195,14 +202,21 @@ export async function loadTeachers(): Promise<Teacher[]> {
     return []
   }
 
-  return (data || []).map((row) => ({
+  console.log("[v0] Loaded teachers data:", data)
+
+  if (!data || !Array.isArray(data)) {
+    console.error("[v0] Teachers data is not an array:", data)
+    return []
+  }
+
+  return data.map((row) => ({
     id: row.id,
     teacherId: row.id,
     name: row.name,
     email: row.email,
     password: row.password,
     role: row.role,
-    assignedRoomNumber: row.assigned_room_number,
+    assignedRoomNumber: row.assigned_room_number || "",
     createdAt: row.created_at,
   }))
 }
@@ -242,14 +256,21 @@ export async function loadPatients(): Promise<Patient[]> {
     return []
   }
 
-  return (data || []).map((row) => ({
+  console.log("[v0] Loaded patients data:", data)
+
+  if (!data || !Array.isArray(data)) {
+    console.error("[v0] Patients data is not an array:", data)
+    return []
+  }
+
+  return data.map((row) => ({
     id: row.id,
     patientId: row.id,
     name: row.name,
     email: row.email,
     password: row.password,
     role: row.role,
-    assignedRoomNumber: row.assigned_room_number,
+    assignedRoomNumber: row.assigned_room_number || "",
     createdAt: row.created_at,
   }))
 }
@@ -368,6 +389,7 @@ export async function saveRooms(rooms: Room[]) {
   return { success: true }
 }
 
+// ルームデータの読み込み
 export async function loadRooms(): Promise<Room[]> {
   const supabase = createClient()
 
@@ -378,7 +400,14 @@ export async function loadRooms(): Promise<Room[]> {
     return []
   }
 
-  return (data || []).map((row) => ({
+  console.log("[v0] Loaded rooms data:", data)
+
+  if (!data || !Array.isArray(data)) {
+    console.error("[v0] Rooms data is not an array:", data)
+    return []
+  }
+
+  return data.map((row) => ({
     id: row.id,
     roomNumber: row.room_number,
     roomName: row.room_name,

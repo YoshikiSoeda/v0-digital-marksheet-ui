@@ -77,158 +77,183 @@ export function AdminDashboard() {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
 
   useEffect(() => {
-    const role = sessionStorage.getItem("userRole") as "admin" | "general" | null
-    setUserRole(role)
+    async function fetchData() {
+      const loginInfo = sessionStorage.getItem("loginInfo")
+      if (!loginInfo) {
+        router.push("/admin/login")
+        return
+      }
 
-    if (!role) {
-      router.push("/admin/login")
-      return
+      try {
+        const parsedLoginInfo = JSON.parse(loginInfo)
+        setUserRole(parsedLoginInfo.role || "admin")
+      } catch (e) {
+        console.error("[v0] Failed to parse loginInfo:", e)
+        setUserRole("admin") // Default to admin for backward compatibility
+      }
+
+      console.log("[v0] Loading admin dashboard data...")
+
+      const fetchedStudents = await loadStudents()
+      const fetchedTeachers = await loadTeachers()
+      const fetchedPatients = await loadPatients()
+      const fetchedAttendanceRecords = await loadAttendanceRecords()
+      const fetchedEvaluationResults = await loadEvaluationResults()
+      const fetchedRooms = await loadRooms()
+
+      console.log("[v0] Loaded students data:", fetchedStudents)
+      console.log("[v0] Loaded teachers data:", fetchedTeachers)
+      console.log("[v0] Loaded patients data:", fetchedPatients)
+      console.log("[v0] Loaded rooms data:", fetchedRooms)
+
+      console.log("[v0] Fetched data types:", {
+        students: Array.isArray(fetchedStudents),
+        teachers: Array.isArray(fetchedTeachers),
+        patients: Array.isArray(fetchedPatients),
+        rooms: Array.isArray(fetchedRooms),
+      })
+
+      setStudents(fetchedStudents)
+      setTeachers(fetchedTeachers)
+      setPatients(fetchedPatients)
+      setAttendanceRecords(fetchedAttendanceRecords)
+
+      const roomNameMap = new Map<string, string>()
+      if (Array.isArray(fetchedRooms)) {
+        fetchedRooms.forEach((room) => {
+          roomNameMap.set(room.roomNumber, room.roomName)
+        })
+      }
+
+      const roomMap = new Map<string, RoomData>()
+
+      if (Array.isArray(fetchedTeachers)) {
+        fetchedTeachers.forEach((teacher) => {
+          if (!teacher.assignedRoomNumber) return
+
+          if (!roomMap.has(teacher.assignedRoomNumber)) {
+            roomMap.set(teacher.assignedRoomNumber, {
+              roomNumber: teacher.assignedRoomNumber,
+              roomName: roomNameMap.get(teacher.assignedRoomNumber) || "",
+              teacherName: teacher.name,
+              patientName: "",
+              presentCount: 0,
+              absentCount: 0,
+              completedCount: 0,
+              alertCount: 0,
+              averageScore: 0,
+              students: [],
+            })
+          } else {
+            const room = roomMap.get(teacher.assignedRoomNumber)!
+            room.teacherName = teacher.name
+          }
+        })
+      }
+
+      if (Array.isArray(fetchedPatients)) {
+        fetchedPatients.forEach((patient) => {
+          if (!patient.assignedRoomNumber) return
+
+          if (roomMap.has(patient.assignedRoomNumber)) {
+            const room = roomMap.get(patient.assignedRoomNumber)!
+            room.patientName = patient.name
+          }
+        })
+      }
+
+      let totalPresent = 0
+      let totalInProgress = 0
+      let totalCompleted = 0
+      let totalAbsent = 0
+
+      if (Array.isArray(fetchedStudents)) {
+        fetchedStudents.forEach((student) => {
+          const attendanceRecord = fetchedAttendanceRecords.find((a) => a.studentId === student.studentId)
+          const status = attendanceRecord?.status || "pending"
+          const roomNumber = student.roomNumber
+
+          if (!roomMap.has(roomNumber)) {
+            roomMap.set(roomNumber, {
+              roomNumber,
+              roomName: roomNameMap.get(roomNumber) || "",
+              teacherName: "未割当",
+              patientName: "未割当",
+              presentCount: 0,
+              absentCount: 0,
+              completedCount: 0,
+              alertCount: 0,
+              averageScore: 0,
+              students: [],
+            })
+          }
+
+          const room = roomMap.get(roomNumber)!
+          const studentEvaluations = fetchedEvaluationResults.filter((e) => e.studentId === student.studentId)
+          const teacherEval = studentEvaluations.find((e) => e.evaluatorType === "teacher")
+          const patientEval = studentEvaluations.find((e) => e.evaluatorType === "patient")
+
+          const isCompleted = teacherEval?.isCompleted && patientEval?.isCompleted
+          const progress = teacherEval ? teacherEval.answeredCount : 0
+          const score = teacherEval ? teacherEval.totalScore : 0
+
+          let statusText = "未着手"
+          if (status === "present") {
+            totalPresent++
+            room.presentCount++
+            if (isCompleted) {
+              totalCompleted++
+              room.completedCount++
+              statusText = "完了"
+            } else if (progress > 0) {
+              totalInProgress++
+              statusText = "進行中"
+            } else {
+              statusText = "未着手"
+            }
+          } else if (status === "absent") {
+            totalAbsent++
+            room.absentCount++
+            statusText = "欠席"
+          }
+
+          if (status === "present" && progress === 0) {
+            room.alertCount++
+          }
+
+          room.students.push({
+            studentId: student.studentId,
+            name: student.name,
+            email: student.email,
+            status,
+            progress,
+            score,
+            statusText,
+          })
+        })
+      }
+
+      roomMap.forEach((room) => {
+        const presentStudents = room.students.filter((s) => s.status === "present")
+        if (presentStudents.length > 0) {
+          const totalScore = presentStudents.reduce((sum, s) => sum + s.score, 0)
+          room.averageScore = Math.round(totalScore / presentStudents.length)
+        }
+      })
+
+      const roomList = Array.from(roomMap.values()).sort((a, b) => {
+        const aNum = Number.parseInt(a.roomNumber) || 0
+        const bNum = Number.parseInt(b.roomNumber) || 0
+        return aNum - bNum
+      })
+
+      setRooms(roomList)
+      setAttendanceRecords(fetchedAttendanceRecords)
+
+      console.log("[v0] Admin dashboard data loaded successfully")
     }
 
-    const fetchedStudents = loadStudents()
-    const fetchedTeachers = loadTeachers()
-    const fetchedPatients = loadPatients()
-    const fetchedAttendanceRecords = loadAttendanceRecords()
-    const fetchedEvaluationResults = loadEvaluationResults()
-    const fetchedRooms = loadRooms()
-
-    setStudents(fetchedStudents)
-    setTeachers(fetchedTeachers)
-    setPatients(fetchedPatients)
-    setAttendanceRecords(fetchedAttendanceRecords)
-
-    const roomNameMap = new Map<string, string>()
-    fetchedRooms.forEach((room) => {
-      roomNameMap.set(room.roomNumber, room.roomName)
-    })
-
-    const roomMap = new Map<string, RoomData>()
-
-    fetchedTeachers.forEach((teacher) => {
-      if (!roomMap.has(teacher.assignedRoomNumber)) {
-        roomMap.set(teacher.assignedRoomNumber, {
-          roomNumber: teacher.assignedRoomNumber,
-          roomName: roomNameMap.get(teacher.assignedRoomNumber) || "",
-          teacherName: teacher.name,
-          patientName: "",
-          presentCount: 0,
-          absentCount: 0,
-          completedCount: 0,
-          alertCount: 0,
-          averageScore: 0,
-          students: [],
-        })
-      } else {
-        const room = roomMap.get(teacher.assignedRoomNumber)!
-        room.teacherName = teacher.name
-      }
-    })
-
-    fetchedPatients.forEach((patient) => {
-      if (!roomMap.has(patient.assignedRoomNumber)) {
-        roomMap.set(patient.assignedRoomNumber, {
-          roomNumber: patient.assignedRoomNumber,
-          roomName: roomNameMap.get(patient.assignedRoomNumber) || "",
-          teacherName: "未割当",
-          patientName: patient.name,
-          presentCount: 0,
-          absentCount: 0,
-          completedCount: 0,
-          alertCount: 0,
-          averageScore: 0,
-          students: [],
-        })
-      } else {
-        const room = roomMap.get(patient.assignedRoomNumber)!
-        room.patientName = patient.name
-      }
-    })
-
-    let totalPresent = 0
-    let totalInProgress = 0
-    let totalCompleted = 0
-    let totalAbsent = 0
-
-    fetchedStudents.forEach((student) => {
-      const attendanceRecord = fetchedAttendanceRecords.find((a) => a.studentId === student.studentId)
-      const status = attendanceRecord?.status || "pending"
-      const roomNumber = student.roomNumber
-
-      if (!roomMap.has(roomNumber)) {
-        roomMap.set(roomNumber, {
-          roomNumber,
-          roomName: roomNameMap.get(roomNumber) || "",
-          teacherName: "未割当",
-          patientName: "未割当",
-          presentCount: 0,
-          absentCount: 0,
-          completedCount: 0,
-          alertCount: 0,
-          averageScore: 0,
-          students: [],
-        })
-      }
-
-      const room = roomMap.get(roomNumber)!
-      const studentEvaluations = fetchedEvaluationResults.filter((e) => e.studentId === student.studentId)
-      const teacherEval = studentEvaluations.find((e) => e.evaluatorType === "teacher")
-      const patientEval = studentEvaluations.find((e) => e.evaluatorType === "patient")
-
-      const isCompleted = teacherEval?.isCompleted && patientEval?.isCompleted
-      const progress = teacherEval ? teacherEval.answeredCount : 0
-      const score = teacherEval ? teacherEval.totalScore : 0
-
-      let statusText = "未着手"
-      if (status === "present") {
-        totalPresent++
-        room.presentCount++
-        if (isCompleted) {
-          totalCompleted++
-          room.completedCount++
-          statusText = "完了"
-        } else if (progress > 0) {
-          totalInProgress++
-          statusText = "進行中"
-        } else {
-          statusText = "未着手"
-        }
-      } else if (status === "absent") {
-        totalAbsent++
-        room.absentCount++
-        statusText = "欠席"
-      }
-
-      if (status === "present" && progress === 0) {
-        room.alertCount++
-      }
-
-      room.students.push({
-        studentId: student.studentId,
-        name: student.name,
-        email: student.email,
-        status,
-        progress,
-        score,
-        statusText,
-      })
-    })
-
-    roomMap.forEach((room) => {
-      const presentStudents = room.students.filter((s) => s.status === "present")
-      if (presentStudents.length > 0) {
-        const totalScore = presentStudents.reduce((sum, s) => sum + s.score, 0)
-        room.averageScore = Math.round(totalScore / presentStudents.length)
-      }
-    })
-
-    const roomList = Array.from(roomMap.values()).sort((a, b) => {
-      const aNum = Number.parseInt(a.roomNumber) || 0
-      const bNum = Number.parseInt(b.roomNumber) || 0
-      return aNum - bNum
-    })
-
-    setRooms(roomList)
-    setAttendanceRecords(fetchedAttendanceRecords)
+    fetchData()
   }, [router])
 
   const presentStudents = rooms.flatMap((room) => room.students.filter((s) => s.status === "present"))
