@@ -35,7 +35,7 @@ interface QuestionWithMeta extends Question {
 }
 
 const TeacherExamTabs = () => {
-  const getAssignedStudents = () => {
+  const getAssignedStudents = async () => {
     if (typeof window === "undefined") return []
 
     const teacherRoom = sessionStorage.getItem("teacherRoom")
@@ -44,7 +44,7 @@ const TeacherExamTabs = () => {
       return []
     }
 
-    const allStudents = loadStudents()
+    const allStudents = await loadStudents()
     return allStudents
       .filter((student) => student.roomNumber === teacherRoom)
       .map((student) => ({
@@ -69,81 +69,102 @@ const TeacherExamTabs = () => {
   const router = useRouter()
 
   useEffect(() => {
-    const testId = sessionStorage.getItem("teacher_selected_test")
-    if (!testId) {
-      console.error("[v0] No test selected")
-      router.push("/teacher/exam-info")
-      return
-    }
+    const fetchData = async () => {
+      const testId = sessionStorage.getItem("teacher_selected_test")
+      if (!testId) {
+        console.error("[v0] No test selected")
+        router.push("/teacher/exam-info")
+        return
+      }
 
-    const tests = loadTests()
-    const test = tests.find((t) => t.id === testId)
+      const tests = await loadTests()
+      if (!Array.isArray(tests)) {
+        console.error("[v0] loadTests did not return an array:", tests)
+        router.push("/teacher/exam-info")
+        return
+      }
 
-    if (!test) {
-      console.error("[v0] Test not found")
-      router.push("/teacher/exam-info")
-      return
-    }
+      const test = tests.find((t) => t.id === testId)
 
-    setSelectedTest(test)
+      if (!test) {
+        console.error("[v0] Test not found")
+        router.push("/teacher/exam-info")
+        return
+      }
 
-    const flatQuestions: QuestionWithMeta[] = []
-    let displayNumber = 1
+      setSelectedTest(test)
 
-    test.sheets.forEach((sheet) => {
-      sheet.categories.forEach((category) => {
-        category.questions.forEach((question) => {
-          flatQuestions.push({
-            ...question,
-            sheetTitle: sheet.title,
-            categoryTitle: category.title,
-            categoryNumber: category.number,
-            displayNumber: displayNumber++,
+      const flatQuestions: QuestionWithMeta[] = []
+      let displayNumber = 1
+
+      test.sheets.forEach((sheet) => {
+        sheet.categories.forEach((category) => {
+          category.questions.forEach((question) => {
+            flatQuestions.push({
+              ...question,
+              sheetTitle: sheet.title,
+              categoryTitle: category.title,
+              categoryNumber: category.number,
+              displayNumber: displayNumber++,
+            })
           })
         })
       })
-    })
 
-    setQuestions(flatQuestions)
+      setQuestions(flatQuestions)
 
-    const students = getAssignedStudents()
-    setAssignedStudents(students)
+      const students = await getAssignedStudents()
+      setAssignedStudents(students)
 
-    const teacherEmail = sessionStorage.getItem("teacherEmail")
-    const teacherRoom = sessionStorage.getItem("teacherRoom")
-    const teacherName = sessionStorage.getItem("teacherName")
-    if (teacherEmail && teacherRoom && teacherName) {
-      const rooms = loadRooms()
-      const roomData = rooms.find((r) => r.roomNumber === teacherRoom)
+      const teacherEmail = sessionStorage.getItem("teacherEmail")
+      const teacherRoom = sessionStorage.getItem("teacherRoom")
+      const teacherName = sessionStorage.getItem("teacherName")
+      if (teacherEmail && teacherRoom && teacherName) {
+        const rooms = await loadRooms()
+        if (!Array.isArray(rooms)) {
+          console.error("[v0] loadRooms did not return an array:", rooms)
+        }
+        const roomData = Array.isArray(rooms) ? rooms.find((r) => r.roomNumber === teacherRoom) : null
 
-      setLoginInfo({
-        email: teacherEmail,
-        roomNumber: teacherRoom,
-        name: teacherName,
-        roomName: roomData?.roomName || "未設定",
+        setLoginInfo({
+          email: teacherEmail,
+          roomNumber: teacherRoom,
+          name: teacherName,
+          roomName: roomData?.roomName || "未設定",
+        })
+      }
+
+      if (students.length === 0) {
+        console.warn("[v0] No assigned students found")
+        return
+      }
+
+      const attendanceRecords = await loadAttendanceRecords()
+      if (!Array.isArray(attendanceRecords)) {
+        console.error("[v0] loadAttendanceRecords did not return an array:", attendanceRecords)
+        return
+      }
+      const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
+      students.forEach((student) => {
+        const record = attendanceRecords.find((r) => r.studentId === student.id)
+        initialAttendance[student.id] = record?.status || "pending"
       })
+      setAttendanceStatus(initialAttendance)
+
+      const evaluations = await loadEvaluationResults()
+      if (!Array.isArray(evaluations)) {
+        console.error("[v0] loadEvaluationResults did not return an array:", evaluations)
+        return
+      }
+      const initialAnswers: Record<string, Record<number, number>> = {}
+      students.forEach((student) => {
+        const evaluation = evaluations.find((e) => e.studentId === student.id && e.evaluatorType === "teacher")
+        initialAnswers[student.id] = evaluation?.answers || {}
+      })
+      setStudentAnswers(initialAnswers)
     }
 
-    if (students.length === 0) {
-      console.warn("[v0] No assigned students found")
-      return
-    }
-
-    const attendanceRecords = loadAttendanceRecords()
-    const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
-    students.forEach((student) => {
-      const record = attendanceRecords.find((r) => r.studentId === student.id)
-      initialAttendance[student.id] = record?.status || "pending"
-    })
-    setAttendanceStatus(initialAttendance)
-
-    const evaluations = loadEvaluationResults()
-    const initialAnswers: Record<string, Record<number, number>> = {}
-    students.forEach((student) => {
-      const evaluation = evaluations.find((e) => e.studentId === student.id && e.evaluatorType === "teacher")
-      initialAnswers[student.id] = evaluation?.answers || {}
-    })
-    setStudentAnswers(initialAnswers)
+    fetchData()
 
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
@@ -181,7 +202,7 @@ const TeacherExamTabs = () => {
 
   const answers = studentAnswers[assignedStudents[activeStudentIndex].id] || {}
 
-  const handleAnswerChange = (questionId: number, value: number) => {
+  const handleAnswerChange = async (questionId: number, value: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
 
     if (attendanceStatus[activeStudent.id] !== "present") {
@@ -198,7 +219,12 @@ const TeacherExamTabs = () => {
 
     if (!loginInfo) return
 
-    const evaluations = loadEvaluationResults()
+    const evaluations = await loadEvaluationResults()
+    if (!Array.isArray(evaluations)) {
+      console.error("[v0] loadEvaluationResults did not return an array:", evaluations)
+      return
+    }
+
     const activeStudentAnswers = {
       ...(studentAnswers[activeStudent.id] || {}),
       [questionId]: value,
@@ -232,7 +258,7 @@ const TeacherExamTabs = () => {
       evaluations.push(newEvaluation)
     }
 
-    saveEvaluationResults(evaluations)
+    await saveEvaluationResults(evaluations)
   }
 
   const calculateScore = (studentId: string) => {
@@ -256,7 +282,7 @@ const TeacherExamTabs = () => {
     router.push("/teacher/results")
   }
 
-  const handleAttendanceChange = (studentId: string, status: "present" | "absent") => {
+  const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
     if (!loginInfo) return
 
     setAttendanceStatus((prev) => ({
@@ -264,7 +290,12 @@ const TeacherExamTabs = () => {
       [studentId]: status,
     }))
 
-    const attendanceRecords = loadAttendanceRecords()
+    const attendanceRecords = await loadAttendanceRecords()
+    if (!Array.isArray(attendanceRecords)) {
+      console.error("[v0] loadAttendanceRecords did not return an array:", attendanceRecords)
+      return
+    }
+
     const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
 
     const newRecord: AttendanceRecord = {
@@ -282,7 +313,7 @@ const TeacherExamTabs = () => {
       attendanceRecords.push(newRecord)
     }
 
-    saveAttendanceRecords(attendanceRecords)
+    await saveAttendanceRecords(attendanceRecords)
   }
 
   const groupedQuestions: Array<{
@@ -462,18 +493,26 @@ const TeacherExamTabs = () => {
                             isAlertAnswer ? "bg-red-50" : ""
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
-                                isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              {question.displayNumber}
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div
+                                className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
+                                  isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {question.displayNumber}
+                              </div>
+
+                              <span className="text-sm font-medium">{question.text}</span>
+
+                              {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
+                                <span className="text-xs text-red-600 font-medium whitespace-nowrap">
+                                  (アラート対象: {question.alertOptions.join(",")})
+                                </span>
+                              )}
                             </div>
 
-                            <div className="flex-1 flex items-center gap-4">
-                              <span className="text-sm font-medium min-w-[200px]">{question.text}</span>
-
+                            <div className="flex items-center gap-3 flex-shrink-0">
                               <div className="flex gap-1">
                                 {[1, 2, 3, 4, 5].map((optionValue) => (
                                   <button
@@ -492,17 +531,12 @@ const TeacherExamTabs = () => {
                                   </button>
                                 ))}
                               </div>
-                            </div>
 
-                            {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
-                            {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
-                              <span className="text-xs text-red-600 font-medium flex-shrink-0">
-                                アラート対象 ({question.alertOptions.join(",")})
-                              </span>
-                            )}
-                            {isAlertAnswer && (
-                              <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
-                            )}
+                              {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                              {isAlertAnswer && (
+                                <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )

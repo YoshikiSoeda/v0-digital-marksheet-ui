@@ -35,19 +35,27 @@ interface QuestionWithMeta extends Question {
 }
 
 const PatientExamTabs = () => {
-  const getAssignedStudents = () => {
+  const getAssignedStudents = async () => {
     if (typeof window === "undefined") return []
 
     const patientRoom = sessionStorage.getItem("patientRoom")
     if (!patientRoom) return []
 
-    const allStudents = loadStudents()
-    return allStudents
-      .filter((student) => student.roomNumber === patientRoom)
-      .map((student) => ({
-        id: student.studentId,
-        name: student.name,
-      }))
+    const allStudents = await loadStudents()
+    console.log("[v0] Loaded students data:", allStudents)
+
+    if (!Array.isArray(allStudents)) {
+      console.error("[v0] Students is not an array:", allStudents)
+      return []
+    }
+
+    const filteredStudents = allStudents.filter((student) => student.roomNumber === patientRoom)
+    console.log("[v0] Filtered students for room", patientRoom, ":", filteredStudents)
+
+    return filteredStudents.map((student) => ({
+      id: student.studentId,
+      name: student.name,
+    }))
   }
 
   const [assignedStudents, setAssignedStudents] = useState<Array<{ id: string; name: string }>>([])
@@ -66,81 +74,122 @@ const PatientExamTabs = () => {
   const router = useRouter()
 
   useEffect(() => {
-    const testId = sessionStorage.getItem("patient_selected_test")
-    if (!testId) {
-      console.error("[v0] No test selected")
-      router.push("/patient/exam-info")
-      return
-    }
+    const fetchData = async () => {
+      const testId = sessionStorage.getItem("patient_selected_test")
+      if (!testId) {
+        console.error("[v0] No test selected")
+        router.push("/patient/exam-info")
+        return
+      }
 
-    const tests = loadTests()
-    const test = tests.find((t) => t.id === testId)
+      try {
+        const [testsData, roomsData, attendanceData, resultsData] = await Promise.all([
+          loadTests(),
+          loadRooms(),
+          loadAttendanceRecords(),
+          loadEvaluationResults(),
+        ])
 
-    if (!test) {
-      console.error("[v0] Test not found")
-      router.push("/patient/exam-info")
-      return
-    }
+        console.log("[v0] Loaded tests data:", testsData)
+        console.log("[v0] Loaded rooms data:", roomsData)
 
-    setSelectedTest(test)
+        if (!Array.isArray(testsData)) {
+          console.error("[v0] Tests is not an array:", testsData)
+          router.push("/patient/exam-info")
+          return
+        }
 
-    const flatQuestions: QuestionWithMeta[] = []
-    let displayNumber = 1
+        const tests = testsData
 
-    test.sheets.forEach((sheet) => {
-      sheet.categories.forEach((category) => {
-        category.questions.forEach((question) => {
-          flatQuestions.push({
-            ...question,
-            sheetTitle: sheet.title,
-            categoryTitle: category.title,
-            categoryNumber: category.number,
-            displayNumber: displayNumber++,
+        if (!Array.isArray(tests)) {
+          console.error("[v0] Tests is not an array:", tests)
+          router.push("/patient/exam-info")
+          return
+        }
+
+        const test = tests.find((t) => t.id === testId)
+
+        if (!test) {
+          console.error("[v0] Test not found")
+          router.push("/patient/exam-info")
+          return
+        }
+
+        setSelectedTest(test)
+
+        const flatQuestions: QuestionWithMeta[] = []
+        let displayNumber = 1
+
+        test.sheets.forEach((sheet) => {
+          sheet.categories.forEach((category) => {
+            category.questions.forEach((question) => {
+              flatQuestions.push({
+                ...question,
+                sheetTitle: sheet.title,
+                categoryTitle: category.title,
+                categoryNumber: category.number,
+                displayNumber: displayNumber++,
+              })
+            })
           })
         })
-      })
-    })
 
-    setQuestions(flatQuestions)
+        setQuestions(flatQuestions)
 
-    const students = getAssignedStudents()
-    setAssignedStudents(students)
+        const students = await getAssignedStudents()
+        setAssignedStudents(students)
 
-    const patientEmail = sessionStorage.getItem("patientEmail")
-    const patientRoom = sessionStorage.getItem("patientRoom")
-    const patientName = sessionStorage.getItem("patientName")
-    if (patientEmail && patientRoom && patientName) {
-      const rooms = loadRooms()
-      const roomData = rooms.find((r) => r.roomNumber === patientRoom)
+        const patientEmail = sessionStorage.getItem("patientEmail")
+        const patientRoom = sessionStorage.getItem("patientRoom")
+        const patientName = sessionStorage.getItem("patientName")
+        if (patientEmail && patientRoom && patientName) {
+          const rooms = roomsData
+          if (!Array.isArray(rooms)) {
+            console.error("[v0] Rooms is not an array:", rooms)
+          }
+          const roomData = rooms.find((r) => r.roomNumber === patientRoom)
 
-      setLoginInfo({
-        email: patientEmail,
-        roomNumber: patientRoom,
-        name: patientName,
-        roomName: roomData?.roomName || "未設定",
-      })
+          setLoginInfo({
+            email: patientEmail,
+            roomNumber: patientRoom,
+            name: patientName,
+            roomName: roomData?.roomName || "未設定",
+          })
+        }
+
+        if (students.length === 0) {
+          console.warn("[v0] No assigned students found")
+          return
+        }
+
+        const attendanceRecords = attendanceData
+        if (!Array.isArray(attendanceRecords)) {
+          console.error("[v0] Attendance records is not an array:", attendanceRecords)
+        }
+        const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
+        students.forEach((student) => {
+          const record = attendanceRecords.find((r) => r.studentId === student.id)
+          initialAttendance[student.id] = record?.status || "pending"
+        })
+        setAttendanceStatus(initialAttendance)
+
+        const evaluations = resultsData
+        if (!Array.isArray(evaluations)) {
+          console.error("[v0] Evaluations is not an array:", evaluations)
+        }
+        const initialAnswers: Record<string, Record<number, number>> = {}
+        students.forEach((student) => {
+          const evaluation = evaluations.find((e) => e.studentId === student.id && e.evaluatorType === "patient")
+          initialAnswers[student.id] = evaluation?.answers || {}
+        })
+        setStudentAnswers(initialAnswers)
+      } catch (error) {
+        console.error("[v0] Error loading data:", error)
+        router.push("/patient/exam-info")
+      }
     }
 
-    if (students.length === 0) {
-      console.warn("[v0] No assigned students found")
-      return
-    }
-
-    const attendanceRecords = loadAttendanceRecords()
-    const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
-    students.forEach((student) => {
-      const record = attendanceRecords.find((r) => r.studentId === student.id)
-      initialAttendance[student.id] = record?.status || "pending"
-    })
-    setAttendanceStatus(initialAttendance)
-
-    const evaluations = loadEvaluationResults()
-    const initialAnswers: Record<string, Record<number, number>> = {}
-    students.forEach((student) => {
-      const evaluation = evaluations.find((e) => e.studentId === student.id && e.evaluatorType === "patient")
-      initialAnswers[student.id] = evaluation?.answers || {}
-    })
-    setStudentAnswers(initialAnswers)
+    fetchData()
 
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
@@ -178,7 +227,7 @@ const PatientExamTabs = () => {
 
   const answers = studentAnswers[assignedStudents[activeStudentIndex].id] || {}
 
-  const handleAnswerChange = (questionId: number, value: number) => {
+  const handleAnswerChange = async (questionId: number, value: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
 
     if (attendanceStatus[activeStudent.id] !== "present") {
@@ -195,41 +244,50 @@ const PatientExamTabs = () => {
 
     if (!loginInfo) return
 
-    const evaluations = loadEvaluationResults()
-    const activeStudentAnswers = {
-      ...(studentAnswers[activeStudent.id] || {}),
-      [questionId]: value,
+    try {
+      const evaluations = await loadEvaluationResults()
+      if (!Array.isArray(evaluations)) {
+        console.error("[v0] Evaluations is not an array:", evaluations)
+        return
+      }
+
+      const activeStudentAnswers = {
+        ...(studentAnswers[activeStudent.id] || {}),
+        [questionId]: value,
+      }
+      const totalScore = Object.values(activeStudentAnswers).reduce((sum, val) => sum + val, 0)
+
+      const question = questions.find((q) => q.displayNumber === questionId)
+      const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(value)
+
+      const existingIndex = evaluations.findIndex(
+        (e) => e.studentId === activeStudent.id && e.evaluatorType === "patient" && e.evaluatorId === loginInfo.email,
+      )
+
+      const newEvaluation: EvaluationResult = {
+        studentId: activeStudent.id,
+        evaluatorId: loginInfo.email,
+        evaluatorType: "patient",
+        roomNumber: loginInfo.roomNumber,
+        answers: activeStudentAnswers,
+        totalScore,
+        answeredCount: Object.keys(activeStudentAnswers).length,
+        isCompleted: Object.keys(activeStudentAnswers).length === questions.length,
+        hasAlert: hasAlert || (existingIndex >= 0 && evaluations[existingIndex].hasAlert) || false,
+        updatedAt: new Date().toISOString(),
+        createdAt: existingIndex >= 0 ? evaluations[existingIndex].createdAt : new Date().toISOString(),
+      }
+
+      if (existingIndex >= 0) {
+        evaluations[existingIndex] = newEvaluation
+      } else {
+        evaluations.push(newEvaluation)
+      }
+
+      await saveEvaluationResults(evaluations)
+    } catch (error) {
+      console.error("[v0] Error saving evaluation:", error)
     }
-    const totalScore = Object.values(activeStudentAnswers).reduce((sum, val) => sum + val, 0)
-
-    const question = questions.find((q) => q.displayNumber === questionId)
-    const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(value)
-
-    const existingIndex = evaluations.findIndex(
-      (e) => e.studentId === activeStudent.id && e.evaluatorType === "patient" && e.evaluatorId === loginInfo.email,
-    )
-
-    const newEvaluation: EvaluationResult = {
-      studentId: activeStudent.id,
-      evaluatorId: loginInfo.email,
-      evaluatorType: "patient",
-      roomNumber: loginInfo.roomNumber,
-      answers: activeStudentAnswers,
-      totalScore,
-      answeredCount: Object.keys(activeStudentAnswers).length,
-      isCompleted: Object.keys(activeStudentAnswers).length === questions.length,
-      hasAlert: hasAlert || (existingIndex >= 0 && evaluations[existingIndex].hasAlert) || false,
-      updatedAt: new Date().toISOString(),
-      createdAt: existingIndex >= 0 ? evaluations[existingIndex].createdAt : new Date().toISOString(),
-    }
-
-    if (existingIndex >= 0) {
-      evaluations[existingIndex] = newEvaluation
-    } else {
-      evaluations.push(newEvaluation)
-    }
-
-    saveEvaluationResults(evaluations)
   }
 
   const calculateScore = (studentId: string) => {
@@ -253,7 +311,7 @@ const PatientExamTabs = () => {
     router.push("/patient/results")
   }
 
-  const handleAttendanceChange = (studentId: string, status: "present" | "absent") => {
+  const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
     if (!loginInfo) return
 
     setAttendanceStatus((prev) => ({
@@ -261,25 +319,34 @@ const PatientExamTabs = () => {
       [studentId]: status,
     }))
 
-    const attendanceRecords = loadAttendanceRecords()
-    const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
+    try {
+      const attendanceRecords = await loadAttendanceRecords()
+      if (!Array.isArray(attendanceRecords)) {
+        console.error("[v0] Attendance records is not an array:", attendanceRecords)
+        return
+      }
 
-    const newRecord: AttendanceRecord = {
-      studentId,
-      status,
-      markedBy: loginInfo.email,
-      markedByType: "patient",
-      roomNumber: loginInfo.roomNumber,
-      timestamp: new Date().toISOString(),
+      const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
+
+      const newRecord: AttendanceRecord = {
+        studentId,
+        status,
+        markedBy: loginInfo.email,
+        markedByType: "patient",
+        roomNumber: loginInfo.roomNumber,
+        timestamp: new Date().toISOString(),
+      }
+
+      if (existingIndex >= 0) {
+        attendanceRecords[existingIndex] = newRecord
+      } else {
+        attendanceRecords.push(newRecord)
+      }
+
+      await saveAttendanceRecords(attendanceRecords)
+    } catch (error) {
+      console.error("[v0] Error saving attendance:", error)
     }
-
-    if (existingIndex >= 0) {
-      attendanceRecords[existingIndex] = newRecord
-    } else {
-      attendanceRecords.push(newRecord)
-    }
-
-    saveAttendanceRecords(attendanceRecords)
   }
 
   const groupedQuestions: Array<{
@@ -460,18 +527,26 @@ const PatientExamTabs = () => {
                             isAlertAnswer ? "bg-red-50" : ""
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
-                                isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              {question.displayNumber}
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div
+                                className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
+                                  isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {question.displayNumber}
+                              </div>
+
+                              <span className="text-sm font-medium">{question.text}</span>
+
+                              {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
+                                <span className="text-xs text-red-600 font-medium whitespace-nowrap">
+                                  (アラート対象: {question.alertOptions.join(",")})
+                                </span>
+                              )}
                             </div>
 
-                            <div className="flex-1 flex items-center gap-4">
-                              <span className="text-sm font-medium min-w-[200px]">{question.text}</span>
-
+                            <div className="flex items-center gap-3 flex-shrink-0">
                               <div className="flex gap-1">
                                 {[1, 2, 3, 4, 5].map((optionValue) => (
                                   <button
@@ -490,17 +565,12 @@ const PatientExamTabs = () => {
                                   </button>
                                 ))}
                               </div>
-                            </div>
 
-                            {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
-                            {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
-                              <span className="text-xs text-red-600 font-medium flex-shrink-0">
-                                アラート対象 ({question.alertOptions.join(",")})
-                              </span>
-                            )}
-                            {isAlertAnswer && (
-                              <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
-                            )}
+                              {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                              {isAlertAnswer && (
+                                <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )

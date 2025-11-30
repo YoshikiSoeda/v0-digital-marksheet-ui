@@ -17,8 +17,21 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const [tests, setTests] = useState<Test[]>([])
 
   useEffect(() => {
-    const fetchedTests = loadTests()
-    setTests(fetchedTests)
+    const fetchTests = async () => {
+      try {
+        const fetchedTests = await loadTests()
+        if (Array.isArray(fetchedTests)) {
+          setTests(fetchedTests)
+        } else {
+          console.error("[v0] loadTests did not return an array:", fetchedTests)
+          setTests([])
+        }
+      } catch (error) {
+        console.error("[v0] Error loading tests:", error)
+        setTests([])
+      }
+    }
+    fetchTests()
   }, [])
 
   const handleSelectTest = (testId: string) => {

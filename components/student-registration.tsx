@@ -59,7 +59,7 @@ export function StudentRegistration() {
     }
 
     const newStudent: Student = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       studentId: formData.studentId,
       name: formData.name,
       email: formData.email || undefined,
@@ -90,7 +90,7 @@ export function StudentRegistration() {
         }
 
         newStudents.push({
-          id: `${Date.now()}-${i}`,
+          id: crypto.randomUUID(),
           studentId,
           name,
           email: email || undefined,

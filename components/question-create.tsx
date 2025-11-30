@@ -190,7 +190,7 @@ export function QuestionCreate() {
     )
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!testTitle.trim()) {
       alert("テスト名を入力してください")
       return
@@ -209,9 +209,9 @@ export function QuestionCreate() {
       updatedAt: new Date().toISOString(),
     }
 
-    const tests = loadTests()
+    const tests = await loadTests()
     tests.push(newTest)
-    saveTests(tests)
+    await saveTests(tests)
 
     alert("テストを保存しました")
     router.push("/admin/question-management")

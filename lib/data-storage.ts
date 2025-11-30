@@ -119,20 +119,18 @@ export async function saveStudents(students: Student[]) {
   const supabase = createClient()
 
   const studentsData = students.map((s) => ({
-    id: s.id,
     student_id: s.studentId,
     name: s.name,
     email: s.email || null,
     department: s.department,
     room_number: s.roomNumber,
-    created_at: s.createdAt,
   }))
 
-  const { error } = await supabase.from("students").upsert(studentsData, { onConflict: "id" })
+  const { error } = await supabase.from("students").upsert(studentsData, { onConflict: "student_id" })
 
   if (error) {
-    console.error("[v0] Error saving students:", error)
-    return { success: false, error }
+    console.error("[v0] Error saving students:", error.message)
+    throw error
   }
 
   return { success: true }
@@ -172,20 +170,18 @@ export async function saveTeachers(teachers: Teacher[]) {
   const supabase = createClient()
 
   const teachersData = teachers.map((t) => ({
-    id: t.id,
     name: t.name,
     email: t.email,
     password: t.password,
     role: t.role,
     assigned_room_number: t.assignedRoomNumber,
-    created_at: t.createdAt,
   }))
 
-  const { error } = await supabase.from("teachers").upsert(teachersData, { onConflict: "id" })
+  const { error } = await supabase.from("teachers").upsert(teachersData, { onConflict: "email" })
 
   if (error) {
-    console.error("[v0] Error saving teachers:", error)
-    return { success: false, error }
+    console.error("[v0] Error saving teachers:", error.message)
+    throw error
   }
 
   return { success: true }
@@ -226,20 +222,18 @@ export async function savePatients(patients: Patient[]) {
   const supabase = createClient()
 
   const patientsData = patients.map((p) => ({
-    id: p.id,
     name: p.name,
     email: p.email,
     password: p.password,
     role: p.role,
     assigned_room_number: p.assignedRoomNumber,
-    created_at: p.createdAt,
   }))
 
-  const { error } = await supabase.from("patients").upsert(patientsData, { onConflict: "id" })
+  const { error } = await supabase.from("patients").upsert(patientsData, { onConflict: "email" })
 
   if (error) {
-    console.error("[v0] Error saving patients:", error)
-    return { success: false, error }
+    console.error("[v0] Error saving patients:", error.message)
+    throw error
   }
 
   return { success: true }
@@ -373,13 +367,12 @@ export async function saveRooms(rooms: Room[]) {
   const supabase = createClient()
 
   const roomsData = rooms.map((r) => ({
-    id: r.id,
     room_number: r.roomNumber,
     room_name: r.roomName,
     created_at: r.createdAt,
   }))
 
-  const { error } = await supabase.from("rooms").upsert(roomsData, { onConflict: "id" })
+  const { error } = await supabase.from("rooms").upsert(roomsData, { onConflict: "room_number" })
 
   if (error) {
     console.error("[v0] Error saving rooms:", error)
@@ -538,23 +531,27 @@ export async function loadTests(): Promise<Test[]> {
     sheets: (test.sheets || []).map((sheet: any) => ({
       id: sheet.id,
       title: sheet.title,
-      categories: (sheet.categories || []).map((category: any) => ({
-        id: category.id,
-        title: category.title,
-        number: category.number,
-        questions: (category.questions || []).map((question: any) => ({
-          id: question.id,
-          number: question.number,
-          text: question.text,
-          option1: question.option1,
-          option2: question.option2,
-          option3: question.option3,
-          option4: question.option4,
-          option5: question.option5,
-          isAlertTarget: question.is_alert_target,
-          alertOptions: question.alert_options || [],
+      categories: (sheet.categories || [])
+        .sort((a: any, b: any) => a.number - b.number) // Sort categories by number
+        .map((category: any) => ({
+          id: category.id,
+          title: category.title,
+          number: category.number,
+          questions: (category.questions || [])
+            .sort((a: any, b: any) => a.number - b.number) // Sort questions by number
+            .map((question: any) => ({
+              id: question.id,
+              number: question.number,
+              text: question.text,
+              option1: question.option1,
+              option2: question.option2,
+              option3: question.option3,
+              option4: question.option4,
+              option5: question.option5,
+              isAlertTarget: question.is_alert_target,
+              alertOptions: question.alert_options || [],
+            })),
         })),
-      })),
     })),
     createdAt: test.created_at,
     updatedAt: test.updated_at,

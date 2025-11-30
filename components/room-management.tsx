@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { loadRooms, saveRooms, type Room } from "@/lib/data-storage"
 import Link from "next/link"
+// crypto is available globally in browsers
 
 export function RoomManagement() {
   const [rooms, setRooms] = useState<Room[]>([])
@@ -43,7 +44,7 @@ export function RoomManagement() {
     }
 
     const newRoom: Room = {
-      id: `room-${Date.now()}`,
+      id: crypto.randomUUID(),
       roomNumber: newRoomNumber,
       roomName: newRoomName,
       createdAt: new Date().toISOString(),
@@ -101,7 +102,7 @@ export function RoomManagement() {
         const [roomNumber, roomName] = lines[i].split(",").map((s) => s.trim())
         if (roomNumber && roomName) {
           importedRooms.push({
-            id: `room-${Date.now()}-${i}`,
+            id: crypto.randomUUID(),
             roomNumber,
             roomName,
             createdAt: new Date().toISOString(),

@@ -22,18 +22,29 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const tests = loadTests()
-    const test = tests.find((t) => t.id === testId)
+    const fetchTest = async () => {
+      try {
+        const tests = await loadTests()
+        const test = Array.isArray(tests) ? tests.find((t) => t.id === testId) : null
 
-    if (!test) {
-      alert("テストが見つかりませんでした")
-      router.push("/admin/question-management")
-      return
+        if (!test) {
+          alert("テストが見つかりませんでした")
+          router.push("/admin/question-management")
+          return
+        }
+
+        setTestTitle(test.title)
+        setSheets(test.sheets)
+      } catch (error) {
+        console.error("[v0] Error loading test:", error)
+        alert("テストの読み込みに失敗しました")
+        router.push("/admin/question-management")
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setTestTitle(test.title)
-    setSheets(test.sheets)
-    setLoading(false)
+    fetchTest()
   }, [testId, router])
 
   const addSheet = () => {
@@ -199,27 +210,33 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
     )
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!testTitle.trim()) {
       alert("テスト名を入力してください")
       return
     }
 
-    const tests = loadTests()
-    const updatedTests = tests.map((t) =>
-      t.id === testId
-        ? {
-            ...t,
-            title: testTitle,
-            sheets,
-            updatedAt: new Date().toISOString(),
-          }
-        : t,
-    )
+    try {
+      const tests = await loadTests()
+      const testsArray = Array.isArray(tests) ? tests : []
+      const updatedTests = testsArray.map((t) =>
+        t.id === testId
+          ? {
+              ...t,
+              title: testTitle,
+              sheets,
+              updatedAt: new Date().toISOString(),
+            }
+          : t,
+      )
 
-    saveTests(updatedTests)
-    alert("テストを更新しました")
-    router.push("/admin/question-management")
+      await saveTests(updatedTests)
+      alert("テストを更新しました")
+      router.push("/admin/question-management")
+    } catch (error) {
+      console.error("[v0] Error saving test:", error)
+      alert("テストの更新に失敗しました")
+    }
   }
 
   if (loading) {

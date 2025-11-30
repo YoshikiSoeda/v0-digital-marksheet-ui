@@ -30,30 +30,41 @@ export function PatientLoginForm() {
       return
     }
 
-    const patients = loadPatients()
-    const patient = patients.find((p) => p.email === patientId && p.password === password)
+    try {
+      const patients = await loadPatients()
 
-    if (!patient) {
-      setError("患者担当者IDまたはパスワードが正しくありません")
-      setIsLoading(false)
-      return
-    }
-
-    sessionStorage.setItem("patientId", patient.id)
-    sessionStorage.setItem("patientName", patient.name)
-    sessionStorage.setItem("patientEmail", patient.email)
-    sessionStorage.setItem("patientRoom", patient.assignedRoomNumber)
-    sessionStorage.setItem("userRole", patient.role)
-
-    setTimeout(() => {
-      setIsLoading(false)
-      // Redirect based on role
-      if (patient.role === "admin") {
-        router.push("/admin/dashboard")
-      } else {
-        router.push("/patient/exam-info")
+      // Check if patients is an array
+      if (!Array.isArray(patients)) {
+        console.error("[v0] loadPatients() did not return an array:", patients)
+        setError("データの読み込みに失敗しました")
+        setIsLoading(false)
+        return
       }
-    }, 500)
+
+      const patient = patients.find((p) => p.email === patientId && p.password === password)
+
+      if (!patient) {
+        setError("患者担当者IDまたはパスワードが正しくありません")
+        setIsLoading(false)
+        return
+      }
+
+      sessionStorage.setItem("patientId", patient.id)
+      sessionStorage.setItem("patientName", patient.name)
+      sessionStorage.setItem("patientEmail", patient.email)
+      sessionStorage.setItem("patientRoom", patient.assignedRoomNumber || "")
+      sessionStorage.setItem("userRole", patient.role)
+
+      if (patient.role === "admin") {
+        window.location.href = "/admin/dashboard"
+      } else {
+        window.location.href = "/patient/exam-info"
+      }
+    } catch (error) {
+      console.error("[v0] Error during patient login:", error)
+      setError("ログイン処理中にエラーが発生しました")
+      setIsLoading(false)
+    }
   }
 
   return (

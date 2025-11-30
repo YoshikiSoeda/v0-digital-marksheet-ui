@@ -30,25 +30,37 @@ export function TeacherLoginForm() {
       return
     }
 
-    const teachers = loadTeachers()
-    const teacher = teachers.find((t) => t.email === teacherId && t.password === password)
+    try {
+      const teachers = await loadTeachers()
 
-    if (!teacher) {
-      setError("IDまたはパスワードが正しくありません")
+      if (!Array.isArray(teachers)) {
+        console.error("[v0] Teachers is not an array:", teachers)
+        setError("データの読み込みに失敗しました")
+        setIsLoading(false)
+        return
+      }
+
+      const teacher = teachers.find((t) => t.email === teacherId && t.password === password)
+
+      if (!teacher) {
+        setError("IDまたはパスワードが正しくありません")
+        setIsLoading(false)
+        return
+      }
+
+      sessionStorage.setItem("teacherId", teacher.id)
+      sessionStorage.setItem("teacherName", teacher.name)
+      sessionStorage.setItem("teacherEmail", teacher.email)
+      sessionStorage.setItem("teacherRole", teacher.role)
+      sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber || "")
+
+      // Use window.location.href for more reliable navigation
+      window.location.href = "/teacher/exam-info"
+    } catch (error) {
+      console.error("[v0] Error during login:", error)
+      setError("ログイン処理中にエラーが発生しました")
       setIsLoading(false)
-      return
     }
-
-    sessionStorage.setItem("teacherId", teacher.id)
-    sessionStorage.setItem("teacherName", teacher.name)
-    sessionStorage.setItem("teacherEmail", teacher.email)
-    sessionStorage.setItem("teacherRole", teacher.role)
-    sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber)
-
-    setTimeout(() => {
-      setIsLoading(false)
-      router.push("/teacher/exam-info")
-    }, 500)
   }
 
   return (
