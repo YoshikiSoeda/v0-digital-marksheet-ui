@@ -20,8 +20,7 @@ export default function TeachersListPage() {
     email: "",
     password: "",
     role: "general" as "general" | "admin",
-    assignedStudents: "",
-    roomNumber: "",
+    assignedRoomNumber: "",
   })
 
   useEffect(() => {
@@ -42,8 +41,7 @@ export default function TeachersListPage() {
       email: teacher.email,
       password: teacher.password,
       role: teacher.role,
-      assignedStudents: teacher.assignedStudents.join(", "),
-      roomNumber: teacher.roomNumber,
+      assignedRoomNumber: teacher.assignedRoomNumber || "",
     })
   }
 
@@ -58,11 +56,7 @@ export default function TeachersListPage() {
             email: editForm.email,
             password: editForm.password,
             role: editForm.role,
-            assignedStudents: editForm.assignedStudents
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-            roomNumber: editForm.roomNumber,
+            assignedRoomNumber: editForm.assignedRoomNumber,
           }
         : t,
     )
@@ -91,21 +85,13 @@ export default function TeachersListPage() {
 
   const handleExportCSV = () => {
     const csv = [
-      [
-        "氏名",
-        "メールアドレス（ログインID）",
-        "ログインパスワード",
-        "評価対象の学生（IDをセミコロン区切り）",
-        "担当部屋番号",
-        "権限",
-      ],
+      ["氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"],
       ...teachers.map((t) => [
         t.name,
         t.email,
         t.password,
-        t.assignedStudents.join(";"),
-        t.roomNumber || "",
         t.role === "admin" ? "管理者" : "一般",
+        t.assignedRoomNumber || "",
       ]),
     ]
       .map((row) => row.join(","))
@@ -184,7 +170,6 @@ export default function TeachersListPage() {
                     <th className="text-left p-2">メールアドレス（ログインID）</th>
                     <th className="text-left p-2">ログインパスワード</th>
                     <th className="text-left p-2">権限</th>
-                    <th className="text-left p-2">評価対象の学生</th>
                     <th className="text-left p-2">担当部屋番号</th>
                     <th className="text-center p-2">操作</th>
                   </tr>
@@ -192,7 +177,7 @@ export default function TeachersListPage() {
                 <tbody>
                   {filteredTeachers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                      <td colSpan={6} className="text-center p-8 text-muted-foreground">
                         登録されている教員がいません
                       </td>
                     </tr>
@@ -213,15 +198,16 @@ export default function TeachersListPage() {
                             {teacher.role === "admin" ? "管理者" : "一般"}
                           </span>
                         </td>
-                        <td className="p-2">{teacher.assignedStudents.join("; ") || "-"}</td>
                         <td className="p-2">
                           <span
                             className={
-                              teacher.roomNumber && !isValidRoom(teacher.roomNumber) ? "text-red-600 font-bold" : ""
+                              teacher.assignedRoomNumber && !isValidRoom(teacher.assignedRoomNumber)
+                                ? "text-red-600 font-bold"
+                                : ""
                             }
                           >
-                            {teacher.roomNumber || "-"}
-                            {teacher.roomNumber && !isValidRoom(teacher.roomNumber) && (
+                            {teacher.assignedRoomNumber || "-"}
+                            {teacher.assignedRoomNumber && !isValidRoom(teacher.assignedRoomNumber) && (
                               <AlertTriangle className="w-3 h-3 inline ml-1" />
                             )}
                           </span>
@@ -294,16 +280,7 @@ export default function TeachersListPage() {
                 <p className="text-xs text-muted-foreground">一般: 採点機能のみ / 管理者: 全機能アクセス可</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-students">評価対象の学生（カンマ区切り）</Label>
-                <Input
-                  id="edit-students"
-                  placeholder="2024001, 2024002, 2024003"
-                  value={editForm.assignedStudents}
-                  onChange={(e) => setEditForm({ ...editForm, assignedStudents: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-room">担当部屋番号</Label>
+                <Label htmlFor="edit-room">担当部屋番号 *</Label>
                 {rooms.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
                     部屋が登録されていません。先に部屋マスターを登録してください。
@@ -311,8 +288,8 @@ export default function TeachersListPage() {
                 ) : (
                   <select
                     id="edit-room"
-                    value={editForm.roomNumber}
-                    onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value })}
+                    value={editForm.assignedRoomNumber}
+                    onChange={(e) => setEditForm({ ...editForm, assignedRoomNumber: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="">選択してください</option>

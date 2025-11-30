@@ -20,7 +20,6 @@ export default function PatientsListPage() {
     email: "",
     password: "",
     role: "general" as "general" | "admin",
-    assignedStudents: "",
     roomNumber: "",
   })
 
@@ -42,8 +41,7 @@ export default function PatientsListPage() {
       email: patient.email,
       password: patient.password,
       role: patient.role,
-      assignedStudents: patient.assignedStudents.join(", "),
-      roomNumber: patient.roomNumber,
+      roomNumber: patient.assignedRoomNumber || "",
     })
   }
 
@@ -63,11 +61,7 @@ export default function PatientsListPage() {
             email: editForm.email,
             password: editForm.password,
             role: editForm.role,
-            assignedStudents: editForm.assignedStudents
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-            roomNumber: editForm.roomNumber,
+            assignedRoomNumber: editForm.roomNumber,
           }
         : p,
     )
@@ -96,21 +90,13 @@ export default function PatientsListPage() {
 
   const handleExportCSV = () => {
     const csv = [
-      [
-        "氏名",
-        "メールアドレス（ログインID）",
-        "ログインパスワード",
-        "評価対象の学生（IDをセミコロン区切り）",
-        "担当部屋番号",
-        "権限",
-      ],
+      ["氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"],
       ...patients.map((p) => [
         p.name,
         p.email,
         p.password,
-        p.assignedStudents.join(";"),
-        p.roomNumber || "",
         p.role === "admin" ? "管理者" : "一般",
+        p.assignedRoomNumber || "",
       ]),
     ]
       .map((row) => row.join(","))
@@ -188,16 +174,15 @@ export default function PatientsListPage() {
                     <th className="text-left p-2">氏名</th>
                     <th className="text-left p-2">メールアドレス（ログインID）</th>
                     <th className="text-left p-2">ログインパスワード</th>
-                    <th className="text-left p-2">評価対象の学生</th>
-                    <th className="text-left p-2">担当部屋番号</th>
                     <th className="text-left p-2">権限</th>
+                    <th className="text-left p-2">担当部屋番号</th>
                     <th className="text-center p-2">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPatients.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                      <td colSpan={6} className="text-center p-8 text-muted-foreground">
                         登録されている患者役がいません
                       </td>
                     </tr>
@@ -207,19 +192,6 @@ export default function PatientsListPage() {
                         <td className="p-2">{patient.name}</td>
                         <td className="p-2">{patient.email}</td>
                         <td className="p-2">{"*".repeat(8)}</td>
-                        <td className="p-2">{patient.assignedStudents.join("; ") || "-"}</td>
-                        <td className="p-2">
-                          <span
-                            className={
-                              patient.roomNumber && !isValidRoom(patient.roomNumber) ? "text-red-600 font-bold" : ""
-                            }
-                          >
-                            {patient.roomNumber || "-"}
-                            {patient.roomNumber && !isValidRoom(patient.roomNumber) && (
-                              <AlertTriangle className="w-3 h-3 inline ml-1" />
-                            )}
-                          </span>
-                        </td>
                         <td className="p-2">
                           <span
                             className={`px-2 py-1 rounded text-xs font-semibold ${
@@ -227,6 +199,20 @@ export default function PatientsListPage() {
                             }`}
                           >
                             {patient.role === "admin" ? "管理者" : "一般"}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span
+                            className={
+                              patient.assignedRoomNumber && !isValidRoom(patient.assignedRoomNumber)
+                                ? "text-red-600 font-bold"
+                                : ""
+                            }
+                          >
+                            {patient.assignedRoomNumber || "-"}
+                            {patient.assignedRoomNumber && !isValidRoom(patient.assignedRoomNumber) && (
+                              <AlertTriangle className="w-3 h-3 inline ml-1" />
+                            )}
                           </span>
                         </td>
                         <td className="p-2 text-center">
@@ -296,16 +282,7 @@ export default function PatientsListPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-students">評価対象の学生（カンマ区切り）</Label>
-                <Input
-                  id="edit-students"
-                  placeholder="2024001, 2024002, 2024003"
-                  value={editForm.assignedStudents}
-                  onChange={(e) => setEditForm({ ...editForm, assignedStudents: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-room">担当部屋番号</Label>
+                <Label htmlFor="edit-room">担当部屋番号 *</Label>
                 {rooms.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
                     部屋が登録されていません。先に部屋マスターを登録してください。
@@ -325,6 +302,7 @@ export default function PatientsListPage() {
                     ))}
                   </select>
                 )}
+                <p className="text-xs text-muted-foreground">この部屋に属する学生が自動的に評価対象になります</p>
               </div>
             </div>
             <div className="flex justify-end gap-2">

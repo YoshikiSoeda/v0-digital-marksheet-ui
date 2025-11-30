@@ -1,5 +1,5 @@
-import { ExamInfoScreen } from "@/components/exam-info-screen"
+import { TestSelectionScreen } from "@/components/test-selection-screen"
 
 export default function TeacherExamInfoPage() {
-  return <ExamInfoScreen examPath="/teacher/exam" />
+  return <TestSelectionScreen examPath="/teacher/exam" userType="teacher" />
 }

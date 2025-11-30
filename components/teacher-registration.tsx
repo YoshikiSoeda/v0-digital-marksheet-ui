@@ -22,7 +22,6 @@ export function TeacherRegistration() {
     email: "",
     password: "",
     role: "general" as "general" | "admin",
-    assignedStudents: "",
     roomNumber: "",
   })
   const [isDragging, setIsDragging] = useState(false)
@@ -56,13 +55,12 @@ export function TeacherRegistration() {
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      assignedStudents: formData.assignedStudents ? formData.assignedStudents.split(",").map((s) => s.trim()) : [],
-      roomNumber: formData.roomNumber,
+      assignedRoomNumber: formData.roomNumber,
       createdAt: new Date().toISOString(),
     }
 
     setTeachers([...teachers, newTeacher])
-    setFormData({ name: "", email: "", password: "", role: "general", assignedStudents: "", roomNumber: "" })
+    setFormData({ name: "", email: "", password: "", role: "general", roomNumber: "" })
   }
 
   const parseCSV = (text: string) => {
@@ -70,7 +68,7 @@ export function TeacherRegistration() {
     const newTeachers: Teacher[] = []
 
     for (let i = 1; i < lines.length; i++) {
-      const [name, email, password, assignedStudents, roomNumber, role] = lines[i].split(",").map((s) => s.trim())
+      const [name, email, password, role, roomNumber] = lines[i].split(",").map((s) => s.trim())
       if (name && email && password) {
         let teacherRole: "general" | "admin" = "general"
         if (role === "admin" || role === "管理者") {
@@ -84,8 +82,7 @@ export function TeacherRegistration() {
           email,
           password,
           role: teacherRole,
-          assignedStudents: assignedStudents ? assignedStudents.split(";").map((s) => s.trim()) : [],
-          roomNumber: roomNumber || "",
+          assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
         })
       }
@@ -149,11 +146,11 @@ export function TeacherRegistration() {
 
   const handleExportCSV = () => {
     const csvContent =
-      "氏名,メールアドレス（ログインID）,ログインパスワード,評価対象の学生（IDをセミコロン区切り）,担当部屋番号,権限\n" +
+      "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n" +
       teachers
         .map((t) => {
           const roleLabel = t.role === "admin" ? "管理者" : "一般"
-          return `${t.name},${t.email},${t.password},${t.assignedStudents.join(";")},${t.roomNumber},${roleLabel}`
+          return `${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber}`
         })
         .join("\n")
 
@@ -166,7 +163,7 @@ export function TeacherRegistration() {
 
   const handleDownloadTemplate = () => {
     const template =
-      "氏名,メールアドレス（ログインID）,ログインパスワード,評価対象の学生（IDをセミコロン区切り）,担当部屋番号,権限\n田中先生,tanaka@example.com,password123,2024001;2024002,101,管理者\n鈴木先生,suzuki@example.com,password456,2024003;2024004,102,一般"
+      "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n田中先生,tanaka@example.com,password123,管理者,101\n鈴木先生,suzuki@example.com,password456,一般,102"
     const blob = new Blob([template], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -208,10 +205,10 @@ export function TeacherRegistration() {
             <h1 className="text-3xl font-bold text-primary">教員登録</h1>
             <p className="text-muted-foreground">評価者情報を登録・管理</p>
           </div>
-          <Link href="/admin/dashboard">
+          <Link href="/admin/account-management">
             <Button variant="outline">
               <Home className="w-4 h-4 mr-2" />
-              ダッシュボードに戻る
+              アカウント管理に戻る
             </Button>
           </Link>
         </div>
@@ -273,16 +270,7 @@ export function TeacherRegistration() {
                     <p className="text-xs text-muted-foreground">一般: 採点機能のみ / 管理者: 全機能アクセス可</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="assignedStudents">評価対象の学生（カンマ区切り）</Label>
-                    <Input
-                      id="assignedStudents"
-                      placeholder="2024001,2024002,2024003"
-                      value={formData.assignedStudents}
-                      onChange={(e) => setFormData({ ...formData, assignedStudents: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="roomNumber">担当部屋番号</Label>
+                    <Label htmlFor="roomNumber">担当部屋番号 *</Label>
                     {rooms.length === 0 ? (
                       <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
                         部屋が登録されていません。先に部屋マスターで部屋を登録してください。
@@ -294,7 +282,7 @@ export function TeacherRegistration() {
                         value={formData.roomNumber}
                         onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
                       >
-                        <option value="">部屋を選択してください（任意）</option>
+                        <option value="">部屋を選択してください</option>
                         {rooms.map((room) => (
                           <option key={room.id} value={room.roomNumber}>
                             {room.roomNumber} - {room.roomName}
@@ -302,6 +290,9 @@ export function TeacherRegistration() {
                         ))}
                       </select>
                     )}
+                    <p className="text-xs text-muted-foreground">
+                      この部屋に属する学生が自動的に評価対象として表示されます
+                    </p>
                   </div>
                 </div>
                 <Button onClick={handleAddTeacher} className="w-full" size="lg">
@@ -348,10 +339,10 @@ export function TeacherRegistration() {
                   <div className="bg-muted p-4 rounded-lg">
                     <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-                      氏名,メールアドレス（ログインID）,ログインパスワード,評価対象の学生（IDをセミコロン区切り）,担当部屋番号,権限
+                      氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号
                       {"\n"}
-                      田中先生,tanaka@example.com,password123,2024001;2024002,101,管理者{"\n"}
-                      鈴木先生,suzuki@example.com,password456,2024003;2024004,102,一般
+                      田中先生,tanaka@example.com,password123,管理者,101{"\n"}
+                      鈴木先生,suzuki@example.com,password456,一般,102
                     </pre>
                   </div>
                 </div>
@@ -387,7 +378,6 @@ export function TeacherRegistration() {
                       <th className="text-left p-3 font-semibold">メールアドレス（ログインID）</th>
                       <th className="text-left p-3 font-semibold">ログインパスワード</th>
                       <th className="text-left p-3 font-semibold">権限</th>
-                      <th className="text-left p-3 font-semibold">評価対象の学生</th>
                       <th className="text-left p-3 font-semibold">担当部屋番号</th>
                       <th className="text-center p-3 font-semibold">操作</th>
                     </tr>
@@ -409,8 +399,7 @@ export function TeacherRegistration() {
                             {teacher.role === "admin" ? "管理者" : "一般"}
                           </span>
                         </td>
-                        <td className="p-3">{teacher.assignedStudents.join("; ") || "-"}</td>
-                        <td className="p-3">{teacher.roomNumber || "-"}</td>
+                        <td className="p-3">{teacher.assignedRoomNumber || "-"}</td>
                         <td className="p-3 text-center">
                           <Button
                             variant="ghost"

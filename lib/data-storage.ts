@@ -17,8 +17,7 @@ export interface Teacher {
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
   role: "general" | "admin" // 権限（一般 or 管理者）
-  assignedStudents: string[] // 評価対象の学生ID配列
-  roomNumber: string // 担当部屋番号
+  assignedRoomNumber: string // 担当部屋番号（単一）
   createdAt: string
 }
 
@@ -30,8 +29,7 @@ export interface Patient {
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
   role: "general" | "admin" // 権限（一般 or 管理者）
-  assignedStudents: string[] // 評価対象の学生ID配列
-  roomNumber: string // 担当部屋番号
+  assignedRoomNumber: string // 担当部屋番号（単一）
   createdAt: string
 }
 
@@ -67,6 +65,40 @@ export interface Room {
   createdAt: string
 }
 
+// 問題管理データの型定義
+export interface Question {
+  id: string
+  number: number // 問題番号（No）
+  text: string // 問題文
+  option1: string // 選択肢1
+  option2: string // 選択肢2
+  option3: string // 選択肢3
+  option4: string // 選択肢4
+  option5: string // 選択肢5
+  isAlertTarget: boolean // アラート対象ON/OFF
+}
+
+export interface Category {
+  id: string
+  title: string // タイトル3（カテゴリ名）
+  number: number // カテゴリ番号
+  questions: Question[]
+}
+
+export interface Sheet {
+  id: string
+  title: string // タイトル2（シート名）
+  categories: Category[]
+}
+
+export interface Test {
+  id: string
+  title: string // タイトル1（テスト名）
+  sheets: Sheet[]
+  createdAt: string
+  updatedAt: string
+}
+
 // localStorage キー
 const STORAGE_KEYS = {
   students: "medical_exam_students",
@@ -74,7 +106,8 @@ const STORAGE_KEYS = {
   patients: "medical_exam_patients",
   attendance: "medical_exam_attendance",
   evaluations: "medical_exam_evaluations",
-  rooms: "medical_exam_rooms", // Adding rooms key
+  rooms: "medical_exam_rooms",
+  tests: "medical_exam_tests", // Adding tests storage key
 }
 
 // 学生データの保存
@@ -194,6 +227,28 @@ export function loadRooms(): Room[] {
   if (typeof window === "undefined") return []
 
   const data = localStorage.getItem(STORAGE_KEYS.rooms)
+  if (!data) return []
+
+  try {
+    return JSON.parse(data)
+  } catch {
+    return []
+  }
+}
+
+// テストデータの保存
+export function saveTests(tests: Test[]) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEYS.tests, JSON.stringify(tests))
+  }
+  return { success: true }
+}
+
+// テストデータの読み込み
+export function loadTests(): Test[] {
+  if (typeof window === "undefined") return []
+
+  const data = localStorage.getItem(STORAGE_KEYS.tests)
   if (!data) return []
 
   try {

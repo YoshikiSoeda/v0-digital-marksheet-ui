@@ -43,8 +43,7 @@ export function TeacherLoginForm() {
     sessionStorage.setItem("teacherName", teacher.name)
     sessionStorage.setItem("teacherEmail", teacher.email)
     sessionStorage.setItem("teacherRole", teacher.role)
-    sessionStorage.setItem("teacherRoom", teacher.roomNumber)
-    sessionStorage.setItem("assignedStudentIds", JSON.stringify(teacher.assignedStudents))
+    sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber)
 
     setTimeout(() => {
       setIsLoading(false)

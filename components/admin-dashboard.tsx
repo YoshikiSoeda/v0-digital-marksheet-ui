@@ -13,10 +13,12 @@ import {
   loadPatients,
   loadAttendanceRecords,
   loadEvaluationResults,
+  loadRooms,
 } from "@/lib/data-storage"
 
 interface RoomData {
   roomNumber: string
+  roomName: string
   teacherName: string
   patientName: string
   presentCount: number
@@ -37,9 +39,9 @@ interface RoomData {
 
 interface Room {
   roomNumber: string
+  roomName?: string
   teacherName: string
   patientName: string
-  roomName?: string
 }
 
 interface Student {
@@ -51,12 +53,12 @@ interface Student {
 
 interface Teacher {
   name: string
-  roomNumber: string
+  assignedRoomNumber: string
 }
 
 interface PatientRole {
   name: string
-  roomNumber: string
+  assignedRoomNumber: string
 }
 
 interface AttendanceRecord {
@@ -88,18 +90,25 @@ export function AdminDashboard() {
     const fetchedPatients = loadPatients()
     const fetchedAttendanceRecords = loadAttendanceRecords()
     const fetchedEvaluationResults = loadEvaluationResults()
+    const fetchedRooms = loadRooms()
 
     setStudents(fetchedStudents)
     setTeachers(fetchedTeachers)
     setPatients(fetchedPatients)
     setAttendanceRecords(fetchedAttendanceRecords)
 
+    const roomNameMap = new Map<string, string>()
+    fetchedRooms.forEach((room) => {
+      roomNameMap.set(room.roomNumber, room.roomName)
+    })
+
     const roomMap = new Map<string, RoomData>()
 
     fetchedTeachers.forEach((teacher) => {
-      if (!roomMap.has(teacher.roomNumber)) {
-        roomMap.set(teacher.roomNumber, {
-          roomNumber: teacher.roomNumber,
+      if (!roomMap.has(teacher.assignedRoomNumber)) {
+        roomMap.set(teacher.assignedRoomNumber, {
+          roomNumber: teacher.assignedRoomNumber,
+          roomName: roomNameMap.get(teacher.assignedRoomNumber) || "",
           teacherName: teacher.name,
           patientName: "",
           presentCount: 0,
@@ -110,16 +119,17 @@ export function AdminDashboard() {
           students: [],
         })
       } else {
-        const room = roomMap.get(teacher.roomNumber)!
+        const room = roomMap.get(teacher.assignedRoomNumber)!
         room.teacherName = teacher.name
       }
     })
 
     fetchedPatients.forEach((patient) => {
-      if (!roomMap.has(patient.roomNumber)) {
-        roomMap.set(patient.roomNumber, {
-          roomNumber: patient.roomNumber,
-          teacherName: "",
+      if (!roomMap.has(patient.assignedRoomNumber)) {
+        roomMap.set(patient.assignedRoomNumber, {
+          roomNumber: patient.assignedRoomNumber,
+          roomName: roomNameMap.get(patient.assignedRoomNumber) || "",
+          teacherName: "未割当",
           patientName: patient.name,
           presentCount: 0,
           absentCount: 0,
@@ -129,7 +139,7 @@ export function AdminDashboard() {
           students: [],
         })
       } else {
-        const room = roomMap.get(patient.roomNumber)!
+        const room = roomMap.get(patient.assignedRoomNumber)!
         room.patientName = patient.name
       }
     })
@@ -147,6 +157,7 @@ export function AdminDashboard() {
       if (!roomMap.has(roomNumber)) {
         roomMap.set(roomNumber, {
           roomNumber,
+          roomName: roomNameMap.get(roomNumber) || "",
           teacherName: "未割当",
           patientName: "未割当",
           presentCount: 0,
@@ -222,6 +233,10 @@ export function AdminDashboard() {
 
   const presentStudents = rooms.flatMap((room) => room.students.filter((s) => s.status === "present"))
 
+  const selectedRoomStudents = selectedRoom
+    ? rooms.find((room) => room.roomNumber === selectedRoom)?.students || []
+    : []
+
   if (userRole === null) {
     return (
       <div className="min-h-screen bg-secondary/30 p-4 md:p-8 flex items-center justify-center">
@@ -279,7 +294,7 @@ export function AdminDashboard() {
                 アカウント管理
               </Button>
             </Link>
-            <Link href="/admin/questions">
+            <Link href="/admin/question-management">
               <Button variant="outline" size="sm">
                 <FileText className="w-4 h-4 mr-2" />
                 問題管理
@@ -531,7 +546,7 @@ export function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {presentStudents.map((student, index) => (
+                    {selectedRoomStudents.map((student, index) => (
                       <tr key={index} className="border-b">
                         <td className="py-2">{student.studentId}</td>
                         <td className="py-2">{student.name}</td>

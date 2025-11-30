@@ -10,8 +10,12 @@ import {
   saveAttendanceRecords,
   loadEvaluationResults,
   saveEvaluationResults,
+  loadTests,
+  loadRooms, // Added loadRooms to fetch room names
   type AttendanceRecord,
   type EvaluationResult,
+  type Test,
+  type Question,
 } from "@/lib/data-storage"
 
 interface Answer {
@@ -23,18 +27,26 @@ interface StudentData {
   name: string
 }
 
+interface QuestionWithMeta extends Question {
+  sheetTitle: string
+  categoryTitle: string
+  categoryNumber: number
+  displayNumber: number
+}
+
 const TeacherExamTabs = () => {
   const getAssignedStudents = () => {
     if (typeof window === "undefined") return []
 
-    const assignedStudentIdsJson = sessionStorage.getItem("assignedStudentIds")
-    if (!assignedStudentIdsJson) return []
+    const teacherRoom = sessionStorage.getItem("teacherRoom")
+    if (!teacherRoom) {
+      console.warn("[v0] No teacher room found in session")
+      return []
+    }
 
-    const assignedStudentIds = JSON.parse(assignedStudentIdsJson) as string[]
     const allStudents = loadStudents()
-
     return allStudents
-      .filter((student) => assignedStudentIds.includes(student.studentId))
+      .filter((student) => student.roomNumber === teacherRoom)
       .map((student) => ({
         id: student.studentId,
         name: student.name,
@@ -46,17 +58,54 @@ const TeacherExamTabs = () => {
   const [timeRemaining, setTimeRemaining] = useState(3600)
   const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "pending">>({})
-  const [loginInfo, setLoginInfo] = useState<{ email: string; roomNumber: string; name: string } | null>(null)
+  const [loginInfo, setLoginInfo] = useState<{
+    email: string
+    roomNumber: string
+    name: string
+    roomName: string
+  } | null>(null) // Added roomName to loginInfo
+  const [selectedTest, setSelectedTest] = useState<Test | null>(null)
+  const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
   const router = useRouter()
 
-  // Generate 100 questions
-  const questions = Array.from({ length: 100 }, (_, i) => ({
-    id: i + 1,
-    text: `評価項目 ${i + 1}`,
-    options: ["0", "1", "2", "3"],
-  }))
-
   useEffect(() => {
+    const testId = sessionStorage.getItem("teacher_selected_test")
+    if (!testId) {
+      console.error("[v0] No test selected")
+      router.push("/teacher/exam-info")
+      return
+    }
+
+    const tests = loadTests()
+    const test = tests.find((t) => t.id === testId)
+
+    if (!test) {
+      console.error("[v0] Test not found")
+      router.push("/teacher/exam-info")
+      return
+    }
+
+    setSelectedTest(test)
+
+    const flatQuestions: QuestionWithMeta[] = []
+    let displayNumber = 1
+
+    test.sheets.forEach((sheet) => {
+      sheet.categories.forEach((category) => {
+        category.questions.forEach((question) => {
+          flatQuestions.push({
+            ...question,
+            sheetTitle: sheet.title,
+            categoryTitle: category.title,
+            categoryNumber: category.number,
+            displayNumber: displayNumber++,
+          })
+        })
+      })
+    })
+
+    setQuestions(flatQuestions)
+
     const students = getAssignedStudents()
     setAssignedStudents(students)
 
@@ -64,10 +113,14 @@ const TeacherExamTabs = () => {
     const teacherRoom = sessionStorage.getItem("teacherRoom")
     const teacherName = sessionStorage.getItem("teacherName")
     if (teacherEmail && teacherRoom && teacherName) {
+      const rooms = loadRooms()
+      const roomData = rooms.find((r) => r.roomNumber === teacherRoom)
+
       setLoginInfo({
         email: teacherEmail,
         roomNumber: teacherRoom,
         name: teacherName,
+        roomName: roomData?.roomName || "未設定",
       })
     }
 
@@ -103,7 +156,17 @@ const TeacherExamTabs = () => {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [router])
+
+  if (!selectedTest || questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-medium">テストを読み込んでいます...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (assignedStudents.length === 0) {
     return (
@@ -218,6 +281,35 @@ const TeacherExamTabs = () => {
     saveAttendanceRecords(attendanceRecords)
   }
 
+  const groupedQuestions: Array<{
+    sheetTitle: string
+    categories: Array<{
+      categoryTitle: string
+      categoryNumber: number
+      questions: QuestionWithMeta[]
+    }>
+  }> = []
+
+  questions.forEach((question) => {
+    let sheet = groupedQuestions.find((s) => s.sheetTitle === question.sheetTitle)
+    if (!sheet) {
+      sheet = { sheetTitle: question.sheetTitle, categories: [] }
+      groupedQuestions.push(sheet)
+    }
+
+    let category = sheet.categories.find((c) => c.categoryNumber === question.categoryNumber)
+    if (!category) {
+      category = {
+        categoryTitle: question.categoryTitle,
+        categoryNumber: question.categoryNumber,
+        questions: [],
+      }
+      sheet.categories.push(category)
+    }
+
+    category.questions.push(question)
+  })
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -225,7 +317,9 @@ const TeacherExamTabs = () => {
           <div className="flex items-center gap-4">
             {loginInfo && (
               <>
-                <span className="text-sm font-medium">部屋: {loginInfo.roomNumber}</span>
+                <span className="text-sm font-medium">
+                  部屋{loginInfo.roomNumber}: {loginInfo.roomName}
+                </span>
                 <span className="text-sm text-muted-foreground">教員: {loginInfo.name}</span>
               </>
             )}
@@ -317,53 +411,82 @@ const TeacherExamTabs = () => {
           <p className="text-sm text-muted-foreground">
             {activeStudent.id} - {answeredCount}/{questions.length}回答済み
           </p>
+          <p className="text-sm font-medium text-primary mt-1">テスト: {selectedTest.title}</p>
         </div>
 
-        <div className="space-y-1">
-          {questions.map((question) => {
-            const selectedAnswer = answers[question.id]
-            const isAnswered = selectedAnswer !== undefined
-            const isDisabled = attendanceStatus[activeStudent.id] !== "present"
+        <div className="space-y-6">
+          {groupedQuestions.map((sheet, sheetIndex) => (
+            <div key={sheetIndex} className="space-y-4">
+              <div className="bg-primary/10 p-3 rounded-lg border-l-4 border-primary">
+                <h3 className="font-bold text-lg">{sheet.sheetTitle}</h3>
+              </div>
 
-            return (
-              <div key={question.id} className="border rounded-md p-2 bg-card hover:bg-accent/5 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
-                      isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {question.id}
+              {sheet.categories.map((category, categoryIndex) => (
+                <div key={categoryIndex} className="space-y-2 ml-4">
+                  <div className="bg-secondary/50 p-2 rounded-md">
+                    <h4 className="font-semibold text-base">
+                      カテゴリ {category.categoryNumber}: {category.categoryTitle}
+                    </h4>
                   </div>
 
-                  <div className="flex-1 flex items-center gap-4">
-                    <span className="text-sm font-medium min-w-[120px]">{question.text}</span>
+                  <div className="space-y-1 ml-4">
+                    {category.questions.map((question) => {
+                      const selectedAnswer = answers[question.displayNumber]
+                      const isAnswered = selectedAnswer !== undefined
+                      const isDisabled = attendanceStatus[activeStudent.id] !== "present"
 
-                    <div className="flex gap-1">
-                      {question.options.map((option, optionIndex) => (
-                        <button
-                          key={option}
-                          onClick={() => handleAnswerChange(question.id, optionIndex)}
-                          disabled={isDisabled}
-                          className={`w-9 h-9 rounded text-sm font-medium transition-all ${
-                            isDisabled
-                              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                              : selectedAnswer === optionIndex
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                      return (
+                        <div
+                          key={question.displayNumber}
+                          className={`border rounded-md p-2 bg-card hover:bg-accent/5 transition-colors ${
+                            question.isAlertTarget ? "border-l-4 border-l-red-500" : ""
                           }`}
                         >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
+                                isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {question.displayNumber}
+                            </div>
 
-                  {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                            <div className="flex-1 flex items-center gap-4">
+                              <span className="text-sm font-medium min-w-[200px]">{question.text}</span>
+
+                              <div className="flex gap-1">
+                                {[1, 2, 3, 4, 5].map((optionValue) => (
+                                  <button
+                                    key={optionValue}
+                                    onClick={() => handleAnswerChange(question.displayNumber, optionValue)}
+                                    disabled={isDisabled}
+                                    className={`w-9 h-9 rounded text-sm font-medium transition-all ${
+                                      isDisabled
+                                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                        : selectedAnswer === optionValue
+                                          ? "bg-primary text-primary-foreground shadow-sm"
+                                          : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                                    }`}
+                                  >
+                                    {optionValue}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
+                            {question.isAlertTarget && (
+                              <span className="text-xs text-red-600 font-medium flex-shrink-0">アラート対象</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              ))}
+            </div>
+          ))}
         </div>
       </main>
     </div>
