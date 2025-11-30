@@ -24,8 +24,12 @@ export default function PatientsListPage() {
   })
 
   useEffect(() => {
-    setPatients(loadPatients())
-    setRooms(loadRooms())
+    const fetchData = async () => {
+      const [loadedPatients, loadedRooms] = await Promise.all([loadPatients(), loadRooms()])
+      setPatients(Array.isArray(loadedPatients) ? loadedPatients : [])
+      setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
+    }
+    fetchData()
   }, [])
 
   const filteredPatients = patients.filter(
@@ -45,7 +49,7 @@ export default function PatientsListPage() {
     })
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingPatient) return
 
     if (editForm.roomNumber && !/^\d+$/.test(editForm.roomNumber)) {
@@ -66,23 +70,23 @@ export default function PatientsListPage() {
         : p,
     )
 
-    savePatients(updatedPatients)
+    await savePatients(updatedPatients)
     setPatients(updatedPatients)
     setEditingPatient(null)
     alert("患者役情報を更新しました")
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("この患者役を削除しますか？")) {
       const updated = patients.filter((p) => p.id !== id)
-      savePatients(updated)
+      await savePatients(updated)
       setPatients(updated)
     }
   }
 
-  const handleDeleteAll = () => {
+  const handleDeleteAll = async () => {
     if (confirm("全ての患者役データを削除しますか？この操作は取り消せません。")) {
-      savePatients([])
+      await savePatients([])
       setPatients([])
       alert("全ての患者役データを削除しました")
     }

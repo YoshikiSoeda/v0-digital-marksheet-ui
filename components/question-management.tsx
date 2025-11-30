@@ -15,18 +15,21 @@ export function QuestionManagement() {
   const [searchTerm, setSearchTerm] = useState("")
 
   useEffect(() => {
-    const loadedTests = loadTests()
-    setTests(loadedTests)
+    const fetchTests = async () => {
+      const loadedTests = await loadTests()
+      setTests(Array.isArray(loadedTests) ? loadedTests : [])
+    }
+    fetchTests()
   }, [])
 
   const filteredTests = tests.filter((test) => test.title.toLowerCase().includes(searchTerm.toLowerCase()))
 
-  const handleDelete = (testId: string) => {
+  const handleDelete = async (testId: string) => {
     if (!confirm("このテストを削除してもよろしいですか？")) return
 
     const updatedTests = tests.filter((t) => t.id !== testId)
     setTests(updatedTests)
-    saveTests(updatedTests)
+    await saveTests(updatedTests)
   }
 
   const handleCreateNew = () => {

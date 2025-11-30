@@ -15,7 +15,7 @@ import { saveTeachers, loadTeachers, loadRooms, type Teacher, type Room } from "
 export function TeacherRegistration() {
   const router = useRouter()
   const [teachers, setTeachers] = useState<Teacher[]>([])
-  const [rooms, setRooms] = useState<Room[]>([]) // Add rooms state
+  const [rooms, setRooms] = useState<Room[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
     name: "",
@@ -27,11 +27,25 @@ export function TeacherRegistration() {
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    const data = loadTeachers()
-    const roomData = loadRooms() // Load rooms data
-    setTeachers(data)
-    setRooms(roomData)
-    setIsLoading(false)
+    const fetchData = async () => {
+      try {
+        const [teachersData, roomsData] = await Promise.all([loadTeachers(), loadRooms()])
+
+        console.log("[v0] Loaded teachers:", teachersData)
+        console.log("[v0] Loaded rooms:", roomsData)
+
+        setTeachers(Array.isArray(teachersData) ? teachersData : [])
+        setRooms(Array.isArray(roomsData) ? roomsData : [])
+      } catch (error) {
+        console.error("[v0] Error loading data:", error)
+        setTeachers([])
+        setRooms([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
   }, [])
 
   const handleAddTeacher = () => {
@@ -171,15 +185,20 @@ export function TeacherRegistration() {
     link.click()
   }
 
-  const handleConfirmRegistration = () => {
+  const handleConfirmRegistration = async () => {
     if (teachers.length === 0) {
       alert("登録する教員がいません")
       return
     }
 
-    saveTeachers(teachers)
-    alert(`${teachers.length}名の教員情報を保存しました`)
-    router.push("/admin/account-management")
+    try {
+      await saveTeachers(teachers)
+      alert(`${teachers.length}名の教員情報を保存しました`)
+      router.push("/admin/account-management")
+    } catch (error) {
+      console.error("[v0] Error saving teachers:", error)
+      alert("教員情報の保存に失敗しました")
+    }
   }
 
   const handleDeleteTeacher = (id: string) => {

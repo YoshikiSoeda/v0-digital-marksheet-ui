@@ -31,8 +31,12 @@ export default function StudentsListPage() {
   })
 
   useEffect(() => {
-    setStudents(loadStudents())
-    setRooms(loadRooms())
+    const fetchData = async () => {
+      const [fetchedStudents, fetchedRooms] = await Promise.all([loadStudents(), loadRooms()])
+      setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
+      setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
+    }
+    fetchData()
   }, [])
 
   const filteredStudents = students.filter(
@@ -53,7 +57,7 @@ export default function StudentsListPage() {
     })
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingStudent) return
 
     const updated = students.map((s) =>
@@ -68,22 +72,22 @@ export default function StudentsListPage() {
           }
         : s,
     )
-    saveStudents(updated)
+    await saveStudents(updated)
     setStudents(updated)
     setEditingStudent(null)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("この学生を削除しますか？")) {
       const updated = students.filter((s) => s.id !== id)
-      saveStudents(updated)
+      await saveStudents(updated)
       setStudents(updated)
     }
   }
 
-  const handleResetAllData = () => {
+  const handleResetAllData = async () => {
     if (confirm("全ての学生データを削除しますか？この操作は取り消せません。")) {
-      saveStudents([])
+      await saveStudents([])
       setStudents([])
       alert("全ての学生データを削除しました")
     }

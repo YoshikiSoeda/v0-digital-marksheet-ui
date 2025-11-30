@@ -23,11 +23,14 @@ export function RoomManagement() {
   const router = useRouter()
 
   useEffect(() => {
-    const loadedRooms = loadRooms()
-    setRooms(loadedRooms)
+    const fetchRooms = async () => {
+      const loadedRooms = await loadRooms()
+      setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
+    }
+    fetchRooms()
   }, [])
 
-  const handleAddRoom = () => {
+  const handleAddRoom = async () => {
     if (!newRoomNumber || !newRoomName) {
       alert("部屋番号と部屋名を入力してください")
       return
@@ -48,7 +51,7 @@ export function RoomManagement() {
 
     const updatedRooms = [...rooms, newRoom]
     setRooms(updatedRooms)
-    saveRooms(updatedRooms)
+    await saveRooms(updatedRooms)
 
     setNewRoomNumber("")
     setNewRoomName("")
@@ -61,7 +64,7 @@ export function RoomManagement() {
     setEditRoomName(room.roomName)
   }
 
-  const handleSaveEdit = (roomId: string) => {
+  const handleSaveEdit = async (roomId: string) => {
     if (!editRoomNumber || !editRoomName) {
       alert("部屋番号と部屋名を入力してください")
       return
@@ -72,16 +75,16 @@ export function RoomManagement() {
     )
 
     setRooms(updatedRooms)
-    saveRooms(updatedRooms)
+    await saveRooms(updatedRooms)
     setEditingRoomId(null)
   }
 
-  const handleDelete = (roomId: string) => {
+  const handleDelete = async (roomId: string) => {
     if (!confirm("この部屋を削除してもよろしいですか？")) return
 
     const updatedRooms = rooms.filter((room) => room.id !== roomId)
     setRooms(updatedRooms)
-    saveRooms(updatedRooms)
+    await saveRooms(updatedRooms)
   }
 
   const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,7 +92,7 @@ export function RoomManagement() {
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const csvText = event.target?.result as string
       const lines = csvText.split("\n").filter((line) => line.trim())
       const importedRooms: Room[] = []
@@ -109,7 +112,7 @@ export function RoomManagement() {
       if (importedRooms.length > 0) {
         const updatedRooms = [...rooms, ...importedRooms]
         setRooms(updatedRooms)
-        saveRooms(updatedRooms)
+        await saveRooms(updatedRooms)
         alert(`${importedRooms.length}件の部屋をインポートしました`)
       }
     }

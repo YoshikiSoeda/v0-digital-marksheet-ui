@@ -24,8 +24,14 @@ export default function TeachersListPage() {
   })
 
   useEffect(() => {
-    setTeachers(loadTeachers())
-    setRooms(loadRooms())
+    const fetchData = async () => {
+      const [fetchedTeachers, fetchedRooms] = await Promise.all([loadTeachers(), loadRooms()])
+
+      setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
+      setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
+    }
+
+    fetchData()
   }, [])
 
   const filteredTeachers = teachers.filter(
@@ -45,7 +51,7 @@ export default function TeachersListPage() {
     })
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingTeacher) return
 
     const updatedTeachers = teachers.map((t) =>
@@ -61,23 +67,23 @@ export default function TeachersListPage() {
         : t,
     )
 
-    saveTeachers(updatedTeachers)
+    await saveTeachers(updatedTeachers)
     setTeachers(updatedTeachers)
     setEditingTeacher(null)
     alert("教員情報を更新しました")
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("この教員を削除しますか？")) {
       const updated = teachers.filter((t) => t.id !== id)
-      saveTeachers(updated)
+      await saveTeachers(updated)
       setTeachers(updated)
     }
   }
 
-  const handleDeleteAll = () => {
+  const handleDeleteAll = async () => {
     if (confirm("全ての教員データを削除しますか？この操作は取り消せません。")) {
-      saveTeachers([])
+      await saveTeachers([])
       setTeachers([])
       alert("全ての教員データを削除しました")
     }

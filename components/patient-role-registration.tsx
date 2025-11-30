@@ -27,11 +27,14 @@ export function PatientRoleRegistration() {
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    const data = loadPatients()
-    const roomData = loadRooms()
-    setPatients(data)
-    setRooms(roomData)
-    setIsLoading(false)
+    const fetchData = async () => {
+      const data = await loadPatients()
+      const roomData = await loadRooms()
+      setPatients(Array.isArray(data) ? data : [])
+      setRooms(Array.isArray(roomData) ? roomData : [])
+      setIsLoading(false)
+    }
+    fetchData()
   }, [])
 
   const handleAddPatient = () => {
@@ -170,8 +173,8 @@ export function PatientRoleRegistration() {
     link.click()
   }
 
-  const handleConfirmRegistration = () => {
-    savePatients(patients)
+  const handleConfirmRegistration = async () => {
+    await savePatients(patients)
     alert(`${patients.length}名の患者役情報を保存しました`)
     router.push("/admin/account-management")
   }

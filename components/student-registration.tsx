@@ -27,11 +27,23 @@ export function StudentRegistration() {
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    const data = loadStudents()
-    const roomData = loadRooms() // Load rooms data
-    setStudents(data)
-    setRooms(roomData)
-    setIsLoading(false)
+    const loadData = async () => {
+      try {
+        const [studentsData, roomsData] = await Promise.all([loadStudents(), loadRooms()])
+        console.log("[v0] Loaded students:", studentsData)
+        console.log("[v0] Loaded rooms:", roomsData)
+        setStudents(Array.isArray(studentsData) ? studentsData : [])
+        setRooms(Array.isArray(roomsData) ? roomsData : [])
+      } catch (error) {
+        console.error("[v0] Error loading data:", error)
+        setStudents([])
+        setRooms([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
   }, [])
 
   const handleAddStudent = () => {
@@ -176,14 +188,14 @@ export function StudentRegistration() {
     link.click()
   }
 
-  const handleConfirmRegistration = () => {
+  const handleConfirmRegistration = async () => {
     if (students.length === 0) {
       alert("登録する学生がいません")
       return
     }
 
     try {
-      saveStudents(students)
+      await saveStudents(students)
       alert(`${students.length}名の学生情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
