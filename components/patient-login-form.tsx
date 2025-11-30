@@ -39,13 +39,11 @@ export function PatientLoginForm() {
       return
     }
 
-    // Store logged-in patient info
     sessionStorage.setItem("patientId", patient.id)
     sessionStorage.setItem("patientName", patient.name)
     sessionStorage.setItem("patientEmail", patient.email)
-    sessionStorage.setItem("patientRoom", patient.roomNumber)
+    sessionStorage.setItem("patientRoom", patient.assignedRoomNumber)
     sessionStorage.setItem("userRole", patient.role)
-    sessionStorage.setItem("assignedStudentIds", JSON.stringify(patient.assignedStudents))
 
     setTimeout(() => {
       setIsLoading(false)

@@ -202,6 +202,9 @@ const PatientExamTabs = () => {
     }
     const totalScore = Object.values(activeStudentAnswers).reduce((sum, val) => sum + val, 0)
 
+    const question = questions.find((q) => q.displayNumber === questionId)
+    const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(value)
+
     const existingIndex = evaluations.findIndex(
       (e) => e.studentId === activeStudent.id && e.evaluatorType === "patient" && e.evaluatorId === loginInfo.email,
     )
@@ -215,6 +218,7 @@ const PatientExamTabs = () => {
       totalScore,
       answeredCount: Object.keys(activeStudentAnswers).length,
       isCompleted: Object.keys(activeStudentAnswers).length === questions.length,
+      hasAlert: hasAlert || (existingIndex >= 0 && evaluations[existingIndex].hasAlert) || false,
       updatedAt: new Date().toISOString(),
       createdAt: existingIndex >= 0 ? evaluations[existingIndex].createdAt : new Date().toISOString(),
     }
@@ -357,7 +361,17 @@ const PatientExamTabs = () => {
 
               return (
                 <div key={student.id} className="flex flex-col gap-1">
-                  <div className="text-xs font-medium text-center">{student.name}</div>
+                  <button
+                    onClick={() => setActiveStudentIndex(index)}
+                    disabled={attendance === "absent"}
+                    className={`text-sm font-semibold text-center px-2 py-1 rounded border transition-all ${
+                      isActive
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-white hover:bg-gray-50 border-gray-300"
+                    } ${attendance === "absent" ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    {student.name}
+                  </button>
                   <div className="flex gap-1">
                     <button
                       onClick={() => handleAttendanceChange(student.id, "present")}
@@ -376,13 +390,17 @@ const PatientExamTabs = () => {
                       欠席
                     </button>
                   </div>
-                  <button
-                    onClick={() => setActiveStudentIndex(index)}
-                    disabled={attendance === "absent"}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${bgColor}`}
+                  <div
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap text-center ${
+                      attendance === "absent"
+                        ? "bg-gray-300 text-gray-600"
+                        : isActive
+                          ? "bg-primary/20 border-2 border-primary"
+                          : "bg-white border border-gray-200"
+                    }`}
                   >
                     {`${isComplete ? "✓ " : ""}(${studentAnswered}/${questions.length} | ${studentScore}点)`}
-                  </button>
+                  </div>
                 </div>
               )
             })}
@@ -433,11 +451,13 @@ const PatientExamTabs = () => {
                       const isAnswered = selectedAnswer !== undefined
                       const isDisabled = attendanceStatus[activeStudent.id] !== "present"
 
+                      const isAlertAnswer = question.isAlertTarget && question.alertOptions?.includes(selectedAnswer)
+
                       return (
                         <div
                           key={question.displayNumber}
                           className={`border rounded-md p-2 bg-card hover:bg-accent/5 transition-colors ${
-                            question.isAlertTarget ? "border-l-4 border-l-red-500" : ""
+                            isAlertAnswer ? "bg-red-50" : ""
                           }`}
                         >
                           <div className="flex items-center gap-3">
@@ -473,8 +493,13 @@ const PatientExamTabs = () => {
                             </div>
 
                             {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
-                            {question.isAlertTarget && (
-                              <span className="text-xs text-red-600 font-medium flex-shrink-0">アラート対象</span>
+                            {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
+                              <span className="text-xs text-red-600 font-medium flex-shrink-0">
+                                アラート対象 ({question.alertOptions.join(",")})
+                              </span>
+                            )}
+                            {isAlertAnswer && (
+                              <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
                             )}
                           </div>
                         </div>

@@ -25,6 +25,7 @@ export function QuestionCreate() {
       categories: [],
     },
   ])
+  const [showPreview, setShowPreview] = useState(false)
 
   const addSheet = () => {
     setSheets([
@@ -107,6 +108,7 @@ export function QuestionCreate() {
                           option4: "",
                           option5: "",
                           isAlertTarget: false,
+                          alertOptions: [],
                         },
                       ],
                     }
@@ -159,6 +161,35 @@ export function QuestionCreate() {
     )
   }
 
+  const toggleAlertOption = (sheetId: string, categoryId: string, questionId: string, optionNumber: number) => {
+    setSheets(
+      sheets.map((s) =>
+        s.id === sheetId
+          ? {
+              ...s,
+              categories: s.categories.map((c) =>
+                c.id === categoryId
+                  ? {
+                      ...c,
+                      questions: c.questions.map((q) => {
+                        if (q.id === questionId) {
+                          const alertOptions = q.alertOptions || []
+                          const newAlertOptions = alertOptions.includes(optionNumber)
+                            ? alertOptions.filter((n) => n !== optionNumber)
+                            : [...alertOptions, optionNumber]
+                          return { ...q, alertOptions: newAlertOptions, isAlertTarget: newAlertOptions.length > 0 }
+                        }
+                        return q
+                      }),
+                    }
+                  : c,
+              ),
+            }
+          : s,
+      ),
+    )
+  }
+
   const handleSave = () => {
     if (!testTitle.trim()) {
       alert("テスト名を入力してください")
@@ -188,8 +219,9 @@ export function QuestionCreate() {
 
   const downloadCSVTemplate = () => {
     const csvContent =
-      "シート名,カテゴリ番号,カテゴリ名,問題番号,問題文,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,アラート対象\n" +
-      "シート1,1,カテゴリ1,1,問題文の例,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,0\n"
+      "シート名,カテゴリ番号,カテゴリ名,問題番号,問題文,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,アラート対象,アラート選択肢\n" +
+      "シート1,1,カテゴリ1,1,問題文の例,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,0,\n" +
+      'シート1,1,カテゴリ1,2,アラート問題例,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,1,"1,3"\n'
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
@@ -224,6 +256,7 @@ export function QuestionCreate() {
           option4,
           option5,
           isAlert,
+          alertOptionsStr,
         ] = line.split(",")
 
         let sheet = newSheets.find((s) => s.title === sheetTitle)
@@ -247,6 +280,17 @@ export function QuestionCreate() {
           sheet.categories.push(category)
         }
 
+        const alertOptions: number[] = []
+        if (alertOptionsStr && alertOptionsStr.trim()) {
+          const cleanStr = alertOptionsStr.replace(/"/g, "").trim()
+          alertOptions.push(
+            ...cleanStr
+              .split(",")
+              .map((n) => Number.parseInt(n.trim()))
+              .filter((n) => n >= 1 && n <= 5),
+          )
+        }
+
         category.questions.push({
           id: crypto.randomUUID(),
           number: Number.parseInt(questionNum),
@@ -257,11 +301,13 @@ export function QuestionCreate() {
           option4,
           option5,
           isAlertTarget: isAlert === "1",
+          alertOptions,
         })
       })
 
       setSheets(newSheets)
-      alert("CSVファイルを読み込みました")
+      setShowPreview(true)
+      alert("CSVファイルを読み込みました。プレビューを確認してください。")
     }
 
     reader.readAsText(file)
@@ -416,25 +462,26 @@ export function QuestionCreate() {
                                 />
                               </div>
                               <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`alert-${question.id}`}
-                                  checked={question.isAlertTarget}
-                                  onCheckedChange={(checked) =>
-                                    updateQuestion(
-                                      sheet.id,
-                                      category.id,
-                                      question.id,
-                                      "isAlertTarget",
-                                      checked === true,
-                                    )
-                                  }
-                                />
-                                <label
-                                  htmlFor={`alert-${question.id}`}
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                >
-                                  アラート対象
-                                </label>
+                                <span className="text-xs font-medium text-gray-600">アラート対象の選択肢:</span>
+                                <div className="flex items-center gap-2">
+                                  {[1, 2, 3, 4, 5].map((optNum) => (
+                                    <div key={optNum} className="flex items-center space-x-1">
+                                      <Checkbox
+                                        id={`alert-opt-${question.id}-${optNum}`}
+                                        checked={question.alertOptions?.includes(optNum) || false}
+                                        onCheckedChange={() =>
+                                          toggleAlertOption(sheet.id, category.id, question.id, optNum)
+                                        }
+                                      />
+                                      <label
+                                        htmlFor={`alert-opt-${question.id}-${optNum}`}
+                                        className="text-xs cursor-pointer"
+                                      >
+                                        {optNum}
+                                      </label>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -446,17 +493,13 @@ export function QuestionCreate() {
                       </CardContent>
                     </Card>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => addCategory(sheet.id)}>
+                  <Button variant="outline" onClick={addSheet}>
                     <Plus className="mr-2 h-4 w-4" />
-                    カテゴリを追加
+                    シートを追加
                   </Button>
                 </CardContent>
               </Card>
             ))}
-            <Button variant="outline" onClick={addSheet}>
-              <Plus className="mr-2 h-4 w-4" />
-              シートを追加
-            </Button>
           </TabsContent>
 
           <TabsContent value="csv">
@@ -478,10 +521,57 @@ export function QuestionCreate() {
                 <p className="text-sm text-gray-500">
                   CSV形式:
                   シート名,カテゴリ番号,カテゴリ名,問題番号,問題文,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,アラート対象(0
-                  or 1)
+                  or 1),アラート選択肢("1,3,5"のように指定)
                 </p>
               </CardContent>
             </Card>
+
+            {showPreview && sheets.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle>プレビュー</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {sheets.map((sheet) => (
+                    <div key={sheet.id} className="space-y-3">
+                      <h3 className="font-semibold text-lg text-[#00417A]">シート: {sheet.title}</h3>
+                      {sheet.categories.map((category) => (
+                        <div key={category.id} className="ml-4 space-y-2">
+                          <h4 className="font-medium text-gray-700">
+                            カテゴリ {category.number}: {category.title}
+                          </h4>
+                          <div className="ml-4 space-y-1">
+                            {category.questions.map((question) => (
+                              <div key={question.id} className="flex items-start gap-2 text-sm border-b pb-2">
+                                <span className="font-medium min-w-[3rem]">Q{question.number}:</span>
+                                <div className="flex-1">
+                                  <div className="mb-1">{question.text}</div>
+                                  <div className="flex gap-2 flex-wrap text-xs text-gray-600">
+                                    <span>1:{question.option1}</span>
+                                    <span>2:{question.option2}</span>
+                                    <span>3:{question.option3}</span>
+                                    <span>4:{question.option4}</span>
+                                    <span>5:{question.option5}</span>
+                                    {question.isAlertTarget && (
+                                      <span className="text-red-600 font-semibold">
+                                        ⚠️アラート
+                                        {question.alertOptions && question.alertOptions.length > 0 && (
+                                          <span className="ml-1">(選択肢: {question.alertOptions.join(",")})</span>
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>

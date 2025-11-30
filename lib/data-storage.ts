@@ -49,10 +49,11 @@ export interface EvaluationResult {
   evaluatorId: string // 教員または患者役のID
   evaluatorType: "teacher" | "patient"
   roomNumber: string
-  answers: Record<number, number> // 問題番号: 回答値（0-3）
+  answers: Record<number, number> // 問題番号: 回答値（1-5）
   totalScore: number
   answeredCount: number
   isCompleted: boolean
+  hasAlert?: boolean // Add hasAlert flag to track if any answer triggers an alert
   completedAt?: string
   createdAt: string
   updatedAt: string
@@ -76,6 +77,7 @@ export interface Question {
   option4: string // 選択肢4
   option5: string // 選択肢5
   isAlertTarget: boolean // アラート対象ON/OFF
+  alertOptions: number[] // アラート対象の選択肢番号（1-5）
 }
 
 export interface Category {
@@ -110,150 +112,422 @@ const STORAGE_KEYS = {
   tests: "medical_exam_tests", // Adding tests storage key
 }
 
+import { createClient } from "./supabase/client"
+
 // 学生データの保存
-export function saveStudents(students: Student[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.students, JSON.stringify(students))
+export async function saveStudents(students: Student[]) {
+  const supabase = createClient()
+
+  const studentsData = students.map((s) => ({
+    id: s.id,
+    student_id: s.studentId,
+    name: s.name,
+    email: s.email || null,
+    department: s.department,
+    room_number: s.roomNumber,
+    created_at: s.createdAt,
+  }))
+
+  const { error } = await supabase.from("students").upsert(studentsData, { onConflict: "id" })
+
+  if (error) {
+    console.error("[v0] Error saving students:", error)
+    return { success: false, error }
   }
+
   return { success: true }
 }
 
 // 学生データの読み込み
-export function loadStudents(): Student[] {
-  if (typeof window === "undefined") return []
+export async function loadStudents(): Promise<Student[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.students)
-  if (!data) return []
+  const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: true })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (error) {
+    console.error("[v0] Error loading students:", error)
     return []
   }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    studentId: row.student_id,
+    name: row.name,
+    email: row.email,
+    department: row.department,
+    roomNumber: row.room_number,
+    createdAt: row.created_at,
+  }))
 }
 
 // 教員データの保存
-export function saveTeachers(teachers: Teacher[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.teachers, JSON.stringify(teachers))
+export async function saveTeachers(teachers: Teacher[]) {
+  const supabase = createClient()
+
+  const teachersData = teachers.map((t) => ({
+    id: t.id,
+    name: t.name,
+    email: t.email,
+    password: t.password,
+    role: t.role,
+    assigned_room_number: t.assignedRoomNumber,
+    created_at: t.createdAt,
+  }))
+
+  const { error } = await supabase.from("teachers").upsert(teachersData, { onConflict: "id" })
+
+  if (error) {
+    console.error("[v0] Error saving teachers:", error)
+    return { success: false, error }
   }
+
   return { success: true }
 }
 
 // 教員データの読み込み
-export function loadTeachers(): Teacher[] {
-  if (typeof window === "undefined") return []
+export async function loadTeachers(): Promise<Teacher[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.teachers)
-  if (!data) return []
+  const { data, error } = await supabase.from("teachers").select("*").order("created_at", { ascending: true })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (error) {
+    console.error("[v0] Error loading teachers:", error)
     return []
   }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    teacherId: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    role: row.role,
+    assignedRoomNumber: row.assigned_room_number,
+    createdAt: row.created_at,
+  }))
 }
 
 // 患者役データの保存
-export function savePatients(patients: Patient[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.patients, JSON.stringify(patients))
+export async function savePatients(patients: Patient[]) {
+  const supabase = createClient()
+
+  const patientsData = patients.map((p) => ({
+    id: p.id,
+    name: p.name,
+    email: p.email,
+    password: p.password,
+    role: p.role,
+    assigned_room_number: p.assignedRoomNumber,
+    created_at: p.createdAt,
+  }))
+
+  const { error } = await supabase.from("patients").upsert(patientsData, { onConflict: "id" })
+
+  if (error) {
+    console.error("[v0] Error saving patients:", error)
+    return { success: false, error }
   }
+
   return { success: true }
 }
 
 // 患者役データの読み込み
-export function loadPatients(): Patient[] {
-  if (typeof window === "undefined") return []
+export async function loadPatients(): Promise<Patient[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.patients)
-  if (!data) return []
+  const { data, error } = await supabase.from("patients").select("*").order("created_at", { ascending: true })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (error) {
+    console.error("[v0] Error loading patients:", error)
     return []
   }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    patientId: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    role: row.role,
+    assignedRoomNumber: row.assigned_room_number,
+    createdAt: row.created_at,
+  }))
 }
 
-export function saveAttendanceRecords(records: AttendanceRecord[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.attendance, JSON.stringify(records))
+export async function saveAttendanceRecords(records: AttendanceRecord[]) {
+  const supabase = createClient()
+
+  const attendanceData = records.map((r) => ({
+    student_id: r.studentId,
+    room_number: r.roomNumber,
+    status: r.status,
+    recorded_at: r.timestamp,
+  }))
+
+  const { error } = await supabase
+    .from("attendance_records")
+    .upsert(attendanceData, { onConflict: "student_id,room_number" })
+
+  if (error) {
+    console.error("[v0] Error saving attendance records:", error)
+    return { success: false, error }
   }
+
   return { success: true }
 }
 
-export function loadAttendanceRecords(): AttendanceRecord[] {
-  if (typeof window === "undefined") return []
+export async function loadAttendanceRecords(): Promise<AttendanceRecord[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.attendance)
-  if (!data) return []
+  const { data, error } = await supabase
+    .from("attendance_records")
+    .select("*")
+    .order("recorded_at", { ascending: false })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (error) {
+    console.error("[v0] Error loading attendance records:", error)
     return []
   }
+
+  return (data || []).map((row) => ({
+    studentId: row.student_id,
+    status: row.status,
+    markedBy: "", // Will need to be derived from evaluator
+    markedByType: "teacher", // Default
+    roomNumber: row.room_number,
+    timestamp: row.recorded_at,
+  }))
 }
 
-export function saveEvaluationResults(results: EvaluationResult[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.evaluations, JSON.stringify(results))
+export async function saveEvaluationResults(results: EvaluationResult[]) {
+  const supabase = createClient()
+
+  const evaluationData = results.map((r) => ({
+    student_id: r.studentId,
+    room_number: r.roomNumber,
+    evaluator_email: r.evaluatorId,
+    evaluator_type: r.evaluatorType,
+    evaluations: r.answers,
+    total_score: r.totalScore,
+    is_completed: r.isCompleted,
+    has_alert: r.hasAlert || false,
+  }))
+
+  const { error } = await supabase.from("exam_results").upsert(evaluationData)
+
+  if (error) {
+    console.error("[v0] Error saving evaluation results:", error)
+    return { success: false, error }
   }
+
   return { success: true }
 }
 
-export function loadEvaluationResults(): EvaluationResult[] {
-  if (typeof window === "undefined") return []
+export async function loadEvaluationResults(): Promise<EvaluationResult[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.evaluations)
-  if (!data) return []
+  const { data, error } = await supabase.from("exam_results").select("*").order("created_at", { ascending: false })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (error) {
+    console.error("[v0] Error loading evaluation results:", error)
     return []
   }
+
+  return (data || []).map((row) => ({
+    studentId: row.student_id,
+    evaluatorId: row.evaluator_email,
+    evaluatorType: row.evaluator_type,
+    roomNumber: row.room_number,
+    answers: row.evaluations || {},
+    totalScore: row.total_score || 0,
+    answeredCount: Object.keys(row.evaluations || {}).length,
+    isCompleted: row.is_completed || false,
+    hasAlert: row.has_alert || false,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
 }
 
-export function saveRooms(rooms: Room[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.rooms, JSON.stringify(rooms))
+export async function saveRooms(rooms: Room[]) {
+  const supabase = createClient()
+
+  const roomsData = rooms.map((r) => ({
+    id: r.id,
+    room_number: r.roomNumber,
+    room_name: r.roomName,
+    created_at: r.createdAt,
+  }))
+
+  const { error } = await supabase.from("rooms").upsert(roomsData, { onConflict: "id" })
+
+  if (error) {
+    console.error("[v0] Error saving rooms:", error)
+    return { success: false, error }
   }
+
   return { success: true }
 }
 
-export function loadRooms(): Room[] {
-  if (typeof window === "undefined") return []
+export async function loadRooms(): Promise<Room[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.rooms)
-  if (!data) return []
+  const { data, error } = await supabase.from("rooms").select("*").order("room_number", { ascending: true })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (error) {
+    console.error("[v0] Error loading rooms:", error)
     return []
   }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    roomNumber: row.room_number,
+    roomName: row.room_name,
+    createdAt: row.created_at,
+  }))
 }
 
 // テストデータの保存
-export function saveTests(tests: Test[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEYS.tests, JSON.stringify(tests))
+export async function saveTests(tests: Test[]) {
+  const supabase = createClient()
+
+  for (const test of tests) {
+    // Save test
+    const { data: testData, error: testError } = await supabase
+      .from("tests")
+      .upsert(
+        {
+          id: test.id,
+          title: test.title,
+          created_at: test.createdAt,
+          updated_at: test.updatedAt,
+        },
+        { onConflict: "id" },
+      )
+      .select()
+
+    if (testError) {
+      console.error("[v0] Error saving test:", testError)
+      continue
+    }
+
+    // Save sheets
+    for (const sheet of test.sheets) {
+      const { data: sheetData, error: sheetError } = await supabase
+        .from("sheets")
+        .upsert(
+          {
+            id: sheet.id,
+            test_id: test.id,
+            title: sheet.title,
+          },
+          { onConflict: "id" },
+        )
+        .select()
+
+      if (sheetError) {
+        console.error("[v0] Error saving sheet:", sheetError)
+        continue
+      }
+
+      // Save categories
+      for (const category of sheet.categories) {
+        const { data: categoryData, error: categoryError } = await supabase
+          .from("categories")
+          .upsert(
+            {
+              id: category.id,
+              sheet_id: sheet.id,
+              title: category.title,
+              number: category.number,
+            },
+            { onConflict: "id" },
+          )
+          .select()
+
+        if (categoryError) {
+          console.error("[v0] Error saving category:", categoryError)
+          continue
+        }
+
+        // Save questions
+        for (const question of category.questions) {
+          const { error: questionError } = await supabase.from("questions").upsert(
+            {
+              id: question.id,
+              category_id: category.id,
+              number: question.number,
+              text: question.text,
+              option1: question.option1,
+              option2: question.option2,
+              option3: question.option3,
+              option4: question.option4,
+              option5: question.option5,
+              is_alert_target: question.isAlertTarget,
+              alert_options: question.alertOptions || [],
+            },
+            { onConflict: "id" },
+          )
+
+          if (questionError) {
+            console.error("[v0] Error saving question:", questionError)
+          }
+        }
+      }
+    }
   }
+
   return { success: true }
 }
 
 // テストデータの読み込み
-export function loadTests(): Test[] {
-  if (typeof window === "undefined") return []
+export async function loadTests(): Promise<Test[]> {
+  const supabase = createClient()
 
-  const data = localStorage.getItem(STORAGE_KEYS.tests)
-  if (!data) return []
+  // Load tests with all related data
+  const { data: tests, error: testsError } = await supabase
+    .from("tests")
+    .select(`
+      *,
+      sheets:sheets (
+        *,
+        categories:categories (
+          *,
+          questions:questions (*)
+        )
+      )
+    `)
+    .order("created_at", { ascending: true })
 
-  try {
-    return JSON.parse(data)
-  } catch {
+  if (testsError) {
+    console.error("[v0] Error loading tests:", testsError)
     return []
   }
+
+  return (tests || []).map((test) => ({
+    id: test.id,
+    title: test.title,
+    sheets: (test.sheets || []).map((sheet: any) => ({
+      id: sheet.id,
+      title: sheet.title,
+      categories: (sheet.categories || []).map((category: any) => ({
+        id: category.id,
+        title: category.title,
+        number: category.number,
+        questions: (category.questions || []).map((question: any) => ({
+          id: question.id,
+          number: question.number,
+          text: question.text,
+          option1: question.option1,
+          option2: question.option2,
+          option3: question.option3,
+          option4: question.option4,
+          option5: question.option5,
+          isAlertTarget: question.is_alert_target,
+          alertOptions: question.alert_options || [],
+        })),
+      })),
+    })),
+    createdAt: test.created_at,
+    updatedAt: test.updated_at,
+  }))
 }

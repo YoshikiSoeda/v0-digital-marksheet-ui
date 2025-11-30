@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
@@ -118,6 +117,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                           option4: "",
                           option5: "",
                           isAlertTarget: false,
+                          alertOptions: [],
                         },
                       ],
                     }
@@ -161,6 +161,35 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   ? {
                       ...c,
                       questions: c.questions.map((q) => (q.id === questionId ? { ...q, [field]: value } : q)),
+                    }
+                  : c,
+              ),
+            }
+          : s,
+      ),
+    )
+  }
+
+  const toggleAlertOption = (sheetId: string, categoryId: string, questionId: string, optionNumber: number) => {
+    setSheets(
+      sheets.map((s) =>
+        s.id === sheetId
+          ? {
+              ...s,
+              categories: s.categories.map((c) =>
+                c.id === categoryId
+                  ? {
+                      ...c,
+                      questions: c.questions.map((q) => {
+                        if (q.id === questionId) {
+                          const alertOptions = q.alertOptions || []
+                          const newAlertOptions = alertOptions.includes(optionNumber)
+                            ? alertOptions.filter((n) => n !== optionNumber)
+                            : [...alertOptions, optionNumber]
+                          return { ...q, alertOptions: newAlertOptions, isAlertTarget: newAlertOptions.length > 0 }
+                        }
+                        return q
+                      }),
                     }
                   : c,
               ),
@@ -280,78 +309,94 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {category.questions.map((question) => (
-                        <div key={question.id} className="rounded-lg border bg-white p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <Label>問題 {question.number}</Label>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeQuestion(sheet.id, category.id, question.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="space-y-2">
-                            <Textarea
-                              value={question.text}
-                              onChange={(e) =>
-                                updateQuestion(sheet.id, category.id, question.id, "text", e.target.value)
-                              }
-                              placeholder="問題文"
-                              rows={2}
-                            />
-                            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-                              <Input
-                                value={question.option1}
-                                onChange={(e) =>
-                                  updateQuestion(sheet.id, category.id, question.id, "option1", e.target.value)
-                                }
-                                placeholder="選択肢1"
-                              />
-                              <Input
-                                value={question.option2}
-                                onChange={(e) =>
-                                  updateQuestion(sheet.id, category.id, question.id, "option2", e.target.value)
-                                }
-                                placeholder="選択肢2"
-                              />
-                              <Input
-                                value={question.option3}
-                                onChange={(e) =>
-                                  updateQuestion(sheet.id, category.id, question.id, "option3", e.target.value)
-                                }
-                                placeholder="選択肢3"
-                              />
-                              <Input
-                                value={question.option4}
-                                onChange={(e) =>
-                                  updateQuestion(sheet.id, category.id, question.id, "option4", e.target.value)
-                                }
-                                placeholder="選択肢4"
-                              />
-                              <Input
-                                value={question.option5}
-                                onChange={(e) =>
-                                  updateQuestion(sheet.id, category.id, question.id, "option5", e.target.value)
-                                }
-                                placeholder="選択肢5"
-                              />
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`alert-${question.id}`}
-                                checked={question.isAlertTarget}
-                                onCheckedChange={(checked) =>
-                                  updateQuestion(sheet.id, category.id, question.id, "isAlertTarget", checked === true)
-                                }
-                              />
-                              <label
-                                htmlFor={`alert-${question.id}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                              >
-                                アラート対象
-                              </label>
+                        <div key={question.id} className="rounded-lg border bg-white p-2">
+                          <div className="flex items-start gap-2">
+                            <Label className="mt-2 min-w-[4rem]">問題 {question.number}</Label>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-start gap-2">
+                                <Input
+                                  value={question.text}
+                                  onChange={(e) =>
+                                    updateQuestion(sheet.id, category.id, question.id, "text", e.target.value)
+                                  }
+                                  placeholder="問題文"
+                                  className="flex-1"
+                                />
+                                <div className="flex gap-1">
+                                  <Input
+                                    value={question.option1}
+                                    onChange={(e) =>
+                                      updateQuestion(sheet.id, category.id, question.id, "option1", e.target.value)
+                                    }
+                                    placeholder="1"
+                                    className="w-20"
+                                  />
+                                  <Input
+                                    value={question.option2}
+                                    onChange={(e) =>
+                                      updateQuestion(sheet.id, category.id, question.id, "option2", e.target.value)
+                                    }
+                                    placeholder="2"
+                                    className="w-20"
+                                  />
+                                  <Input
+                                    value={question.option3}
+                                    onChange={(e) =>
+                                      updateQuestion(sheet.id, category.id, question.id, "option3", e.target.value)
+                                    }
+                                    placeholder="3"
+                                    className="w-20"
+                                  />
+                                  <Input
+                                    value={question.option4}
+                                    onChange={(e) =>
+                                      updateQuestion(sheet.id, category.id, question.id, "option4", e.target.value)
+                                    }
+                                    placeholder="4"
+                                    className="w-20"
+                                  />
+                                  <Input
+                                    value={question.option5}
+                                    onChange={(e) =>
+                                      updateQuestion(sheet.id, category.id, question.id, "option5", e.target.value)
+                                    }
+                                    placeholder="5"
+                                    className="w-20"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-600">アラート対象の選択肢:</span>
+                                  <div className="flex items-center gap-2">
+                                    {[1, 2, 3, 4, 5].map((optNum) => (
+                                      <div key={optNum} className="flex items-center space-x-1">
+                                        <Checkbox
+                                          id={`alert-opt-${question.id}-${optNum}`}
+                                          checked={question.alertOptions?.includes(optNum) || false}
+                                          onCheckedChange={() =>
+                                            toggleAlertOption(sheet.id, category.id, question.id, optNum)
+                                          }
+                                        />
+                                        <label
+                                          htmlFor={`alert-opt-${question.id}-${optNum}`}
+                                          className="text-xs cursor-pointer"
+                                        >
+                                          {optNum}
+                                        </label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeQuestion(sheet.id, category.id, question.id)}
+                                  className="text-red-600 h-6"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
