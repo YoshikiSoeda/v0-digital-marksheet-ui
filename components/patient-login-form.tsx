@@ -49,17 +49,25 @@ export function PatientLoginForm() {
         return
       }
 
+      sessionStorage.setItem(
+        "loginInfo",
+        JSON.stringify({
+          id: patient.id,
+          name: patient.name,
+          email: patient.email,
+          assignedRoomNumber: patient.assignedRoomNumber || "",
+          role: patient.role,
+        }),
+      )
+
+      // Keep individual keys for backward compatibility
       sessionStorage.setItem("patientId", patient.id)
       sessionStorage.setItem("patientName", patient.name)
       sessionStorage.setItem("patientEmail", patient.email)
       sessionStorage.setItem("patientRoom", patient.assignedRoomNumber || "")
       sessionStorage.setItem("userRole", patient.role)
 
-      if (patient.role === "admin") {
-        window.location.href = "/admin/dashboard"
-      } else {
-        window.location.href = "/patient/exam-info"
-      }
+      window.location.href = "/patient/exam-info"
     } catch (error) {
       console.error("[v0] Error during patient login:", error)
       setError("ログイン処理中にエラーが発生しました")

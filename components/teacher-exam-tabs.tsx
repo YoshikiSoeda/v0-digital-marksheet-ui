@@ -2,222 +2,139 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  loadStudents,
-  loadAttendanceRecords,
-  saveAttendanceRecords,
-  loadEvaluationResults,
-  saveEvaluationResults,
-  loadTests,
-  loadRooms, // Added loadRooms to fetch room names
   type AttendanceRecord,
   type EvaluationResult,
-  type Test,
-  type Question,
+  loadTests,
+  loadStudents,
+  loadAttendanceRecords,
+  loadEvaluationResults,
+  saveAttendanceRecords,
+  saveEvaluationResults,
+  loadTeachers,
 } from "@/lib/data-storage"
 
-interface Answer {
-  [key: number]: number
+interface TeacherExamTabsProps {
+  teacherEmail: string
+  teacherRoomNumber: string
+  testId: string
 }
 
-interface StudentData {
-  id: string
-  name: string
-}
-
-interface QuestionWithMeta extends Question {
-  sheetTitle: string
-  categoryTitle: string
-  categoryNumber: number
-  displayNumber: number
-}
-
-const TeacherExamTabs = () => {
-  const getAssignedStudents = async () => {
-    if (typeof window === "undefined") return []
-
-    const teacherRoom = sessionStorage.getItem("teacherRoom")
-    if (!teacherRoom) {
-      console.warn("[v0] No teacher room found in session")
-      return []
-    }
-
-    const allStudents = await loadStudents()
-    return allStudents
-      .filter((student) => student.roomNumber === teacherRoom)
-      .map((student) => ({
-        id: student.studentId,
-        name: student.name,
-      }))
-  }
-
-  const [assignedStudents, setAssignedStudents] = useState<Array<{ id: string; name: string }>>([])
-  const [activeStudentIndex, setActiveStudentIndex] = useState(0)
-  const [timeRemaining, setTimeRemaining] = useState(3600)
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
-  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "pending">>({})
-  const [loginInfo, setLoginInfo] = useState<{
-    email: string
-    roomNumber: string
-    name: string
-    roomName: string
-  } | null>(null) // Added roomName to loginInfo
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null)
-  const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
+export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testId }: TeacherExamTabsProps) {
   const router = useRouter()
+  const [tests, setTests] = useState<any[]>([])
+  const [assignedStudents, setAssignedStudents] = useState<any[]>([])
+  const [activeStudentIndex, setActiveStudentIndex] = useState(0)
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
+  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | null>>({})
+  const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
+  const [editMode, setEditMode] = useState<Record<string, boolean>>({})
+  const [questions, setQuestions] = useState<any[]>([])
+  const [teacherName, setTeacherName] = useState("")
+  const [elapsedTime, setElapsedTime] = useState<number>(0)
 
   useEffect(() => {
     const fetchData = async () => {
-      const testId = sessionStorage.getItem("teacher_selected_test")
-      if (!testId) {
-        console.error("[v0] No test selected")
-        router.push("/teacher/exam-info")
-        return
-      }
+      try {
+        const fetchedTeachers = await loadTeachers()
+        if (Array.isArray(fetchedTeachers)) {
+          const teacher = fetchedTeachers.find((t) => t.email === teacherEmail)
+          if (teacher) {
+            setTeacherName(teacher.name)
+          }
+        }
 
-      const tests = await loadTests()
-      if (!Array.isArray(tests)) {
-        console.error("[v0] loadTests did not return an array:", tests)
-        router.push("/teacher/exam-info")
-        return
-      }
+        const fetchedTests = await loadTests()
+        setTests(Array.isArray(fetchedTests) ? fetchedTests : [])
 
-      const test = tests.find((t) => t.id === testId)
+        const fetchedStudents = await loadStudents()
+        const filteredStudents = Array.isArray(fetchedStudents)
+          ? fetchedStudents.filter((student) => student.roomNumber === teacherRoomNumber)
+          : []
+        setAssignedStudents(filteredStudents)
 
-      if (!test) {
-        console.error("[v0] Test not found")
-        router.push("/teacher/exam-info")
-        return
-      }
+        const selectedTest = fetchedTests.find((t) => t.id === testId)
+        if (selectedTest && selectedTest.sheets) {
+          const allQuestions: any[] = []
+          const seenQuestionNumbers = new Set<string>()
 
-      setSelectedTest(test)
+          selectedTest.sheets.forEach((sheet) => {
+            sheet.categories.forEach((category) => {
+              category.questions.forEach((question) => {
+                // Create unique key combining sheet, category, and question number
+                const uniqueKey = `${sheet.title}-${category.number}-${question.number}`
 
-      const flatQuestions: QuestionWithMeta[] = []
-      let displayNumber = 1
-
-      test.sheets.forEach((sheet) => {
-        sheet.categories.forEach((category) => {
-          category.questions.forEach((question) => {
-            flatQuestions.push({
-              ...question,
-              sheetTitle: sheet.title,
-              categoryTitle: category.title,
-              categoryNumber: category.number,
-              displayNumber: displayNumber++,
+                if (!seenQuestionNumbers.has(uniqueKey)) {
+                  seenQuestionNumbers.add(uniqueKey)
+                  allQuestions.push({
+                    ...question,
+                    sheetTitle: sheet.title,
+                    categoryTitle: category.title,
+                    categoryNumber: category.number,
+                  })
+                }
+              })
             })
           })
-        })
-      })
-
-      setQuestions(flatQuestions)
-
-      const students = await getAssignedStudents()
-      setAssignedStudents(students)
-
-      const teacherEmail = sessionStorage.getItem("teacherEmail")
-      const teacherRoom = sessionStorage.getItem("teacherRoom")
-      const teacherName = sessionStorage.getItem("teacherName")
-      if (teacherEmail && teacherRoom && teacherName) {
-        const rooms = await loadRooms()
-        if (!Array.isArray(rooms)) {
-          console.error("[v0] loadRooms did not return an array:", rooms)
+          setQuestions(allQuestions)
         }
-        const roomData = Array.isArray(rooms) ? rooms.find((r) => r.roomNumber === teacherRoom) : null
 
-        setLoginInfo({
-          email: teacherEmail,
-          roomNumber: teacherRoom,
-          name: teacherName,
-          roomName: roomData?.roomName || "未設定",
-        })
-      }
+        const fetchedAttendanceRecords = await loadAttendanceRecords()
+        if (Array.isArray(fetchedAttendanceRecords)) {
+          setAttendanceStatus(
+            fetchedAttendanceRecords.reduce(
+              (acc, record) => {
+                acc[record.studentId] = record.status
+                return acc
+              },
+              {} as Record<string, "present" | "absent" | null>,
+            ),
+          )
+        }
 
-      if (students.length === 0) {
-        console.warn("[v0] No assigned students found")
-        return
-      }
+        const fetchedEvaluationResults = await loadEvaluationResults()
+        if (Array.isArray(fetchedEvaluationResults)) {
+          const answersByStudent: Record<string, Record<number, number>> = {}
+          const completionByStudent: Record<string, boolean> = {}
+          const editByStudent: Record<string, boolean> = {}
 
-      const attendanceRecords = await loadAttendanceRecords()
-      if (!Array.isArray(attendanceRecords)) {
-        console.error("[v0] loadAttendanceRecords did not return an array:", attendanceRecords)
-        return
-      }
-      const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
-      students.forEach((student) => {
-        const record = attendanceRecords.find((r) => r.studentId === student.id)
-        initialAttendance[student.id] = record?.status || "pending"
-      })
-      setAttendanceStatus(initialAttendance)
+          fetchedEvaluationResults.forEach((result) => {
+            if (result.evaluatorType === "teacher" && result.evaluatorId === teacherEmail) {
+              answersByStudent[result.studentId] = result.answers || {}
+              completionByStudent[result.studentId] = result.isCompleted || false
+              editByStudent[result.studentId] = !result.isCompleted
+            }
+          })
 
-      const evaluations = await loadEvaluationResults()
-      if (!Array.isArray(evaluations)) {
-        console.error("[v0] loadEvaluationResults did not return an array:", evaluations)
-        return
+          setStudentAnswers(answersByStudent)
+          setCompletionStatus(completionByStudent)
+          setEditMode(editByStudent)
+        }
+      } catch (error) {
+        console.error("[v0] Error loading data:", error)
       }
-      const initialAnswers: Record<string, Record<number, number>> = {}
-      students.forEach((student) => {
-        const evaluation = evaluations.find((e) => e.studentId === student.id && e.evaluatorType === "teacher")
-        initialAnswers[student.id] = evaluation?.answers || {}
-      })
-      setStudentAnswers(initialAnswers)
     }
 
     fetchData()
+  }, [teacherEmail, teacherRoomNumber, testId])
 
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 0) {
-          clearInterval(timer)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [router])
-
-  if (!selectedTest || questions.length === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-medium">テストを読み込んでいます...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (assignedStudents.length === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-medium">評価対象の学生が割り当てられていません</p>
-          <p className="text-sm text-muted-foreground mt-2">管理者にお問い合わせください</p>
-        </div>
-      </div>
-    )
-  }
-
-  const answers = studentAnswers[assignedStudents[activeStudentIndex].id] || {}
-
-  const handleAnswerChange = async (questionId: number, value: number) => {
+  const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
+    if (!activeStudent) return
 
     if (attendanceStatus[activeStudent.id] !== "present") {
       return
     }
 
-    setStudentAnswers((prev) => ({
-      ...prev,
+    const updatedAnswers = {
+      ...studentAnswers,
       [activeStudent.id]: {
-        ...(prev[activeStudent.id] || {}),
-        [questionId]: value,
+        ...(studentAnswers[activeStudent.id] || {}),
+        [questionNumber]: optionValue,
       },
-    }))
-
-    if (!loginInfo) return
+    }
+    setStudentAnswers(updatedAnswers)
 
     const evaluations = await loadEvaluationResults()
     if (!Array.isArray(evaluations)) {
@@ -225,31 +142,28 @@ const TeacherExamTabs = () => {
       return
     }
 
-    const activeStudentAnswers = {
-      ...(studentAnswers[activeStudent.id] || {}),
-      [questionId]: value,
-    }
-    const totalScore = Object.values(activeStudentAnswers).reduce((sum, val) => sum + val, 0)
+    const studentAnswersData = studentAnswers[activeStudent.id] || {}
+    const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
-    const question = questions.find((q) => q.displayNumber === questionId)
-    const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(value)
+    const question = questions.find((q) => q.number === questionNumber)
+    const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
 
     const existingIndex = evaluations.findIndex(
-      (e) => e.studentId === activeStudent.id && e.evaluatorType === "teacher" && e.evaluatorId === loginInfo.email,
+      (e) => e.studentId === activeStudent.id && e.evaluatorType === "teacher" && e.evaluatorId === teacherEmail,
     )
 
     const newEvaluation: EvaluationResult = {
       studentId: activeStudent.id,
-      evaluatorId: loginInfo.email,
+      evaluatorId: teacherEmail,
       evaluatorType: "teacher",
-      roomNumber: loginInfo.roomNumber,
-      answers: activeStudentAnswers,
+      testId,
+      roomNumber: teacherRoomNumber,
+      answers: studentAnswersData,
       totalScore,
-      answeredCount: Object.keys(activeStudentAnswers).length,
-      isCompleted: Object.keys(activeStudentAnswers).length === questions.length,
-      hasAlert: hasAlert || (existingIndex >= 0 && evaluations[existingIndex].hasAlert) || false,
-      updatedAt: new Date().toISOString(),
-      createdAt: existingIndex >= 0 ? evaluations[existingIndex].createdAt : new Date().toISOString(),
+      answeredCount: Object.keys(studentAnswersData).length,
+      isCompleted: false,
+      hasAlert,
+      timestamp: new Date().toISOString(),
     }
 
     if (existingIndex >= 0) {
@@ -261,34 +175,8 @@ const TeacherExamTabs = () => {
     await saveEvaluationResults(evaluations)
   }
 
-  const calculateScore = (studentId: string) => {
-    const studentAnswersData = studentAnswers[studentId] || {}
-    return Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
-  }
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
-  }
-
-  const answeredCount = Object.keys(answers).length
-  const totalScore = calculateScore(assignedStudents[activeStudentIndex].id)
-
-  const activeStudent = assignedStudents[activeStudentIndex]
-
-  const handleComplete = () => {
-    router.push("/teacher/results")
-  }
-
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
-    if (!loginInfo) return
-
-    setAttendanceStatus((prev) => ({
-      ...prev,
-      [studentId]: status,
-    }))
+    setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
 
     const attendanceRecords = await loadAttendanceRecords()
     if (!Array.isArray(attendanceRecords)) {
@@ -301,9 +189,9 @@ const TeacherExamTabs = () => {
     const newRecord: AttendanceRecord = {
       studentId,
       status,
-      markedBy: loginInfo.email,
+      markedBy: teacherEmail,
       markedByType: "teacher",
-      roomNumber: loginInfo.roomNumber,
+      roomNumber: teacherRoomNumber,
       timestamp: new Date().toISOString(),
     }
 
@@ -316,12 +204,85 @@ const TeacherExamTabs = () => {
     await saveAttendanceRecords(attendanceRecords)
   }
 
+  const handleMarkComplete = async (studentId: string) => {
+    console.log("[v0] Complete button clicked for student:", studentId)
+    const studentAnswersData = studentAnswers[studentId] || {}
+    const answeredCount = Object.keys(studentAnswersData).length
+    console.log("[v0] Answered count:", answeredCount, "Total questions:", questions.length)
+    console.log("[v0] Attendance status:", attendanceStatus[studentId])
+
+    if (answeredCount === questions.length && attendanceStatus[studentId] === "present") {
+      setCompletionStatus((prev) => ({ ...prev, [studentId]: true }))
+      setEditMode((prev) => ({ ...prev, [studentId]: false }))
+
+      const evaluationResults = await loadEvaluationResults()
+      if (!Array.isArray(evaluationResults)) {
+        console.error("[v0] loadEvaluationResults did not return an array:", evaluationResults)
+        return
+      }
+
+      const existingResultIndex = evaluationResults.findIndex(
+        (r) => r.studentId === studentId && r.evaluatorType === "teacher" && r.evaluatorId === teacherEmail,
+      )
+
+      if (existingResultIndex >= 0) {
+        evaluationResults[existingResultIndex] = {
+          ...evaluationResults[existingResultIndex],
+          isCompleted: true,
+        }
+      } else {
+        const newResult = {
+          studentId,
+          evaluatorType: "teacher" as const,
+          evaluatorId: teacherEmail,
+          testId,
+          roomNumber: teacherRoomNumber,
+          totalScore: calculateScore(studentId),
+          answers: studentAnswersData,
+          isCompleted: true,
+          hasAlert: false,
+          timestamp: new Date().toISOString(),
+        }
+        evaluationResults.push(newResult)
+      }
+
+      await saveEvaluationResults(evaluationResults)
+      console.log("[v0] Evaluation marked as complete")
+    } else {
+      console.log("[v0] Cannot mark as complete - conditions not met")
+    }
+  }
+
+  const handleEnableEdit = (studentId: string) => {
+    setEditMode((prev) => ({ ...prev, [studentId]: true }))
+    setCompletionStatus((prev) => ({ ...prev, [studentId]: false }))
+  }
+
+  const calculateScore = (studentId: string): number => {
+    const answers = studentAnswers[studentId] || {}
+    return Object.values(answers).reduce((sum, val) => sum + val, 0)
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
+
+  const activeStudent = assignedStudents[activeStudentIndex]
+  const studentAnswersData = studentAnswers[activeStudent?.id || ""] || {}
+  const answeredCount = Object.keys(studentAnswersData).length
+  const totalScore = calculateScore(activeStudent?.id || "")
+  const isCompleted = completionStatus[activeStudent?.id || ""] || false
+  const isEditMode = editMode[activeStudent?.id || ""] || false
+  const isInputDisabled = isCompleted && !isEditMode
+
   const groupedQuestions: Array<{
     sheetTitle: string
     categories: Array<{
       categoryTitle: string
       categoryNumber: number
-      questions: QuestionWithMeta[]
+      questions: any[]
     }>
   }> = []
 
@@ -345,211 +306,235 @@ const TeacherExamTabs = () => {
     category.questions.push(question)
   })
 
+  const handleFinishEvaluation = async () => {
+    console.log("[v0] Finish evaluation button clicked")
+    router.push("/teacher/results")
+  }
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedTime((prev) => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-4 flex h-14 items-center justify-between">
-          <div className="flex items-center gap-4">
-            {loginInfo && (
+    <div className="container mx-auto p-4 space-y-4">
+      <header className="py-0 px-10 bg-background border-b">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="text-sm">
+              <span className="font-medium">部屋番号:</span> {teacherRoomNumber}
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">担当教員:</span> {teacherName}
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">時間:</span> {formatTime(elapsedTime)}
+            </div>
+            {activeStudent && (
               <>
-                <span className="text-sm font-medium">
-                  部屋{loginInfo.roomNumber}: {loginInfo.roomName}
-                </span>
-                <span className="text-sm text-muted-foreground">教員: {loginInfo.name}</span>
+                <div className="text-sm">
+                  <span className="font-medium">進捗:</span>{" "}
+                  {Object.entries(studentAnswers[activeStudent] || {}).filter(([_, answer]) => answer !== null).length}/
+                  {questions.length}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">合計点:</span> {calculateScore(activeStudent)}点
+                </div>
               </>
             )}
-            <Clock className="h-5 w-5" />
-            <span className="text-sm font-medium">残り時間: {formatTime(timeRemaining)}</span>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm">
-              回答済み: {answeredCount}/{questions.length}
-            </span>
-            <span className="text-sm font-medium">合計点: {totalScore}点</span>
-            <Button size="sm" onClick={handleComplete}>
-              評価完了
-            </Button>
-          </div>
-        </div>
-
-        {/* Student tabs */}
-        <div className="max-w-7xl mx-auto px-4 border-t bg-blue-50 py-2">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium">👥 医学生タブ - {assignedStudents.length}人を評価</span>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {assignedStudents.map((student, index) => {
-              const studentAnswersData = studentAnswers[student.id] || {}
-              const studentAnswered = Object.keys(studentAnswersData).length
-              const studentScore = calculateScore(student.id)
-              const isActive = index === activeStudentIndex
-              const isComplete = studentAnswered === questions.length
-              const attendance = attendanceStatus[student.id] || "pending"
-
-              const bgColor =
-                attendance === "absent"
-                  ? "bg-gray-300 text-gray-600"
-                  : isActive
-                    ? "bg-primary text-primary-foreground shadow-md scale-105"
-                    : "bg-white hover:bg-gray-100 border border-gray-200"
-
-              return (
-                <div key={student.id} className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setActiveStudentIndex(index)}
-                    disabled={attendance === "absent"}
-                    className={`text-sm font-semibold text-center px-2 py-1 rounded border transition-all ${
-                      isActive
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-white hover:bg-gray-50 border-gray-300"
-                    } ${attendance === "absent" ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    {student.name}
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleAttendanceChange(student.id, "present")}
-                      className={`px-2 py-1 text-xs rounded ${
-                        attendance === "present" ? "bg-green-600 text-white" : "bg-gray-200 hover:bg-green-100"
-                      }`}
-                    >
-                      出席
-                    </button>
-                    <button
-                      onClick={() => handleAttendanceChange(student.id, "absent")}
-                      className={`px-2 py-1 text-xs rounded ${
-                        attendance === "absent" ? "bg-red-600 text-white" : "bg-gray-200 hover:bg-red-100"
-                      }`}
-                    >
-                      欠席
-                    </button>
-                  </div>
-                  <div
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap text-center ${
-                      attendance === "absent"
-                        ? "bg-gray-300 text-gray-600"
-                        : isActive
-                          ? "bg-primary/20 border-2 border-primary"
-                          : "bg-white border border-gray-200"
-                    }`}
-                  >
-                    {`${isComplete ? "✓ " : ""}(${studentAnswered}/${questions.length} | ${studentScore}点)`}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <Button onClick={handleFinishEvaluation} size="sm" className="h-6 text-sm px-2">
+            評価完了
+          </Button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-4">
-        {attendanceStatus[activeStudent.id] === "absent" && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 font-medium">この学生は欠席です。評価を入力できません。</p>
-          </div>
-        )}
+      <div className="border-b pb-2 pt-3 px-2">
+        <div className="text-sm font-semibold mb-2">医学生選択 - 評価する医学生を選択してください</div>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {assignedStudents.map((student, index) => {
+            const attendance = attendanceStatus[student.id] || null
+            const isStudentCompleted = completionStatus[student.id] || false
+            const studentScore = calculateScore(student.id)
+            const studentAnsweredCount = Object.keys(studentAnswers[student.id] || {}).length
 
-        {attendanceStatus[activeStudent.id] === "pending" && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 font-medium">出席・欠席ボタンを押してください。</p>
-          </div>
-        )}
+            return (
+              <div
+                key={student.id}
+                onClick={() => setActiveStudentIndex(index)}
+                className={`flex-shrink-0 w-44 p-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                  activeStudentIndex === index ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                {/* 名前（上部） */}
+                <div className="font-medium text-sm mb-2 text-center truncate">{student.name}</div>
 
-        <div className="mb-4">
-          <h2 className="text-xl font-bold">{activeStudent.name}の評価</h2>
-          <p className="text-sm text-muted-foreground">
-            {activeStudent.id} - {answeredCount}/{questions.length}回答済み
+                {/* 出席、欠席、完了（中段） */}
+                <div className="flex gap-1 mb-2">
+                  <Button
+                    variant={attendance === "present" ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 h-7 text-xs px-1"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAttendanceChange(student.id, "present")
+                    }}
+                    disabled={isStudentCompleted}
+                  >
+                    出席
+                  </Button>
+                  <Button
+                    variant={attendance === "absent" ? "destructive" : "outline"}
+                    size="sm"
+                    className={`flex-1 h-7 text-xs px-1 ${
+                      attendance === "absent" ? "bg-red-500 hover:bg-red-600 text-white" : ""
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAttendanceChange(student.id, "absent")
+                    }}
+                    disabled={isStudentCompleted}
+                  >
+                    欠席
+                  </Button>
+                  <div
+                    className={`flex-1 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
+                      isStudentCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    完了
+                  </div>
+                </div>
+
+                {/* 得点、進捗（下段） */}
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>得点: {studentScore}点</span>
+                  <span>
+                    進捗: {studentAnsweredCount}/{questions.length}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Student evaluation header */}
+        <div>
+          <h2 className="text-lg font-semibold mb-1">{activeStudent?.name}の評価</h2>
+          <p className="text-sm text-muted-foreground mb-1">
+            {activeStudent?.studentId} - {answeredCount}/{questions.length}回答済み
           </p>
-          <p className="text-sm font-medium text-primary mt-1">テスト: {selectedTest.title}</p>
+          <p className="text-sm font-medium">テスト: {groupedQuestions[0]?.sheetTitle || "評価シート"}</p>
         </div>
 
-        <div className="space-y-6">
-          {groupedQuestions.map((sheet, sheetIndex) => (
-            <div key={sheetIndex} className="space-y-4">
-              <div className="bg-primary/10 p-3 rounded-lg border-l-4 border-primary">
-                <h3 className="font-bold text-lg">{sheet.sheetTitle}</h3>
-              </div>
+        {attendanceStatus[activeStudent?.id || ""] !== "present" && (
+          <div className="text-center py-8 text-muted-foreground">出席ボタンを押してから入力してください</div>
+        )}
 
-              {sheet.categories.map((category, categoryIndex) => (
-                <div key={categoryIndex} className="space-y-2 ml-4">
-                  <div className="bg-secondary/50 p-2 rounded-md">
-                    <h4 className="font-semibold text-base">
-                      カテゴリ {category.categoryNumber}: {category.categoryTitle}
-                    </h4>
-                  </div>
+        {attendanceStatus[activeStudent?.id || ""] === "present" && (
+          <>
+            {groupedQuestions.map((sheet) => (
+              <div key={sheet.sheetTitle} className="space-y-3">
+                {sheet.categories.map((category) => (
+                  <div key={category.categoryNumber} className="space-y-3">
+                    {/* [C-2-2-b] Title Level 2 with gray background and bracket */}
+                    <div className="bg-muted px-4 py-3 rounded relative">
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-3xl font-light text-muted-foreground">
+                        {"{"}
+                      </div>
+                      <div className="ml-6">
+                        <span className="font-medium">{category.categoryTitle}</span>
+                      </div>
+                    </div>
 
-                  <div className="space-y-1 ml-4">
-                    {category.questions.map((question) => {
-                      const selectedAnswer = answers[question.displayNumber]
-                      const isAnswered = selectedAnswer !== undefined
-                      const isDisabled = attendanceStatus[activeStudent.id] !== "present"
+                    {/* [C-2-2-c] Title Level 3 */}
+                    <div className="px-4">
+                      <p className="text-sm font-semibold">
+                        カテゴリ {category.categoryNumber}: 学生の評価にマークをしてください
+                      </p>
+                    </div>
 
-                      const isAlertAnswer = question.isAlertTarget && question.alertOptions?.includes(selectedAnswer)
+                    {/* [C-2-2-d] Question rows */}
+                    <div className="space-y-1 px-4">
+                      {category.questions.map((question) => {
+                        const isAnswered = studentAnswersData[question.number] !== undefined
+                        const selectedOption = studentAnswersData[question.number]
+                        const isAlertTarget = question.isAlertTarget
 
-                      return (
-                        <div
-                          key={question.displayNumber}
-                          className={`border rounded-md p-2 bg-card hover:bg-accent/5 transition-colors ${
-                            isAlertAnswer ? "bg-red-50" : ""
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div
-                                className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
-                                  isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                                }`}
-                              >
-                                {question.displayNumber}
-                              </div>
+                        return (
+                          <div
+                            key={`${category.categoryNumber}-${question.number}`}
+                            className="flex items-center gap-4 py-2 border-b border-border/40"
+                          >
+                            {/* Question number */}
+                            <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
+                              {question.number}
+                            </div>
 
-                              <span className="text-sm font-medium">{question.text}</span>
-
-                              {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
-                                <span className="text-xs text-red-600 font-medium whitespace-nowrap">
-                                  (アラート対象: {question.alertOptions.join(",")})
+                            {/* Question text and alert */}
+                            <div className="flex-1 min-w-0 text-sm">
+                              {question.text}
+                              {isAlertTarget && (
+                                <span className="ml-2 text-xs text-red-600 font-medium">
+                                  (アラート対象: {question.alertOptions?.join(",")})
                                 </span>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              <div className="flex gap-1">
-                                {[1, 2, 3, 4, 5].map((optionValue) => (
-                                  <button
-                                    key={optionValue}
-                                    onClick={() => handleAnswerChange(question.displayNumber, optionValue)}
-                                    disabled={isDisabled}
-                                    className={`w-9 h-9 rounded text-sm font-medium transition-all ${
-                                      isDisabled
-                                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                        : selectedAnswer === optionValue
-                                          ? "bg-primary text-primary-foreground shadow-sm"
-                                          : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                                    }`}
-                                  >
-                                    {optionValue}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
-                              {isAlertAnswer && (
-                                <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
-                              )}
+                            {/* Option buttons */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {[1, 2, 3, 4, 5].map((option) => (
+                                <Button
+                                  key={option}
+                                  variant={selectedOption === option ? "default" : "outline"}
+                                  size="sm"
+                                  className="w-10 h-10 p-0 text-sm rounded-md"
+                                  onClick={() => handleAnswerChange(question.number, option)}
+                                  disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
+                                >
+                                  {option}
+                                </Button>
+                              ))}
                             </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            ))}
+
+            {/* [C-2-2-e] Mark Complete Button and [C-2-2-f] Edit Button */}
+            <div className="flex gap-3 pt-4 px-4">
+              {!isCompleted && (
+                <Button
+                  onClick={() => handleMarkComplete(activeStudent.id)}
+                  disabled={answeredCount !== questions.length || attendanceStatus[activeStudent.id] !== "present"}
+                  className="flex-1"
+                >
+                  入力完了 ({answeredCount}/{questions.length})
+                </Button>
+              )}
+              {isCompleted && (
+                <>
+                  <Button onClick={() => handleEnableEdit(activeStudent.id)} variant="outline" className="flex-1">
+                    編集
+                  </Button>
+                  <div className="flex-1 flex items-center justify-center bg-muted text-muted-foreground rounded-md px-4 py-2">
+                    入力完了済み
+                  </div>
+                </>
+              )}
             </div>
-          ))}
-        </div>
-      </main>
+          </>
+        )}
+      </div>
     </div>
   )
 }
-
-export default TeacherExamTabs

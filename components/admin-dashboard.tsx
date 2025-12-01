@@ -1,19 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Users, Clock, CheckCircle, XCircle, FileText, Settings, DoorOpen, Home, Building2 } from "lucide-react"
+import { Users, Clock, CheckCircle, XCircle, DoorOpen } from "lucide-react"
 import {
   loadStudents,
   loadTeachers,
   loadPatients,
-  loadAttendanceRecords,
-  loadEvaluationResults,
   loadRooms,
+  loadEvaluationResults,
+  loadAttendanceRecords, // Added import for loadAttendanceRecords
 } from "@/lib/data-storage"
 
 interface RoomData {
@@ -68,178 +66,336 @@ interface AttendanceRecord {
 
 export function AdminDashboard() {
   const router = useRouter()
-  const [userRole, setUserRole] = useState<"admin" | "general" | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [patients, setPatients] = useState<PatientRole[]>([])
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [updateCounter, setUpdateCounter] = useState(0)
 
   useEffect(() => {
-    async function fetchData() {
+    const fetchData = async () => {
       const loginInfo = sessionStorage.getItem("loginInfo")
+
       if (!loginInfo) {
         router.push("/admin/login")
         return
       }
 
       try {
-        const parsedLoginInfo = JSON.parse(loginInfo)
-        setUserRole(parsedLoginInfo.role || "admin")
-      } catch (e) {
-        console.error("[v0] Failed to parse loginInfo:", e)
-        setUserRole("admin") // Default to admin for backward compatibility
+        const info = JSON.parse(loginInfo)
+        setUserRole(info.role)
+        console.log("[v0] Login info:", info)
+
+        setRooms([])
+        setStudents([])
+        setTeachers([])
+        setPatients([])
+        setAttendanceRecords([])
+
+        const [
+          fetchedStudents,
+          fetchedTeachers,
+          fetchedPatients,
+          fetchedRooms,
+          fetchedEvaluations,
+          fetchedAttendanceRecords,
+        ] = await Promise.all([
+          loadStudents(),
+          loadTeachers(),
+          loadPatients(),
+          loadRooms(),
+          loadEvaluationResults(),
+          loadAttendanceRecords(),
+        ])
+
+        console.log("[v0] Loaded evaluations data:", fetchedEvaluations)
+        console.log("[v0] Loaded attendance records data:", fetchedAttendanceRecords)
+
+        setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
+        setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
+        setPatients(Array.isArray(fetchedPatients) ? fetchedPatients : [])
+        setAttendanceRecords(Array.isArray(fetchedAttendanceRecords) ? fetchedAttendanceRecords : [])
+
+        const roomMap = new Map<
+          string,
+          {
+            roomNumber: string
+            roomName: string
+            teacherName: string
+            patientName: string
+            presentCount: number
+            absentCount: number
+            completedCount: number
+            alertCount: number
+            averageScore: number
+            students: Array<{ id: string; name: string; status: string; isCompleted: boolean }>
+          }
+        >()
+
+        if (
+          Array.isArray(fetchedRooms) &&
+          Array.isArray(fetchedStudents) &&
+          Array.isArray(fetchedEvaluations) &&
+          Array.isArray(fetchedAttendanceRecords)
+        ) {
+          fetchedRooms.forEach((room) => {
+            const roomStudents = fetchedStudents.filter((s) => s.roomNumber === room.roomNumber)
+
+            const roomAttendanceRecords = fetchedAttendanceRecords.filter((a) => a.roomNumber === room.roomNumber)
+
+            const studentStatusMap = new Map<string, { status: string; isCompleted: boolean }>()
+
+            roomAttendanceRecords.forEach((record) => {
+              studentStatusMap.set(record.studentId, {
+                status: record.status,
+                isCompleted: false,
+              })
+            })
+
+            const roomEvaluations = fetchedEvaluations.filter((e) => e.roomNumber === room.roomNumber)
+            roomEvaluations.forEach((evaluation) => {
+              const existing = studentStatusMap.get(evaluation.studentId)
+              if (existing && evaluation.isCompleted === true) {
+                existing.isCompleted = true
+              }
+            })
+
+            let presentCount = 0
+            let absentCount = 0
+            let completedCount = 0
+
+            roomStudents.forEach((student) => {
+              const statusInfo = studentStatusMap.get(student.studentId)
+              if (statusInfo) {
+                if (statusInfo.status === "present") {
+                  presentCount++
+                  if (statusInfo.isCompleted) {
+                    completedCount++
+                  }
+                } else if (statusInfo.status === "absent") {
+                  absentCount++
+                }
+              }
+            })
+
+            const studentsWithAlerts = new Set<string>()
+            roomEvaluations.forEach((evaluation) => {
+              if (evaluation.hasAlert === true) {
+                studentsWithAlerts.add(evaluation.studentId)
+              }
+            })
+            const alertCount = studentsWithAlerts.size
+
+            const completedEvaluationsByStudent = new Map<string, number>()
+            roomEvaluations.forEach((evaluation) => {
+              if (evaluation.isCompleted === true) {
+                completedEvaluationsByStudent.set(evaluation.studentId, evaluation.totalScore || 0)
+              }
+            })
+
+            const totalScore = Array.from(completedEvaluationsByStudent.values()).reduce((sum, score) => sum + score, 0)
+            const avgScore =
+              completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
+
+            const teacherForRoom = Array.isArray(fetchedTeachers)
+              ? fetchedTeachers.find((t) => t.assignedRoomNumber === room.roomNumber)
+              : undefined
+            const patientForRoom = Array.isArray(fetchedPatients)
+              ? fetchedPatients.find((p) => p.assignedRoomNumber === room.roomNumber)
+              : undefined
+
+            const studentsWithStatus = roomStudents.map((student) => {
+              const statusInfo = studentStatusMap.get(student.studentId)
+              return {
+                id: student.studentId,
+                name: student.name,
+                status: statusInfo?.status || "unknown",
+                isCompleted: statusInfo?.isCompleted || false,
+              }
+            })
+
+            console.log(
+              `[v0] Room ${room.roomNumber}: alertCount=${alertCount}, avgScore=${avgScore}, presentCount=${presentCount}, completedCount=${completedCount}`,
+            )
+
+            roomMap.set(room.roomNumber, {
+              roomNumber: room.roomNumber,
+              roomName: room.roomName,
+              teacherName: teacherForRoom?.name || "未割当",
+              patientName: patientForRoom?.name || "未割当",
+              presentCount,
+              absentCount,
+              completedCount,
+              alertCount,
+              averageScore: avgScore,
+              students: studentsWithStatus,
+            })
+          })
+        }
+
+        const roomList = Array.from(roomMap.values()).sort((a, b) => {
+          const aNum = Number.parseInt(a.roomNumber) || 0
+          const bNum = Number.parseInt(b.roomNumber) || 0
+          return aNum - bNum
+        })
+
+        setRooms(roomList)
+        setUpdateCounter((prev) => prev + 1)
+        console.log("[v0] Room statistics calculated:", roomList)
+        console.log("[v0] State updated, rooms count:", roomList.length)
+      } catch (error) {
+        console.error("[v0] Error loading data:", error)
       }
+    }
 
-      console.log("[v0] Loading admin dashboard data...")
+    fetchData()
+  }, [router])
 
-      const fetchedStudents = await loadStudents()
-      const fetchedTeachers = await loadTeachers()
-      const fetchedPatients = await loadPatients()
-      const fetchedAttendanceRecords = await loadAttendanceRecords()
-      const fetchedEvaluationResults = await loadEvaluationResults()
-      const fetchedRooms = await loadRooms()
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    console.log("[v0] Refresh button clicked, fetching latest data...")
 
-      console.log("[v0] Loaded students data:", fetchedStudents)
-      console.log("[v0] Loaded teachers data:", fetchedTeachers)
-      console.log("[v0] Loaded patients data:", fetchedPatients)
-      console.log("[v0] Loaded rooms data:", fetchedRooms)
+    try {
+      setRooms([])
+      setStudents([])
+      setTeachers([])
+      setPatients([])
+      setAttendanceRecords([])
 
-      console.log("[v0] Fetched data types:", {
-        students: Array.isArray(fetchedStudents),
-        teachers: Array.isArray(fetchedTeachers),
-        patients: Array.isArray(fetchedPatients),
-        rooms: Array.isArray(fetchedRooms),
-      })
+      const [fetchedStudents, fetchedTeachers, fetchedPatients, fetchedRooms, fetchedEvaluations, fetchedAttendance] =
+        await Promise.all([
+          loadStudents(),
+          loadTeachers(),
+          loadPatients(),
+          loadRooms(),
+          loadEvaluationResults(),
+          loadAttendanceRecords(),
+        ])
 
-      setStudents(fetchedStudents)
-      setTeachers(fetchedTeachers)
-      setPatients(fetchedPatients)
-      setAttendanceRecords(fetchedAttendanceRecords)
+      console.log("[v0] Refreshed teachers data:", fetchedTeachers)
+      console.log("[v0] Refreshed patients data:", fetchedPatients)
+      console.log("[v0] Refreshed rooms data:", fetchedRooms)
 
-      const roomNameMap = new Map<string, string>()
-      if (Array.isArray(fetchedRooms)) {
+      const roomMap = new Map<
+        string,
+        {
+          roomNumber: string
+          roomName: string
+          teacherName: string
+          patientName: string
+          presentCount: number
+          absentCount: number
+          completedCount: number
+          alertCount: number
+          averageScore: number
+          students: Array<{ id: string; name: string; status: string; isCompleted: boolean }>
+        }
+      >()
+
+      if (
+        Array.isArray(fetchedRooms) &&
+        Array.isArray(fetchedStudents) &&
+        Array.isArray(fetchedEvaluations) &&
+        Array.isArray(fetchedAttendance)
+      ) {
         fetchedRooms.forEach((room) => {
-          roomNameMap.set(room.roomNumber, room.roomName)
-        })
-      }
+          const roomStudents = fetchedStudents.filter((s) => s.roomNumber === room.roomNumber)
 
-      const roomMap = new Map<string, RoomData>()
+          const roomAttendanceRecords = fetchedAttendance.filter((a) => a.roomNumber === room.roomNumber)
 
-      if (Array.isArray(fetchedTeachers)) {
-        fetchedTeachers.forEach((teacher) => {
-          if (!teacher.assignedRoomNumber) return
+          const studentStatusMap = new Map<string, { status: string; isCompleted: boolean }>()
 
-          if (!roomMap.has(teacher.assignedRoomNumber)) {
-            roomMap.set(teacher.assignedRoomNumber, {
-              roomNumber: teacher.assignedRoomNumber,
-              roomName: roomNameMap.get(teacher.assignedRoomNumber) || "",
-              teacherName: teacher.name,
-              patientName: "",
-              presentCount: 0,
-              absentCount: 0,
-              completedCount: 0,
-              alertCount: 0,
-              averageScore: 0,
-              students: [],
+          roomAttendanceRecords.forEach((record) => {
+            studentStatusMap.set(record.studentId, {
+              status: record.status,
+              isCompleted: false,
             })
-          } else {
-            const room = roomMap.get(teacher.assignedRoomNumber)!
-            room.teacherName = teacher.name
-          }
-        })
-      }
+          })
 
-      if (Array.isArray(fetchedPatients)) {
-        fetchedPatients.forEach((patient) => {
-          if (!patient.assignedRoomNumber) return
-
-          if (roomMap.has(patient.assignedRoomNumber)) {
-            const room = roomMap.get(patient.assignedRoomNumber)!
-            room.patientName = patient.name
-          }
-        })
-      }
-
-      let totalPresent = 0
-      let totalInProgress = 0
-      let totalCompleted = 0
-      let totalAbsent = 0
-
-      if (Array.isArray(fetchedStudents)) {
-        fetchedStudents.forEach((student) => {
-          const attendanceRecord = fetchedAttendanceRecords.find((a) => a.studentId === student.studentId)
-          const status = attendanceRecord?.status || "pending"
-          const roomNumber = student.roomNumber
-
-          if (!roomMap.has(roomNumber)) {
-            roomMap.set(roomNumber, {
-              roomNumber,
-              roomName: roomNameMap.get(roomNumber) || "",
-              teacherName: "未割当",
-              patientName: "未割当",
-              presentCount: 0,
-              absentCount: 0,
-              completedCount: 0,
-              alertCount: 0,
-              averageScore: 0,
-              students: [],
-            })
-          }
-
-          const room = roomMap.get(roomNumber)!
-          const studentEvaluations = fetchedEvaluationResults.filter((e) => e.studentId === student.studentId)
-          const teacherEval = studentEvaluations.find((e) => e.evaluatorType === "teacher")
-          const patientEval = studentEvaluations.find((e) => e.evaluatorType === "patient")
-
-          const isCompleted = teacherEval?.isCompleted && patientEval?.isCompleted
-          const progress = teacherEval ? teacherEval.answeredCount : 0
-          const score = teacherEval ? teacherEval.totalScore : 0
-
-          let statusText = "未着手"
-          if (status === "present") {
-            totalPresent++
-            room.presentCount++
-            if (isCompleted) {
-              totalCompleted++
-              room.completedCount++
-              statusText = "完了"
-            } else if (progress > 0) {
-              totalInProgress++
-              statusText = "進行中"
-            } else {
-              statusText = "未着手"
+          const roomEvaluations = fetchedEvaluations.filter((e) => e.roomNumber === room.roomNumber)
+          roomEvaluations.forEach((evaluation) => {
+            const existing = studentStatusMap.get(evaluation.studentId)
+            if (existing && evaluation.isCompleted === true) {
+              existing.isCompleted = true
             }
-          } else if (status === "absent") {
-            totalAbsent++
-            room.absentCount++
-            statusText = "欠席"
-          }
+          })
 
-          if (status === "present" && progress === 0) {
-            room.alertCount++
-          }
+          let presentCount = 0
+          let absentCount = 0
+          let completedCount = 0
 
-          room.students.push({
-            studentId: student.studentId,
-            name: student.name,
-            email: student.email,
-            status,
-            progress,
-            score,
-            statusText,
+          roomStudents.forEach((student) => {
+            const statusInfo = studentStatusMap.get(student.studentId)
+            if (statusInfo) {
+              if (statusInfo.status === "present") {
+                presentCount++
+                if (statusInfo.isCompleted) {
+                  completedCount++
+                }
+              } else if (statusInfo.status === "absent") {
+                absentCount++
+              }
+            }
+          })
+
+          const studentsWithAlerts = new Set<string>()
+          roomEvaluations.forEach((evaluation) => {
+            if (evaluation.hasAlert === true) {
+              studentsWithAlerts.add(evaluation.studentId)
+            }
+          })
+          const alertCount = studentsWithAlerts.size
+
+          const completedEvaluationsByStudent = new Map<string, number>()
+          roomEvaluations.forEach((evaluation) => {
+            if (evaluation.isCompleted === true) {
+              completedEvaluationsByStudent.set(evaluation.studentId, evaluation.totalScore || 0)
+            }
+          })
+
+          const totalScore = Array.from(completedEvaluationsByStudent.values()).reduce((sum, score) => sum + score, 0)
+          const avgScore =
+            completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
+
+          const teacherForRoom = Array.isArray(fetchedTeachers)
+            ? fetchedTeachers.find((t) => t.assignedRoomNumber === room.roomNumber)
+            : undefined
+          const patientForRoom = Array.isArray(fetchedPatients)
+            ? fetchedPatients.find((p) => p.assignedRoomNumber === room.roomNumber)
+            : undefined
+
+          const studentsWithStatus = roomStudents.map((student) => {
+            const statusInfo = studentStatusMap.get(student.studentId)
+            return {
+              id: student.studentId,
+              name: student.name,
+              status: statusInfo?.status || "unknown",
+              isCompleted: statusInfo?.isCompleted || false,
+            }
+          })
+
+          console.log(
+            `[v0] Room ${room.roomNumber}: teacher=${teacherForRoom?.name || "未割当"}, patient=${patientForRoom?.name || "未割当"}`,
+          )
+
+          roomMap.set(room.roomNumber, {
+            roomNumber: room.roomNumber,
+            roomName: room.roomName,
+            teacherName: teacherForRoom?.name || "未割当",
+            patientName: patientForRoom?.name || "未割当",
+            presentCount,
+            absentCount,
+            completedCount,
+            alertCount,
+            averageScore: avgScore,
+            students: studentsWithStatus,
           })
         })
       }
-
-      roomMap.forEach((room) => {
-        const presentStudents = room.students.filter((s) => s.status === "present")
-        if (presentStudents.length > 0) {
-          const totalScore = presentStudents.reduce((sum, s) => sum + s.score, 0)
-          room.averageScore = Math.round(totalScore / presentStudents.length)
-        }
-      })
 
       const roomList = Array.from(roomMap.values()).sort((a, b) => {
         const aNum = Number.parseInt(a.roomNumber) || 0
@@ -248,95 +404,60 @@ export function AdminDashboard() {
       })
 
       setRooms(roomList)
-      setAttendanceRecords(fetchedAttendanceRecords)
-
-      console.log("[v0] Admin dashboard data loaded successfully")
+      setUpdateCounter((prev) => prev + 1)
+      console.log("[v0] Refreshed room statistics:", roomList)
+      console.log("[v0] Refresh complete, rooms count:", roomList.length)
+    } catch (error) {
+      console.error("[v0] Error refreshing data:", error)
+    } finally {
+      setIsRefreshing(false)
     }
-
-    fetchData()
-  }, [router])
-
-  const presentStudents = rooms.flatMap((room) => room.students.filter((s) => s.status === "present"))
-
-  const selectedRoomStudents = selectedRoom
-    ? rooms.find((room) => room.roomNumber === selectedRoom)?.students || []
-    : []
-
-  if (userRole === null) {
-    return (
-      <div className="min-h-screen bg-secondary/30 p-4 md:p-8 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-lg font-semibold">認証確認中...</div>
-        </div>
-      </div>
-    )
   }
 
-  if (userRole === "general") {
+  console.log("[v0] Rendering AdminDashboard, rooms count:", rooms.length, "updateCounter:", updateCounter)
+
+  if (rooms.length > 0) {
+    rooms.slice(0, 3).forEach((room) => {
+      console.log(`[v0] Room ${room.roomNumber}: teacher=${room.teacherName}, patient=${room.patientName}`)
+    })
+  }
+
+  if (userRole === null) {
+    return <div className="flex justify-center items-center min-h-screen">認証確認中...</div>
+  }
+
+  if (userRole !== "admin") {
     return (
-      <div className="min-h-screen bg-secondary/30 p-4 md:p-8 flex items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>アクセス権限がありません</CardTitle>
-            <CardDescription>この画面は管理者権限が必要です</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">一般ユーザーは採点画面のみ利用できます。</p>
-            <div className="flex gap-2 flex-wrap">
-              <Link href="/teacher/exam-info" className="flex-1">
-                <Button className="w-full">採点画面へ</Button>
-              </Link>
-              <Link href="/" className="flex-1">
-                <Button variant="outline" className="w-full bg-transparent">
-                  トップページ
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-muted-foreground">認証確認中...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-primary">管理者ダッシュボード</h1>
-            <p className="text-muted-foreground">試験の進行状況を管理</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                <Home className="w-4 h-4 mr-2" />
-                トップページ
-              </Button>
-            </Link>
-            <Link href="/admin/account-management">
-              <Button variant="outline" size="sm">
-                <Users className="w-4 h-4 mr-2" />
-                アカウント管理
-              </Button>
-            </Link>
-            <Link href="/admin/question-management">
-              <Button variant="outline" size="sm">
-                <FileText className="w-4 h-4 mr-2" />
-                問題管理
-              </Button>
-            </Link>
-            <Link href="/admin/settings">
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4 mr-2" />
-                設定
-              </Button>
-            </Link>
-            <Link href="/admin/room-management">
-              <Button variant="outline" size="sm">
-                <Building2 className="w-4 h-4 mr-2" />
-                部屋マスター管理
-              </Button>
-            </Link>
+    <div className="min-h-screen bg-background p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">管理者ダッシュボード</h1>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" size="sm">
+              {isRefreshing ? "更新中..." : "データを更新"}
+            </Button>
+            <Button onClick={() => (window.location.href = "/admin/account-management")} variant="outline" size="sm">
+              アカウント管理
+            </Button>
+            <Button onClick={() => (window.location.href = "/admin/question-management")} variant="outline" size="sm">
+              問題管理
+            </Button>
+            <Button onClick={() => (window.location.href = "/admin/room-management")} variant="outline" size="sm">
+              部屋マスター管理
+            </Button>
+            <Button onClick={() => (window.location.href = "/admin/settings")} variant="outline" size="sm">
+              設定
+            </Button>
+            <Button onClick={() => (window.location.href = "/")} variant="outline" size="sm">
+              トップページ
+            </Button>
           </div>
         </div>
 
@@ -347,7 +468,9 @@ export function AdminDashboard() {
               <Users className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{presentStudents.length}</div>
+              <div className="text-3xl font-bold text-primary">
+                {rooms.reduce((sum, room) => sum + room.presentCount, 0)}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">出席者のみ</p>
             </CardContent>
           </Card>
@@ -473,132 +596,14 @@ export function AdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>受験者一覧</CardTitle>
-            <CardDescription>出席者のみ表示</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr className="text-left">
-                    <th className="pb-2 font-medium">学籍番号</th>
-                    <th className="pb-2 font-medium">氏名</th>
-                    <th className="pb-2 font-medium">部屋</th>
-                    <th className="pb-2 font-medium">メールアドレス</th>
-                    <th className="pb-2 font-medium">進捗</th>
-                    <th className="pb-2 font-medium">点数</th>
-                    <th className="pb-2 font-medium">ステータス</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {presentStudents.map((student, index) => (
-                    <tr key={index} className="border-b">
-                      <td className="py-2">{student.studentId}</td>
-                      <td className="py-2">{student.name}</td>
-                      <td className="py-2">{student.roomNumber}</td>
-                      <td className="py-2">{student.email || "-"}</td>
-                      <td className="py-2">{student.progress}/100</td>
-                      <td className="py-2 font-medium">{student.score}点</td>
-                      <td className="py-2">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            student.statusText === "完了"
-                              ? "bg-green-100 text-green-800"
-                              : student.statusText === "進行中"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {student.statusText}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Button onClick={() => (window.location.href = "/admin/students-detail")} className="w-full">
+              受験者一覧を表示
+            </Button>
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={selectedRoom !== null} onOpenChange={() => setSelectedRoom(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>部屋 {selectedRoom} - 詳細</DialogTitle>
-            <DialogDescription>
-              教員: {rooms.find((room) => room.roomNumber === selectedRoom)?.teacherName} / 患者役:{" "}
-              {rooms.find((room) => room.roomNumber === selectedRoom)?.patientName}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-green-50 rounded">
-                <div className="text-2xl font-bold text-green-600">
-                  {rooms.find((room) => room.roomNumber === selectedRoom)?.presentCount}
-                </div>
-                <div className="text-xs text-muted-foreground">出席</div>
-              </div>
-              <div className="text-center p-3 bg-orange-50 rounded">
-                <div className="text-2xl font-bold text-orange-600">
-                  {rooms.find((room) => room.roomNumber === selectedRoom)?.absentCount}
-                </div>
-                <div className="text-xs text-muted-foreground">欠席</div>
-              </div>
-              <div className="text-center p-3 bg-blue-50 rounded">
-                <div className="text-2xl font-bold text-blue-600">
-                  {rooms.find((room) => room.roomNumber === selectedRoom)?.completedCount}
-                </div>
-                <div className="text-xs text-muted-foreground">完了</div>
-              </div>
-              <div className="text-center p-3 bg-gray-50 rounded">
-                <div className="text-2xl font-bold text-primary">
-                  {rooms.find((room) => room.roomNumber === selectedRoom)?.averageScore}
-                </div>
-                <div className="text-xs text-muted-foreground">平均点</div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-medium mb-2">受験者一覧</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b">
-                    <tr className="text-left">
-                      <th className="pb-2 font-medium">学籍番号</th>
-                      <th className="pb-2 font-medium">氏名</th>
-                      <th className="pb-2 font-medium">状態</th>
-                      <th className="pb-2 font-medium">進捗</th>
-                      <th className="pb-2 font-medium">点数</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedRoomStudents.map((student, index) => (
-                      <tr key={index} className="border-b">
-                        <td className="py-2">{student.studentId}</td>
-                        <td className="py-2">{student.name}</td>
-                        <td className="py-2">
-                          <span
-                            className={`px-2 py-1 rounded text-xs ${
-                              student.status === "present"
-                                ? "bg-green-100 text-green-800"
-                                : student.status === "absent"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {student.status === "present" ? "出席" : student.status === "absent" ? "欠席" : "未確認"}
-                          </span>
-                        </td>
-                        <td className="py-2">{student.progress}/100</td>
-                        <td className="py-2 font-medium">{student.score}点</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -28,11 +28,26 @@ export function PatientRoleRegistration() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const data = await loadPatients()
-      const roomData = await loadRooms()
-      setPatients(Array.isArray(data) ? data : [])
-      setRooms(Array.isArray(roomData) ? roomData : [])
-      setIsLoading(false)
+      try {
+        const [patientsData, roomsData] = await Promise.all([loadPatients(), loadRooms()])
+
+        const sortedPatients = Array.isArray(patientsData)
+          ? patientsData.sort((a, b) => {
+              const roomA = a.assignedRoomNumber || ""
+              const roomB = b.assignedRoomNumber || ""
+              return roomA.localeCompare(roomB)
+            })
+          : []
+
+        setPatients(sortedPatients)
+        setRooms(Array.isArray(roomsData) ? roomsData : [])
+      } catch (error) {
+        console.error("[v0] Error loading data:", error)
+        setPatients([])
+        setRooms([])
+      } finally {
+        setIsLoading(false)
+      }
     }
     fetchData()
   }, [])
@@ -66,8 +81,28 @@ export function PatientRoleRegistration() {
     setFormData({ name: "", email: "", password: "", role: "general", roomNumber: "" })
   }
 
-  const handleDeletePatient = (id: string) => {
-    setPatients(patients.filter((p) => p.id !== id))
+  const handleDeletePatient = async (id: string) => {
+    const patient = patients.find((p) => p.id === id)
+    if (!patient) return
+
+    const confirmed = window.confirm(`${patient.name} を削除してもよろしいですか？\n\nこの操作は取り消せません。`)
+    if (!confirmed) return
+
+    try {
+      // Delete from local state
+      const updatedPatients = patients.filter((p) => p.id !== id)
+      setPatients(updatedPatients)
+
+      // Save to Supabase immediately
+      await savePatients(updatedPatients)
+      alert(`${patient.name} を削除しました`)
+    } catch (error) {
+      console.error("[v0] Error deleting patient:", error)
+      alert("削除中にエラーが発生しました")
+      // Reload data on error
+      const data = await loadPatients()
+      setPatients(Array.isArray(data) ? data : [])
+    }
   }
 
   const parseCSV = (text: string) => {
@@ -174,9 +209,14 @@ export function PatientRoleRegistration() {
   }
 
   const handleConfirmRegistration = async () => {
-    await savePatients(patients)
-    alert(`${patients.length}名の患者役情報を保存しました`)
-    router.push("/admin/account-management")
+    try {
+      await savePatients(patients)
+      alert(`${patients.length}名の患者役情報を保存しました`)
+      router.push("/admin/account-management")
+    } catch (error) {
+      console.error("[v0] Error saving patients:", error)
+      alert("保存中にエラーが発生しました")
+    }
   }
 
   if (isLoading) {

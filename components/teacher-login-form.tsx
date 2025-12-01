@@ -48,11 +48,23 @@ export function TeacherLoginForm() {
         return
       }
 
+      const loginInfo = {
+        role: "teacher",
+        userId: teacher.id,
+        userName: teacher.name,
+        email: teacher.email,
+        assignedRoomNumber: teacher.assignedRoomNumber || "",
+      }
+
+      sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
+      // Keep legacy keys for backward compatibility
       sessionStorage.setItem("teacherId", teacher.id)
       sessionStorage.setItem("teacherName", teacher.name)
       sessionStorage.setItem("teacherEmail", teacher.email)
       sessionStorage.setItem("teacherRole", teacher.role)
       sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber || "")
+
+      console.log("[v0] Teacher login successful, info:", loginInfo)
 
       // Use window.location.href for more reliable navigation
       window.location.href = "/teacher/exam-info"

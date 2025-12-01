@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "tw-animate-css";
+/* Removed @import "tw-animate-css"; which causes CSS parse error */
 
 @custom-variant dark (&:is(.dark *));
 

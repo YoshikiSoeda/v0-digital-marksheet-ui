@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2 } from "lucide-react"
 import { saveTeachers, loadTeachers, loadRooms, type Teacher, type Room } from "@/lib/data-storage"
+import { createClient } from "@/lib/supabase/client"
 
 export function TeacherRegistration() {
   const router = useRouter()
@@ -34,7 +35,15 @@ export function TeacherRegistration() {
         console.log("[v0] Loaded teachers:", teachersData)
         console.log("[v0] Loaded rooms:", roomsData)
 
-        setTeachers(Array.isArray(teachersData) ? teachersData : [])
+        const sortedTeachers = Array.isArray(teachersData)
+          ? teachersData.sort((a, b) => {
+              const roomA = a.assignedRoomNumber || ""
+              const roomB = b.assignedRoomNumber || ""
+              return roomA.localeCompare(roomB, undefined, { numeric: true })
+            })
+          : []
+
+        setTeachers(sortedTeachers)
         setRooms(Array.isArray(roomsData) ? roomsData : [])
       } catch (error) {
         console.error("[v0] Error loading data:", error)
@@ -201,9 +210,29 @@ export function TeacherRegistration() {
     }
   }
 
-  const handleDeleteTeacher = (id: string) => {
-    const updatedTeachers = teachers.filter((teacher) => teacher.id !== id)
-    setTeachers(updatedTeachers)
+  const handleDeleteTeacher = async (id: string) => {
+    if (!confirm("この教員を削除してもよろしいですか？")) {
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("teachers").delete().eq("id", id)
+
+      if (error) {
+        console.error("[v0] Error deleting teacher:", error)
+        alert("教員の削除に失敗しました")
+        return
+      }
+
+      // Remove from local state
+      const updatedTeachers = teachers.filter((teacher) => teacher.id !== id)
+      setTeachers(updatedTeachers)
+      alert("教員を削除しました")
+    } catch (error) {
+      console.error("[v0] Error deleting teacher:", error)
+      alert("教員の削除に失敗しました")
+    }
   }
 
   if (isLoading) {

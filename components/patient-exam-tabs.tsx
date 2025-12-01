@@ -2,86 +2,62 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  loadStudents,
-  loadAttendanceRecords,
-  saveAttendanceRecords,
-  loadEvaluationResults,
-  saveEvaluationResults,
-  loadTests,
-  loadRooms, // Added loadRooms to fetch room names
+  type Student,
   type AttendanceRecord,
   type EvaluationResult,
   type Test,
-  type Question,
+  loadTests,
+  loadStudents,
+  loadRooms,
+  loadAttendanceRecords,
+  loadEvaluationResults,
+  saveAttendanceRecords,
+  saveEvaluationResults,
 } from "@/lib/data-storage"
+import type { Question } from "@/lib/types" // Declare the Question variable
+
+interface PatientExamTabsProps {
+  patientEmail: string
+  patientRoomNumber: string
+  testId: string
+  patientName: string
+  elapsedTime: number
+}
 
 interface Answer {
   [key: number]: number
 }
 
-interface StudentData {
-  id: string
-  name: string
-}
-
 interface QuestionWithMeta extends Question {
+  // Use the declared Question type instead of any
   sheetTitle: string
   categoryTitle: string
   categoryNumber: number
   displayNumber: number
 }
 
-const PatientExamTabs = () => {
-  const getAssignedStudents = async () => {
-    if (typeof window === "undefined") return []
-
-    const patientRoom = sessionStorage.getItem("patientRoom")
-    if (!patientRoom) return []
-
-    const allStudents = await loadStudents()
-    console.log("[v0] Loaded students data:", allStudents)
-
-    if (!Array.isArray(allStudents)) {
-      console.error("[v0] Students is not an array:", allStudents)
-      return []
-    }
-
-    const filteredStudents = allStudents.filter((student) => student.roomNumber === patientRoom)
-    console.log("[v0] Filtered students for room", patientRoom, ":", filteredStudents)
-
-    return filteredStudents.map((student) => ({
-      id: student.studentId,
-      name: student.name,
-    }))
-  }
-
-  const [assignedStudents, setAssignedStudents] = useState<Array<{ id: string; name: string }>>([])
+export default function PatientExamTabs({
+  patientEmail,
+  patientRoomNumber,
+  testId,
+  patientName,
+  elapsedTime,
+}: PatientExamTabsProps) {
+  const router = useRouter()
+  const [selectedTest, setSelectedTest] = useState<Test | null>(null)
+  const [tests, setTests] = useState<Test[]>([])
+  const [assignedStudents, setAssignedStudents] = useState<Student[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
-  const [timeRemaining, setTimeRemaining] = useState(3600)
   const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "pending">>({})
-  const [loginInfo, setLoginInfo] = useState<{
-    email: string
-    roomNumber: string
-    name: string
-    roomName: string
-  } | null>(null) // Added roomName to loginInfo
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null)
+  const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
-  const router = useRouter()
+  const [alertTriggers, setAlertTriggers] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const fetchData = async () => {
-      const testId = sessionStorage.getItem("patient_selected_test")
-      if (!testId) {
-        console.error("[v0] No test selected")
-        router.push("/patient/exam-info")
-        return
-      }
-
       try {
         const [testsData, roomsData, attendanceData, resultsData] = await Promise.all([
           loadTests(),
@@ -90,27 +66,21 @@ const PatientExamTabs = () => {
           loadEvaluationResults(),
         ])
 
-        console.log("[v0] Loaded tests data:", testsData)
-        console.log("[v0] Loaded rooms data:", roomsData)
-
         if (!Array.isArray(testsData)) {
           console.error("[v0] Tests is not an array:", testsData)
           router.push("/patient/exam-info")
           return
         }
 
-        const tests = testsData
-
-        if (!Array.isArray(tests)) {
-          console.error("[v0] Tests is not an array:", tests)
+        const test = testsData.find((t) => t.id === testId)
+        if (!test) {
+          console.error("[v0] Test not found")
           router.push("/patient/exam-info")
           return
         }
 
-        const test = tests.find((t) => t.id === testId)
-
-        if (!test) {
-          console.error("[v0] Test not found")
+        if (!test.sheets || !Array.isArray(test.sheets)) {
+          console.error("[v0] Test sheets is not valid:", test)
           router.push("/patient/exam-info")
           return
         }
@@ -121,7 +91,11 @@ const PatientExamTabs = () => {
         let displayNumber = 1
 
         test.sheets.forEach((sheet) => {
+          if (!sheet.categories || !Array.isArray(sheet.categories)) return
+
           sheet.categories.forEach((category) => {
+            if (!category.questions || !Array.isArray(category.questions)) return
+
             category.questions.forEach((question) => {
               flatQuestions.push({
                 ...question,
@@ -136,53 +110,60 @@ const PatientExamTabs = () => {
 
         setQuestions(flatQuestions)
 
-        const students = await getAssignedStudents()
-        setAssignedStudents(students)
+        let students: any[] = []
+        try {
+          const loadedStudents = await loadStudents(patientRoomNumber)
 
-        const patientEmail = sessionStorage.getItem("patientEmail")
-        const patientRoom = sessionStorage.getItem("patientRoom")
-        const patientName = sessionStorage.getItem("patientName")
-        if (patientEmail && patientRoom && patientName) {
-          const rooms = roomsData
-          if (!Array.isArray(rooms)) {
-            console.error("[v0] Rooms is not an array:", rooms)
+          if (!Array.isArray(loadedStudents)) {
+            console.error("[v0] Students is not an array:", loadedStudents)
+            students = []
+          } else {
+            students = loadedStudents
           }
-          const roomData = rooms.find((r) => r.roomNumber === patientRoom)
-
-          setLoginInfo({
-            email: patientEmail,
-            roomNumber: patientRoom,
-            name: patientName,
-            roomName: roomData?.roomName || "未設定",
-          })
+        } catch (error) {
+          console.error("[v0] Error loading students:", error)
+          students = []
         }
 
+        setAssignedStudents(students)
+
         if (students.length === 0) {
-          console.warn("[v0] No assigned students found")
+          console.log("[v0] No students found for room:", patientRoomNumber)
+          setAttendanceStatus({})
+          setStudentAnswers({})
+          setCompletionStatus({})
+          setAlertTriggers({})
           return
         }
 
-        const attendanceRecords = attendanceData
-        if (!Array.isArray(attendanceRecords)) {
-          console.error("[v0] Attendance records is not an array:", attendanceRecords)
-        }
-        const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
-        students.forEach((student) => {
-          const record = attendanceRecords.find((r) => r.studentId === student.id)
-          initialAttendance[student.id] = record?.status || "pending"
-        })
-        setAttendanceStatus(initialAttendance)
+        const validAttendanceData = Array.isArray(attendanceData) ? attendanceData : []
+        const validResultsData = Array.isArray(resultsData) ? resultsData : []
 
-        const evaluations = resultsData
-        if (!Array.isArray(evaluations)) {
-          console.error("[v0] Evaluations is not an array:", evaluations)
-        }
+        const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
         const initialAnswers: Record<string, Record<number, number>> = {}
+        const initialCompletionStatus: Record<string, boolean> = {}
+        const initialAlertTriggers: Record<string, boolean> = {}
+
         students.forEach((student) => {
-          const evaluation = evaluations.find((e) => e.studentId === student.id && e.evaluatorType === "patient")
+          if (!student || !student.id) {
+            console.error("[v0] Invalid student:", student)
+            return
+          }
+
+          const attendanceRecord = validAttendanceData.find((r) => r.studentId === student.id)
+          initialAttendance[student.id] = attendanceRecord?.status || "pending"
+
+          const evaluation = validResultsData.find((e) => e.studentId === student.id && e.evaluatorType === "patient")
+
           initialAnswers[student.id] = evaluation?.answers || {}
+          initialCompletionStatus[student.id] = evaluation?.isCompleted || false
+          initialAlertTriggers[student.id] = evaluation?.hasAlert || false
         })
+
+        setAttendanceStatus(initialAttendance)
         setStudentAnswers(initialAnswers)
+        setCompletionStatus(initialCompletionStatus)
+        setAlertTriggers(initialAlertTriggers)
       } catch (error) {
         console.error("[v0] Error loading data:", error)
         router.push("/patient/exam-info")
@@ -190,103 +171,86 @@ const PatientExamTabs = () => {
     }
 
     fetchData()
+  }, [router, testId, patientRoomNumber])
 
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 0) {
-          clearInterval(timer)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+  const handleAnswerChange = async (questionNumber: number, value: number) => {
+    const student = assignedStudents[activeStudentIndex]
+    if (!student) return
 
-    return () => clearInterval(timer)
-  }, [router])
-
-  if (!selectedTest || questions.length === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-medium">テストを読み込んでいます...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (assignedStudents.length === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-medium">評価対象の学生が割り当てられていません</p>
-          <p className="text-sm text-muted-foreground mt-2">管理者にお問い合わせください</p>
-        </div>
-      </div>
-    )
-  }
-
-  const answers = studentAnswers[assignedStudents[activeStudentIndex].id] || {}
-
-  const handleAnswerChange = async (questionId: number, value: number) => {
-    const activeStudent = assignedStudents[activeStudentIndex]
-
-    if (attendanceStatus[activeStudent.id] !== "present") {
-      return
+    const updatedAnswers = {
+      ...studentAnswers[student.id],
+      [questionNumber]: value,
     }
 
     setStudentAnswers((prev) => ({
       ...prev,
-      [activeStudent.id]: {
-        ...(prev[activeStudent.id] || {}),
-        [questionId]: value,
-      },
+      [student.id]: updatedAnswers,
     }))
 
-    if (!loginInfo) return
+    const totalScore = Object.values(updatedAnswers).reduce((sum, val) => sum + val, 0)
+    const hasAlert = alertTriggers[student.id] || false
+
+    const evaluationResult: EvaluationResult = {
+      studentId: student.studentId,
+      evaluatorId: patientEmail,
+      evaluatorType: "patient",
+      roomNumber: patientRoomNumber,
+      answers: updatedAnswers,
+      totalScore,
+      answeredCount: Object.keys(updatedAnswers).length,
+      isCompleted: completionStatus[student.id] || false,
+      hasAlert,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
 
     try {
-      const evaluations = await loadEvaluationResults()
-      if (!Array.isArray(evaluations)) {
-        console.error("[v0] Evaluations is not an array:", evaluations)
-        return
-      }
-
-      const activeStudentAnswers = {
-        ...(studentAnswers[activeStudent.id] || {}),
-        [questionId]: value,
-      }
-      const totalScore = Object.values(activeStudentAnswers).reduce((sum, val) => sum + val, 0)
-
-      const question = questions.find((q) => q.displayNumber === questionId)
-      const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(value)
-
-      const existingIndex = evaluations.findIndex(
-        (e) => e.studentId === activeStudent.id && e.evaluatorType === "patient" && e.evaluatorId === loginInfo.email,
-      )
-
-      const newEvaluation: EvaluationResult = {
-        studentId: activeStudent.id,
-        evaluatorId: loginInfo.email,
-        evaluatorType: "patient",
-        roomNumber: loginInfo.roomNumber,
-        answers: activeStudentAnswers,
-        totalScore,
-        answeredCount: Object.keys(activeStudentAnswers).length,
-        isCompleted: Object.keys(activeStudentAnswers).length === questions.length,
-        hasAlert: hasAlert || (existingIndex >= 0 && evaluations[existingIndex].hasAlert) || false,
-        updatedAt: new Date().toISOString(),
-        createdAt: existingIndex >= 0 ? evaluations[existingIndex].createdAt : new Date().toISOString(),
-      }
-
-      if (existingIndex >= 0) {
-        evaluations[existingIndex] = newEvaluation
-      } else {
-        evaluations.push(newEvaluation)
-      }
-
-      await saveEvaluationResults(evaluations)
+      await saveEvaluationResults([evaluationResult])
+      console.log("[v0] Saved evaluation result:", student.id)
     } catch (error) {
       console.error("[v0] Error saving evaluation:", error)
+    }
+  }
+
+  const handleMarkComplete = async (studentId: string) => {
+    const student = assignedStudents.find((s) => s.id === studentId)
+    if (!student) return
+
+    const studentAnswersData = studentAnswers[studentId] || {}
+    const answeredCount = Object.keys(studentAnswersData).length
+
+    if (answeredCount !== questions.length) {
+      alert(`全ての設問に回答してください。(${answeredCount}/${questions.length}問回答済み)`)
+      return
+    }
+
+    setCompletionStatus((prev) => ({
+      ...prev,
+      [studentId]: true,
+    }))
+
+    const totalScore = calculateScore(studentId)
+    const hasAlert = alertTriggers[studentId] || false
+
+    const evaluationResult: EvaluationResult = {
+      studentId: student.studentId,
+      evaluatorId: patientEmail,
+      evaluatorType: "patient",
+      roomNumber: patientRoomNumber,
+      answers: studentAnswersData,
+      totalScore,
+      answeredCount,
+      isCompleted: true,
+      hasAlert,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    try {
+      await saveEvaluationResults([evaluationResult])
+      console.log("[v0] Marked student as completed:", studentId)
+    } catch (error) {
+      console.error("[v0] Error marking completion:", error)
     }
   }
 
@@ -302,48 +266,28 @@ const PatientExamTabs = () => {
     return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
   }
 
-  const answeredCount = Object.keys(answers).length
-  const totalScore = calculateScore(assignedStudents[activeStudentIndex].id)
-
+  const answeredCount = Object.keys(studentAnswers[assignedStudents[activeStudentIndex]?.id || ""] || {}).length
+  const totalScore = calculateScore(assignedStudents[activeStudentIndex]?.id || "")
   const activeStudent = assignedStudents[activeStudentIndex]
 
-  const handleComplete = () => {
-    router.push("/patient/results")
-  }
-
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
-    if (!loginInfo) return
-
     setAttendanceStatus((prev) => ({
       ...prev,
       [studentId]: status,
     }))
 
+    const attendanceRecord: AttendanceRecord = {
+      studentId,
+      status,
+      markedBy: patientEmail,
+      markedByType: "patient",
+      roomNumber: patientRoomNumber,
+      timestamp: new Date().toISOString(),
+    }
+
     try {
-      const attendanceRecords = await loadAttendanceRecords()
-      if (!Array.isArray(attendanceRecords)) {
-        console.error("[v0] Attendance records is not an array:", attendanceRecords)
-        return
-      }
-
-      const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
-
-      const newRecord: AttendanceRecord = {
-        studentId,
-        status,
-        markedBy: loginInfo.email,
-        markedByType: "patient",
-        roomNumber: loginInfo.roomNumber,
-        timestamp: new Date().toISOString(),
-      }
-
-      if (existingIndex >= 0) {
-        attendanceRecords[existingIndex] = newRecord
-      } else {
-        attendanceRecords.push(newRecord)
-      }
-
-      await saveAttendanceRecords(attendanceRecords)
+      await saveAttendanceRecords([attendanceRecord])
+      console.log("[v0] Saved attendance record:", studentId)
     } catch (error) {
       console.error("[v0] Error saving attendance:", error)
     }
@@ -378,212 +322,218 @@ const PatientExamTabs = () => {
     category.questions.push(question)
   })
 
+  const handleEnableEdit = (studentId: string) => {
+    setCompletionStatus((prev) => ({
+      ...prev,
+      [studentId]: false,
+    }))
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-4 flex h-14 items-center justify-between">
-          <div className="flex items-center gap-4">
-            {loginInfo && (
+    <div className="container mx-auto p-4 space-y-4">
+      <header className="py-0 px-10 bg-background border-b">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="text-sm">
+              <span className="font-medium">部屋番号:</span> {patientRoomNumber}
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">担当患者:</span> {patientName}
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">時間:</span> {formatTime(elapsedTime)}
+            </div>
+            {activeStudent && (
               <>
-                <span className="text-sm font-medium">
-                  部屋{loginInfo.roomNumber}: {loginInfo.roomName}
-                </span>
-                <span className="text-sm text-muted-foreground">患者役: {loginInfo.name}</span>
+                <div className="text-sm">
+                  <span className="font-medium">進捗:</span>{" "}
+                  {Object.keys(studentAnswers[activeStudent.id] || {}).length}/{questions.length}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">合計点:</span> {calculateScore(activeStudent.id)}点
+                </div>
               </>
             )}
-            <Clock className="h-5 w-5" />
-            <span className="text-sm font-medium">残り時間: {formatTime(timeRemaining)}</span>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm">
-              回答済み: {answeredCount}/{questions.length}
-            </span>
-            <span className="text-sm font-medium">合計点: {totalScore}点</span>
-            <Button size="sm" onClick={handleComplete}>
-              評価完了
-            </Button>
-          </div>
-        </div>
-
-        {/* Student tabs */}
-        <div className="max-w-7xl mx-auto px-4 border-t bg-blue-50 py-2">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium">👥 医学生タブ - {assignedStudents.length}人を評価</span>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {assignedStudents.map((student, index) => {
-              const studentAnswersData = studentAnswers[student.id] || {}
-              const studentAnswered = Object.keys(studentAnswersData).length
-              const studentScore = calculateScore(student.id)
-              const isActive = index === activeStudentIndex
-              const isComplete = studentAnswered === questions.length
-              const attendance = attendanceStatus[student.id] || "pending"
-
-              const bgColor =
-                attendance === "absent"
-                  ? "bg-gray-300 text-gray-600"
-                  : isActive
-                    ? "bg-primary text-primary-foreground shadow-md scale-105"
-                    : "bg-white hover:bg-gray-100 border border-gray-200"
-
-              return (
-                <div key={student.id} className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setActiveStudentIndex(index)}
-                    disabled={attendance === "absent"}
-                    className={`text-sm font-semibold text-center px-2 py-1 rounded border transition-all ${
-                      isActive
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-white hover:bg-gray-50 border-gray-300"
-                    } ${attendance === "absent" ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    {student.name}
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleAttendanceChange(student.id, "present")}
-                      className={`px-2 py-1 text-xs rounded ${
-                        attendance === "present" ? "bg-green-600 text-white" : "bg-gray-200 hover:bg-green-100"
-                      }`}
-                    >
-                      出席
-                    </button>
-                    <button
-                      onClick={() => handleAttendanceChange(student.id, "absent")}
-                      className={`px-2 py-1 text-xs rounded ${
-                        attendance === "absent" ? "bg-red-600 text-white" : "bg-gray-200 hover:bg-red-100"
-                      }`}
-                    >
-                      欠席
-                    </button>
-                  </div>
-                  <div
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap text-center ${
-                      attendance === "absent"
-                        ? "bg-gray-300 text-gray-600"
-                        : isActive
-                          ? "bg-primary/20 border-2 border-primary"
-                          : "bg-white border border-gray-200"
-                    }`}
-                  >
-                    {`${isComplete ? "✓ " : ""}(${studentAnswered}/${questions.length} | ${studentScore}点)`}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <Button onClick={() => router.push("/patient/results")} size="sm" className="h-6 text-sm px-2">
+            評価完了
+          </Button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-4">
-        {attendanceStatus[activeStudent.id] === "absent" && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 font-medium">この学生は欠席です。評価を入力できません。</p>
-          </div>
-        )}
+      <div className="border-b pb-2 pt-3 px-2">
+        <div className="text-sm font-semibold mb-2">医学生選択 - 評価する医学生を選択してください</div>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {assignedStudents.map((student, index) => {
+            const attendance = attendanceStatus[student.id] || null
+            const isStudentCompleted = completionStatus[student.id] || false
+            const studentScore = calculateScore(student.id)
+            const studentAnsweredCount = Object.keys(studentAnswers[student.id] || {}).length
 
-        {attendanceStatus[activeStudent.id] === "pending" && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 font-medium">出席・欠席ボタンを押してください。</p>
-          </div>
-        )}
+            return (
+              <div
+                key={student.id}
+                onClick={() => setActiveStudentIndex(index)}
+                className={`flex-shrink-0 w-44 p-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                  activeStudentIndex === index ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                <div className="font-medium text-sm mb-2 text-center truncate">{student.name}</div>
 
-        <div className="mb-4">
-          <h2 className="text-xl font-bold">{activeStudent.name}の評価</h2>
-          <p className="text-sm text-muted-foreground">
-            {activeStudent.id} - {answeredCount}/{questions.length}回答済み
+                <div className="flex gap-1 mb-2">
+                  <Button
+                    variant={attendance === "present" ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1 h-7 text-xs px-1"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAttendanceChange(student.id, "present")
+                    }}
+                    disabled={isStudentCompleted}
+                  >
+                    出席
+                  </Button>
+                  <Button
+                    variant={attendance === "absent" ? "destructive" : "outline"}
+                    size="sm"
+                    className={`flex-1 h-7 text-xs px-1 ${
+                      attendance === "absent" ? "bg-red-500 hover:bg-red-600 text-white" : ""
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleAttendanceChange(student.id, "absent")
+                    }}
+                    disabled={isStudentCompleted}
+                  >
+                    欠席
+                  </Button>
+                  <div
+                    className={`flex-1 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
+                      isStudentCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    完了
+                  </div>
+                </div>
+
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>得点: {studentScore}点</span>
+                  <span>
+                    進捗: {studentAnsweredCount}/{questions.length}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold mb-1">{activeStudent?.name}の評価</h2>
+          <p className="text-sm text-muted-foreground mb-1">
+            {activeStudent?.studentId} - {answeredCount}/{questions.length}回答済み
           </p>
-          <p className="text-sm font-medium text-primary mt-1">テスト: {selectedTest.title}</p>
+          <p className="text-sm font-medium">テスト: {groupedQuestions[0]?.sheetTitle || "評価シート"}</p>
         </div>
 
-        {/* Display questions grouped by sheet and category */}
-        <div className="space-y-6">
-          {groupedQuestions.map((sheet, sheetIndex) => (
-            <div key={sheetIndex} className="space-y-4">
-              <div className="bg-primary/10 p-3 rounded-lg border-l-4 border-primary">
-                <h3 className="font-bold text-lg">{sheet.sheetTitle}</h3>
-              </div>
+        {attendanceStatus[activeStudent?.id || ""] !== "present" && (
+          <div className="text-center py-8 text-muted-foreground">出席ボタンを押してから入力してください</div>
+        )}
 
-              {sheet.categories.map((category, categoryIndex) => (
-                <div key={categoryIndex} className="space-y-2 ml-4">
-                  <div className="bg-secondary/50 p-2 rounded-md">
-                    <h4 className="font-semibold text-base">
-                      カテゴリ {category.categoryNumber}: {category.categoryTitle}
-                    </h4>
-                  </div>
+        {attendanceStatus[activeStudent?.id || ""] === "present" && (
+          <>
+            {groupedQuestions.map((sheet) => (
+              <div key={sheet.sheetTitle} className="space-y-3">
+                {sheet.categories.map((category) => (
+                  <div key={category.categoryNumber} className="space-y-3">
+                    <div className="bg-muted px-4 py-3 rounded relative">
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-3xl font-light text-muted-foreground">
+                        {"{"}
+                      </div>
+                      <div className="ml-6">
+                        <span className="font-medium">{category.categoryTitle}</span>
+                      </div>
+                    </div>
 
-                  <div className="space-y-1 ml-4">
-                    {category.questions.map((question) => {
-                      const selectedAnswer = answers[question.displayNumber]
-                      const isAnswered = selectedAnswer !== undefined
-                      const isDisabled = attendanceStatus[activeStudent.id] !== "present"
+                    <div className="px-4">
+                      <p className="text-sm font-semibold">
+                        カテゴリ {category.categoryNumber}: 学生の評価にマークをしてください
+                      </p>
+                    </div>
 
-                      const isAlertAnswer = question.isAlertTarget && question.alertOptions?.includes(selectedAnswer)
+                    <div className="space-y-1 px-4">
+                      {category.questions.map((question) => {
+                        const studentAnswersData = studentAnswers[activeStudent.id] || {}
+                        const selectedOption = studentAnswersData[question.number]
+                        const isAlertTarget = question.isAlertTarget
+                        const isInputDisabled = completionStatus[activeStudent.id] || false
 
-                      return (
-                        <div
-                          key={question.displayNumber}
-                          className={`border rounded-md p-2 bg-card hover:bg-accent/5 transition-colors ${
-                            isAlertAnswer ? "bg-red-50" : ""
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div
-                                className={`flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${
-                                  isAnswered ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                                }`}
-                              >
-                                {question.displayNumber}
-                              </div>
+                        return (
+                          <div
+                            key={`${category.categoryNumber}-${question.number}`}
+                            className="flex items-center gap-4 py-2 border-b border-border/40"
+                          >
+                            <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
+                              {question.number}
+                            </div>
 
-                              <span className="text-sm font-medium">{question.text}</span>
-
-                              {question.isAlertTarget && question.alertOptions && question.alertOptions.length > 0 && (
-                                <span className="text-xs text-red-600 font-medium whitespace-nowrap">
-                                  (アラート対象: {question.alertOptions.join(",")})
+                            <div className="flex-1 min-w-0 text-sm">
+                              {question.text}
+                              {isAlertTarget && (
+                                <span className="ml-2 text-xs text-red-600 font-medium">
+                                  (アラート対象: {question.alertOptions?.join(",")})
                                 </span>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              <div className="flex gap-1">
-                                {[1, 2, 3, 4, 5].map((optionValue) => (
-                                  <button
-                                    key={optionValue}
-                                    onClick={() => handleAnswerChange(question.displayNumber, optionValue)}
-                                    disabled={isDisabled}
-                                    className={`w-9 h-9 rounded text-sm font-medium transition-all ${
-                                      isDisabled
-                                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                        : selectedAnswer === optionValue
-                                          ? "bg-primary text-primary-foreground shadow-sm"
-                                          : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                                    }`}
-                                  >
-                                    {optionValue}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {isAnswered && <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />}
-                              {isAlertAnswer && (
-                                <span className="text-xs text-red-600 font-bold flex-shrink-0">🚨 アラート</span>
-                              )}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {[1, 2, 3, 4, 5].map((option) => (
+                                <Button
+                                  key={option}
+                                  variant={selectedOption === option ? "default" : "outline"}
+                                  size="sm"
+                                  className="w-10 h-10 p-0 text-sm rounded-md"
+                                  onClick={() => handleAnswerChange(question.number, option)}
+                                  disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
+                                >
+                                  {option}
+                                </Button>
+                              ))}
                             </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            ))}
+
+            <div className="flex gap-3 pt-4 px-4">
+              {!completionStatus[activeStudent.id] && (
+                <Button
+                  onClick={() => handleMarkComplete(activeStudent.id)}
+                  disabled={answeredCount !== questions.length || attendanceStatus[activeStudent.id] !== "present"}
+                  className="flex-1"
+                >
+                  入力完了 ({answeredCount}/{questions.length})
+                </Button>
+              )}
+              {completionStatus[activeStudent.id] && (
+                <>
+                  <Button onClick={() => handleEnableEdit(activeStudent.id)} variant="outline" className="flex-1">
+                    編集
+                  </Button>
+                  <div className="flex-1 flex items-center justify-center bg-muted text-muted-foreground rounded-md px-4 py-2">
+                    入力完了済み
+                  </div>
+                </>
+              )}
             </div>
-          ))}
-        </div>
-      </main>
+          </>
+        )}
+      </div>
     </div>
   )
 }
-
-export default PatientExamTabs

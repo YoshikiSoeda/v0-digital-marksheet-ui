@@ -191,7 +191,10 @@ export async function saveTeachers(teachers: Teacher[]) {
 export async function loadTeachers(): Promise<Teacher[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase.from("teachers").select("*").order("created_at", { ascending: true })
+  const { data, error } = await supabase
+    .from("teachers")
+    .select("*")
+    .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
   if (error) {
     console.error("[v0] Error loading teachers:", error)
@@ -243,7 +246,10 @@ export async function savePatients(patients: Patient[]) {
 export async function loadPatients(): Promise<Patient[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase.from("patients").select("*").order("created_at", { ascending: true })
+  const { data, error } = await supabase
+    .from("patients")
+    .select("*")
+    .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
   if (error) {
     console.error("[v0] Error loading patients:", error)
