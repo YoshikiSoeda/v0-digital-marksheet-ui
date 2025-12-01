@@ -46,7 +46,7 @@ interface Room {
   completedCount: number
   alertCount: number
   averageScore: number
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
 }
 
 interface Student {
@@ -71,6 +71,12 @@ interface AttendanceRecord {
   status: string
 }
 
+interface Evaluation {
+  studentId: string
+  roomNumber: string
+  totalScore: number
+}
+
 export function AdminDashboard() {
   const router = useRouter()
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -79,6 +85,7 @@ export function AdminDashboard() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [patients, setPatients] = useState<PatientRole[]>([])
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [updateCounter, setUpdateCounter] = useState(0)
@@ -102,6 +109,7 @@ export function AdminDashboard() {
         setTeachers([])
         setPatients([])
         setAttendanceRecords([])
+        setEvaluations([])
 
         const [
           fetchedStudents,
@@ -126,6 +134,7 @@ export function AdminDashboard() {
         setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
         setPatients(Array.isArray(fetchedPatients) ? fetchedPatients : [])
         setAttendanceRecords(Array.isArray(fetchedAttendanceRecords) ? fetchedAttendanceRecords : [])
+        setEvaluations(Array.isArray(fetchedEvaluations) ? fetchedEvaluations : [])
 
         const roomMap = new Map<
           string,
@@ -139,7 +148,7 @@ export function AdminDashboard() {
             completedCount: number
             alertCount: number
             averageScore: number
-            students: Array<{ id: string; name: string; status: string; isCompleted: boolean }>
+            students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
           }
         >()
 
@@ -217,11 +226,16 @@ export function AdminDashboard() {
 
             const studentsWithStatus = roomStudents.map((student) => {
               const statusInfo = studentStatusMap.get(student.studentId)
+              const studentEvaluation = fetchedEvaluations.find(
+                (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
+              )
+              const totalScore = studentEvaluation?.totalScore || 0
               return {
                 id: student.studentId,
                 name: student.name,
                 status: statusInfo?.status || "unknown",
                 isCompleted: statusInfo?.isCompleted || false,
+                totalScore: totalScore,
               }
             })
 
@@ -272,6 +286,7 @@ export function AdminDashboard() {
       setTeachers([])
       setPatients([])
       setAttendanceRecords([])
+      setEvaluations([])
 
       const [fetchedStudents, fetchedTeachers, fetchedPatients, fetchedRooms, fetchedEvaluations, fetchedAttendance] =
         await Promise.all([
@@ -299,7 +314,7 @@ export function AdminDashboard() {
           completedCount: number
           alertCount: number
           averageScore: number
-          students: Array<{ id: string; name: string; status: string; isCompleted: boolean }>
+          students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
         }
       >()
 
@@ -377,11 +392,16 @@ export function AdminDashboard() {
 
           const studentsWithStatus = roomStudents.map((student) => {
             const statusInfo = studentStatusMap.get(student.studentId)
+            const studentEvaluation = fetchedEvaluations.find(
+              (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
+            )
+            const totalScore = studentEvaluation?.totalScore || 0
             return {
               id: student.studentId,
               name: student.name,
               status: statusInfo?.status || "unknown",
               isCompleted: statusInfo?.isCompleted || false,
+              totalScore: totalScore,
             }
           })
 
@@ -675,6 +695,7 @@ export function AdminDashboard() {
                               <th className="text-left py-2">学籍番号</th>
                               <th className="text-left py-2">氏名</th>
                               <th className="text-center py-2">出欠</th>
+                              <th className="text-center py-2">合計点</th>
                               <th className="text-center py-2">完了</th>
                             </tr>
                           </thead>
@@ -700,6 +721,7 @@ export function AdminDashboard() {
                                         : "未確認"}
                                   </span>
                                 </td>
+                                <td className="text-center py-2 font-medium">{student.totalScore}点</td>
                                 <td className="text-center py-2">
                                   {student.isCompleted ? (
                                     <span className="text-blue-600">✓</span>
