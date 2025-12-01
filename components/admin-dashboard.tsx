@@ -13,6 +13,7 @@ import {
   loadEvaluationResults,
   loadAttendanceRecords, // Added import for loadAttendanceRecords
 } from "@/lib/data-storage"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface RoomData {
   roomNumber: string
@@ -40,6 +41,12 @@ interface Room {
   roomName?: string
   teacherName: string
   patientName: string
+  presentCount: number
+  absentCount: number
+  completedCount: number
+  alertCount: number
+  averageScore: number
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean }>
 }
 
 interface Student {
@@ -435,7 +442,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">管理者ダッシュボード</h1>
@@ -604,6 +611,116 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!selectedRoom} onOpenChange={(open) => !open && setSelectedRoom(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>部屋 {selectedRoom} の詳細</DialogTitle>
+          </DialogHeader>
+          {selectedRoom &&
+            (() => {
+              const room = rooms.find((r) => r.roomNumber === selectedRoom)
+              if (!room) return <p className="text-muted-foreground">部屋情報が見つかりません</p>
+
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">部屋名</p>
+                      <p className="text-base">{room.roomName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">部屋番号</p>
+                      <p className="text-base">{room.roomNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">担当教員</p>
+                      <p className="text-base">{room.teacherName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">患者担当</p>
+                      <p className="text-base">{room.patientName}</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium mb-2">進捗状況</h4>
+                    <div className="grid grid-cols-4 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-green-600">{room.presentCount}</p>
+                        <p className="text-xs text-muted-foreground">出席</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-red-600">{room.absentCount}</p>
+                        <p className="text-xs text-muted-foreground">欠席</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-blue-600">{room.completedCount}</p>
+                        <p className="text-xs text-muted-foreground">完了</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-orange-600">{room.alertCount}</p>
+                        <p className="text-xs text-muted-foreground">アラート</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium mb-2">学生一覧</h4>
+                    <div className="space-y-2">
+                      {room.students && room.students.length > 0 ? (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2">学籍番号</th>
+                              <th className="text-left py-2">氏名</th>
+                              <th className="text-center py-2">出欠</th>
+                              <th className="text-center py-2">完了</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {room.students.map((student) => (
+                              <tr key={student.id} className="border-b">
+                                <td className="py-2">{student.id}</td>
+                                <td className="py-2">{student.name}</td>
+                                <td className="text-center py-2">
+                                  <span
+                                    className={`px-2 py-1 rounded text-xs ${
+                                      student.status === "present"
+                                        ? "bg-green-100 text-green-800"
+                                        : student.status === "absent"
+                                          ? "bg-red-100 text-red-800"
+                                          : "bg-gray-100 text-gray-800"
+                                    }`}
+                                  >
+                                    {student.status === "present"
+                                      ? "出席"
+                                      : student.status === "absent"
+                                        ? "欠席"
+                                        : "未確認"}
+                                  </span>
+                                </td>
+                                <td className="text-center py-2">
+                                  {student.isCompleted ? (
+                                    <span className="text-blue-600">✓</span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-4">学生データがありません</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
