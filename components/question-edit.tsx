@@ -241,14 +241,14 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#E5EFFC] p-4 md:p-8 flex items-center justify-center">
+      <div className="min-h-screen bg-secondary/30 p-4 md:p-8 flex items-center justify-center">
         <div className="text-lg font-semibold">読み込み中...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#E5EFFC] p-4 md:p-8">
+    <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-4">

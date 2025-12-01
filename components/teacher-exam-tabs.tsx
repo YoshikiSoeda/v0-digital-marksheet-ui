@@ -24,6 +24,7 @@ interface TeacherExamTabsProps {
 export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testId }: TeacherExamTabsProps) {
   const router = useRouter()
   const [tests, setTests] = useState<any[]>([])
+  const [selectedTest, setSelectedTest] = useState<any>(null)
   const [assignedStudents, setAssignedStudents] = useState<any[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
   const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
@@ -55,6 +56,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         setAssignedStudents(filteredStudents)
 
         const selectedTest = fetchedTests.find((t) => t.id === testId)
+        setSelectedTest(selectedTest)
         if (selectedTest && selectedTest.sheets) {
           const allQuestions: any[] = []
           const seenQuestionNumbers = new Set<string>()
@@ -321,7 +323,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
   return (
     <div className="container mx-auto p-4 space-y-4">
-      <header className="py-0 px-10 bg-background border-b">
+      <header className="py-0 px-2 bg-background border-b">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="text-sm">
@@ -429,7 +431,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           <p className="text-sm text-muted-foreground mb-1">
             {activeStudent?.studentId} - {answeredCount}/{questions.length}回答済み
           </p>
-          <p className="text-sm font-medium">テスト: {groupedQuestions[0]?.sheetTitle || "評価シート"}</p>
+          <p className="text-sm font-medium">テスト: {selectedTest?.title || "評価シート"}</p>
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
@@ -440,26 +442,16 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           <>
             {groupedQuestions.map((sheet) => (
               <div key={sheet.sheetTitle} className="space-y-3">
+                <div className="bg-muted px-4 py-3 rounded">
+                  <span className="font-medium">{sheet.sheetTitle}</span>
+                </div>
+
                 {sheet.categories.map((category) => (
                   <div key={category.categoryNumber} className="space-y-3">
-                    {/* [C-2-2-b] Title Level 2 with gray background and bracket */}
-                    <div className="bg-muted px-4 py-3 rounded relative">
-                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-3xl font-light text-muted-foreground">
-                        {"{"}
-                      </div>
-                      <div className="ml-6">
-                        <span className="font-medium">{category.categoryTitle}</span>
-                      </div>
-                    </div>
-
-                    {/* [C-2-2-c] Title Level 3 */}
                     <div className="px-4">
-                      <p className="text-sm font-semibold">
-                        カテゴリ {category.categoryNumber}: 学生の評価にマークをしてください
-                      </p>
+                      <p className="text-sm font-semibold">{category.categoryTitle}</p>
                     </div>
 
-                    {/* [C-2-2-d] Question rows */}
                     <div className="space-y-1 px-4">
                       {category.questions.map((question) => {
                         const isAnswered = studentAnswersData[question.number] !== undefined
@@ -471,12 +463,10 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                             key={`${category.categoryNumber}-${question.number}`}
                             className="flex items-center gap-4 py-2 border-b border-border/40"
                           >
-                            {/* Question number */}
                             <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
                               {question.number}
                             </div>
 
-                            {/* Question text and alert */}
                             <div className="flex-1 min-w-0 text-sm">
                               {question.text}
                               {isAlertTarget && (
@@ -486,7 +476,6 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                               )}
                             </div>
 
-                            {/* Option buttons */}
                             <div className="flex items-center gap-2 flex-shrink-0">
                               {[1, 2, 3, 4, 5].map((option) => (
                                 <Button
@@ -510,7 +499,6 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
               </div>
             ))}
 
-            {/* [C-2-2-e] Mark Complete Button and [C-2-2-f] Edit Button */}
             <div className="flex gap-3 pt-4 px-4">
               {!isCompleted && (
                 <Button

@@ -86,6 +86,7 @@ export default function PatientExamTabs({
         }
 
         setSelectedTest(test)
+        setTests(testsData)
 
         const flatQuestions: QuestionWithMeta[] = []
         let displayNumber = 1
@@ -171,7 +172,7 @@ export default function PatientExamTabs({
     }
 
     fetchData()
-  }, [router, testId, patientRoomNumber])
+  }, [testId, patientRoomNumber, patientEmail, router])
 
   const handleAnswerChange = async (questionNumber: number, value: number) => {
     const student = assignedStudents[activeStudentIndex]
@@ -331,7 +332,7 @@ export default function PatientExamTabs({
 
   return (
     <div className="container mx-auto p-4 space-y-4">
-      <header className="py-0 px-10 bg-background border-b">
+      <header className="py-0 px-2 bg-background border-b">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="text-sm">
@@ -434,7 +435,7 @@ export default function PatientExamTabs({
           <p className="text-sm text-muted-foreground mb-1">
             {activeStudent?.studentId} - {answeredCount}/{questions.length}回答済み
           </p>
-          <p className="text-sm font-medium">テスト: {groupedQuestions[0]?.sheetTitle || "評価シート"}</p>
+          <p className="text-sm font-medium">テスト: {selectedTest?.title || "評価シート"}</p>
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
@@ -445,21 +446,14 @@ export default function PatientExamTabs({
           <>
             {groupedQuestions.map((sheet) => (
               <div key={sheet.sheetTitle} className="space-y-3">
+                <div className="bg-muted px-4 py-3 rounded">
+                  <span className="font-medium">{sheet.sheetTitle}</span>
+                </div>
+
                 {sheet.categories.map((category) => (
                   <div key={category.categoryNumber} className="space-y-3">
-                    <div className="bg-muted px-4 py-3 rounded relative">
-                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-3xl font-light text-muted-foreground">
-                        {"{"}
-                      </div>
-                      <div className="ml-6">
-                        <span className="font-medium">{category.categoryTitle}</span>
-                      </div>
-                    </div>
-
                     <div className="px-4">
-                      <p className="text-sm font-semibold">
-                        カテゴリ {category.categoryNumber}: 学生の評価にマークをしてください
-                      </p>
+                      <p className="text-sm font-semibold">{category.categoryTitle}</p>
                     </div>
 
                     <div className="space-y-1 px-4">
