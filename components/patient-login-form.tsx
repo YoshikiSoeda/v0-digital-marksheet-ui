@@ -58,6 +58,7 @@ export function PatientLoginForm() {
           assignedRoomNumber: patient.assignedRoomNumber || "",
           role: patient.role,
           universityCode: patient.universityCode || "dentshowa",
+          subjectCode: patient.subjectCode || "",
         }),
       )
 
@@ -68,6 +69,7 @@ export function PatientLoginForm() {
       sessionStorage.setItem("patientRoom", patient.assignedRoomNumber || "")
       sessionStorage.setItem("userRole", patient.role)
       sessionStorage.setItem("universityCode", patient.universityCode || "dentshowa")
+      sessionStorage.setItem("subjectCode", patient.subjectCode || "")
 
       window.location.href = "/patient/exam-info"
     } catch (error) {

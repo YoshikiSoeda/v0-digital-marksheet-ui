@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
-import { savePatients, loadPatients, loadRooms, type Patient, type Room } from "@/lib/data-storage"
+import { savePatients, loadPatients, loadRooms, loadSubjects, type Patient, type Room, type Subject } from "@/lib/data-storage"
 import { Table, TableHead, TableRow, TableCell } from "@/components/ui/table"
 
 export function PatientRoleRegistration() {
@@ -20,13 +20,15 @@ export function PatientRoleRegistration() {
   const [isLoading, setIsLoading] = useState(true)
   const [accountType, setAccountType] = useState<string>("")
   const [universities, setUniversities] = useState<Record<string, string>>({})
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     role: "general" as "general" | "admin",
     roomNumber: "",
-    university_code: "", // Add university_code to formData
+    university_code: "",
+    subjectCode: "",
   })
   const [isDragging, setIsDragging] = useState(false)
 
@@ -39,7 +41,8 @@ export function PatientRoleRegistration() {
         console.log("[v0] PatientRoleRegistration: accountType from sessionStorage =", storedAccountType)
         setAccountType(storedAccountType)
 
-        const [patientsData, roomsData] = await Promise.all([loadPatients(), loadRooms()])
+        const [patientsData, roomsData, subjectsData] = await Promise.all([loadPatients(), loadRooms(), loadSubjects()])
+        setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
 
         console.log("[v0] PatientRoleRegistration: Loaded patients count:", patientsData?.length)
         console.log("[v0] PatientRoleRegistration: Loaded rooms count:", roomsData?.length)
@@ -401,6 +404,22 @@ export function PatientRoleRegistration() {
                       </select>
                     )}
                     <p className="text-xs text-muted-foreground">この部屋に属する学生が自動的に評価対象になります</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subjectCode">担当教科</Label>
+                    <select
+                      id="subjectCode"
+                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                      value={formData.subjectCode}
+                      onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
+                    >
+                      <option value="">選択してください</option>
+                      {subjects.map((s) => (
+                        <option key={s.subjectCode} value={s.subjectCode}>
+                          {s.subjectName}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   {accountType === "special_master" && (
                     <div className="grid gap-2">

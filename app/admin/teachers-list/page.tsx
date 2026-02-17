@@ -438,14 +438,19 @@ export default function TeachersListPage() {
                 <Label htmlFor="edit-role">権限 *</Label>
                 <select
                   id="edit-role"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   value={editForm.role}
                   onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "general" | "admin" })}
+                  disabled={accountType !== "special_master" && accountType !== "university_master"}
                 >
                   <option value="general">一般</option>
                   <option value="admin">管理者</option>
                 </select>
-                <p className="text-xs text-muted-foreground">一般: 採点機能のみ / 管理者: 全機能アクセス可</p>
+                <p className="text-xs text-muted-foreground">
+                  {accountType === "special_master" || accountType === "university_master"
+                    ? "一般: 採点機能のみ / 管理者: 全機能アクセス可"
+                    : "権限の変更はスペシャルマスターまたは大学マスターのみ可能です"}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-room">担当部屋番号 *</Label>
@@ -491,7 +496,8 @@ export default function TeachersListPage() {
                   id="edit-subjectRole"
                   value={editForm.subjectRole}
                   onChange={(e) => setEditForm({ ...editForm, subjectRole: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={accountType !== "special_master" && accountType !== "university_master"}
                 >
                   <option value="general">教科一般教員（担当部屋の評価入力）</option>
                   <option value="subject_admin">教科管理者（教科内の全機能）</option>

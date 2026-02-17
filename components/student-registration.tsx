@@ -10,20 +10,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
-import { saveStudents, loadStudents, loadRooms, type Student, type Room } from "@/lib/data-storage"
+import { saveStudents, loadStudents, loadRooms, loadSubjects, type Student, type Room, type Subject } from "@/lib/data-storage"
 
 export function StudentRegistration() {
   const router = useRouter()
   const [students, setStudents] = useState<Student[]>([])
   const [rooms, setRooms] = useState<Room[]>([]) // Add rooms state
   const [isLoading, setIsLoading] = useState(true)
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [formData, setFormData] = useState({
     name: "",
     studentId: "",
     email: "",
     department: "",
     roomNumber: "",
-    university_code: "", // Add university_code to formData
+    university_code: "",
+    subjectCode: "",
   })
   const [isDragging, setIsDragging] = useState(false)
   const [accountType, setAccountType] = useState<string>("")
@@ -78,7 +80,8 @@ export function StudentRegistration() {
           console.error("[v0] StudentRegistration: Error fetching universities:", error)
         }
 
-        const [studentsData, roomsData] = await Promise.all([loadStudents(), loadRooms()])
+        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(), loadRooms(), loadSubjects()])
+        setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
         console.log("[v0] StudentRegistration: Loaded students count:", studentsData?.length)
         console.log("[v0] StudentRegistration: Loaded rooms count:", roomsData?.length)
         setStudents(Array.isArray(studentsData) ? studentsData : [])
@@ -380,6 +383,22 @@ export function StudentRegistration() {
                       </select>
                     )}
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subjectCode">教科</Label>
+                    <select
+                      id="subjectCode"
+                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                      value={formData.subjectCode}
+                      onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
+                    >
+                      <option value="">選択してください</option>
+                      {subjects.map((s) => (
+                        <option key={s.subjectCode} value={s.subjectCode}>
+                          {s.subjectName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   {accountType === "special_master" && (
                     <div className="grid gap-2">
                       <Label htmlFor="university">大学</Label>
@@ -387,7 +406,7 @@ export function StudentRegistration() {
                         id="university"
                         value={formData.university_code}
                         onChange={(e) => setFormData({ ...formData, university_code: e.target.value })}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
                         required
                       >
                         <option value="">選択してください</option>

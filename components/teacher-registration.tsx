@@ -462,9 +462,10 @@ export function TeacherRegistration() {
                     <Label htmlFor="role">権限 *</Label>
                     <select
                       id="role"
-                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value as "general" | "admin" })}
+                      disabled={accountType !== "special_master" && accountType !== "university_master"}
                     >
                       <option value="general">一般</option>
                       <option value="admin">管理者</option>
@@ -538,6 +539,7 @@ export function TeacherRegistration() {
                     <Label htmlFor="subjectRole">教科内権限</Label>
                     <select
                       id="subjectRole"
+                      disabled={accountType !== "special_master" && accountType !== "university_master"}
                       value={formData.subjectRole}
                       onChange={(e) =>
                         setFormData({
