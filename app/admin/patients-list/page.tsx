@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadPatients, savePatients, loadRooms, type Patient } from "@/lib/data-storage"
+import { loadPatients, savePatients, loadRooms, loadSubjects, type Patient, type Subject } from "@/lib/data-storage"
 
 export default function PatientsListPage() {
   const [patients, setPatients] = useState<Patient[]>([])
@@ -20,6 +20,8 @@ export default function PatientsListPage() {
   const [universitiesList, setUniversitiesList] = useState<Array<{ university_code: string; university_name: string }>>(
     [],
   )
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
@@ -27,6 +29,7 @@ export default function PatientsListPage() {
     role: "general" as "general" | "admin",
     roomNumber: "",
     university_code: "",
+    subjectCode: "",
   })
 
   useEffect(() => {
@@ -57,18 +60,21 @@ export default function PatientsListPage() {
         }
       }
 
-      const [loadedPatients, loadedRooms] = await Promise.all([loadPatients(), loadRooms()])
+      const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([loadPatients(), loadRooms(), loadSubjects()])
       setPatients(Array.isArray(loadedPatients) ? loadedPatients : [])
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
+      setSubjects(Array.isArray(loadedSubjects) ? loadedSubjects : [])
     }
     fetchData()
   }, [])
 
-  const filteredPatients = patients.filter(
-    (p) =>
+  const filteredPatients = patients.filter((p) => {
+    const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      p.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSubject = selectedSubjectFilter === "all" || p.subjectCode === selectedSubjectFilter
+    return matchesSearch && matchesSubject
+  })
 
   const handleEdit = (patient: Patient) => {
     setEditingPatient(patient)
@@ -194,14 +200,28 @@ export default function PatientsListPage() {
             <CardDescription>氏名、メールアドレスで検索</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={selectedSubjectFilter}
+                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                className="flex h-10 rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">全教科</option>
+                {subjects.map((s) => (
+                  <option key={s.subjectCode} value={s.subjectCode}>
+                    {s.subjectName}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadStudents, saveStudents, loadRooms, type Student } from "@/lib/data-storage"
+import { loadStudents, saveStudents, loadRooms, loadSubjects, type Student, type Subject } from "@/lib/data-storage"
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,8 @@ export default function StudentsListPage() {
   const [universitiesList, setUniversitiesList] = useState<Array<{ university_code: string; university_name: string }>>(
     [],
   )
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [editForm, setEditForm] = useState({
     studentId: "",
     name: "",
@@ -34,6 +36,7 @@ export default function StudentsListPage() {
     department: "",
     roomNumber: "",
     university_code: "",
+    subjectCode: "",
   })
 
   useEffect(() => {
@@ -64,19 +67,22 @@ export default function StudentsListPage() {
         }
       }
 
-      const [fetchedStudents, fetchedRooms] = await Promise.all([loadStudents(), loadRooms()])
+      const [fetchedStudents, fetchedRooms, fetchedSubjects] = await Promise.all([loadStudents(), loadRooms(), loadSubjects()])
       setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
       setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
+      setSubjects(Array.isArray(fetchedSubjects) ? fetchedSubjects : [])
     }
     fetchData()
   }, [])
 
-  const filteredStudents = students.filter(
-    (s) =>
+  const filteredStudents = students.filter((s) => {
+    const matchesSearch =
       s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      s.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSubject = selectedSubjectFilter === "all" || (s as any).subjectCode === selectedSubjectFilter
+    return matchesSearch && matchesSubject
+  })
 
   const handleEdit = (student: Student) => {
     setEditingStudent(student)
@@ -191,14 +197,28 @@ export default function StudentsListPage() {
             <CardDescription>学生ID、氏名、部屋番号で検索</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={selectedSubjectFilter}
+                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                className="flex h-10 rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">全教科</option>
+                {subjects.map((s) => (
+                  <option key={s.subjectCode} value={s.subjectCode}>
+                    {s.subjectName}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>

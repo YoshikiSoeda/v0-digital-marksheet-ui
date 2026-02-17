@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, type Teacher } from "@/lib/data-storage"
+import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, loadSubjects, type Teacher, type Subject } from "@/lib/data-storage"
 
 export default function TeachersListPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -20,6 +20,8 @@ export default function TeachersListPage() {
   const [universitiesList, setUniversitiesList] = useState<Array<{ university_code: string; university_name: string }>>(
     [],
   )
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
@@ -27,6 +29,8 @@ export default function TeachersListPage() {
     role: "general" as "general" | "admin",
     assignedRoomNumber: "",
     university_code: "",
+    subjectCode: "",
+    subjectRole: "general" as string,
   })
 
   useEffect(() => {
@@ -57,23 +61,26 @@ export default function TeachersListPage() {
         }
       }
 
-      console.log("[v0] TeachersListPage: Loading teachers and rooms...")
-      const [fetchedTeachers, fetchedRooms] = await Promise.all([loadTeachers(), loadRooms()])
+      console.log("[v0] TeachersListPage: Loading teachers, rooms, and subjects...")
+      const [fetchedTeachers, fetchedRooms, fetchedSubjects] = await Promise.all([loadTeachers(), loadRooms(), loadSubjects()])
 
       console.log("[v0] TeachersListPage: Loaded teachers:", fetchedTeachers?.length || 0)
       console.log("[v0] TeachersListPage: Loaded rooms:", fetchedRooms?.length || 0)
       setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
       setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
+      setSubjects(Array.isArray(fetchedSubjects) ? fetchedSubjects : [])
     }
 
     fetchData()
   }, [])
 
-  const filteredTeachers = teachers.filter(
-    (t) =>
+  const filteredTeachers = teachers.filter((t) => {
+    const matchesSearch =
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.email.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      t.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSubject = selectedSubjectFilter === "all" || t.subjectCode === selectedSubjectFilter
+    return matchesSearch && matchesSubject
+  })
 
   const handleEdit = (teacher: Teacher) => {
     setEditingTeacher(teacher)
@@ -84,6 +91,8 @@ export default function TeachersListPage() {
       role: teacher.role,
       assignedRoomNumber: teacher.assignedRoomNumber || "",
       university_code: teacher.university_code || "",
+      subjectCode: teacher.subjectCode || "",
+      subjectRole: teacher.subjectRole || "general",
     })
   }
 
@@ -102,6 +111,8 @@ export default function TeachersListPage() {
             role: editForm.role,
             assignedRoomNumber: editForm.assignedRoomNumber,
             university_code: editForm.university_code,
+            subjectCode: editForm.subjectCode,
+            subjectRole: editForm.subjectRole as "subject_admin" | "general" | "subject_teacher",
           }
         : t,
     )
@@ -229,18 +240,32 @@ export default function TeachersListPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>検索</CardTitle>
-            <CardDescription>氏名、メールアドレスで検索</CardDescription>
+            <CardTitle>検索・フィルタ</CardTitle>
+            <CardDescription>氏名、メールアドレスで検索、教科でフィルタ</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={selectedSubjectFilter}
+                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                className="flex h-10 rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">全教科</option>
+                {subjects.map((s) => (
+                  <option key={s.subjectCode} value={s.subjectCode}>
+                    {s.subjectName}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>
@@ -259,6 +284,8 @@ export default function TeachersListPage() {
                     <th className="text-left p-2">メールアドレス（ログインID）</th>
                     <th className="text-left p-2">ログインパスワード</th>
                     <th className="text-left p-2">権限</th>
+                    <th className="text-left p-2">担当教科</th>
+                    <th className="text-left p-2">教科内権限</th>
                     <th className="text-left p-2">担当部屋番号</th>
                     <th className="text-center p-2">操作</th>
                   </tr>
@@ -267,7 +294,7 @@ export default function TeachersListPage() {
                   {filteredTeachers.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={accountType === "special_master" ? 7 : 6}
+                        colSpan={accountType === "special_master" ? 9 : 8}
                         className="text-center p-8 text-muted-foreground"
                       >
                         登録されている教員がいません
@@ -299,6 +326,19 @@ export default function TeachersListPage() {
                               }`}
                             >
                               {teacher.role === "admin" ? "管理者" : "一般"}
+                            </span>
+                          </td>
+                          <td className="p-2">
+                            {subjects.find((s) => s.subjectCode === teacher.subjectCode)?.subjectName || teacher.subjectCode || "-"}
+                          </td>
+                          <td className="p-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              teacher.subjectRole === "subject_admin" ? "bg-orange-100 text-orange-800" :
+                              teacher.subjectRole === "subject_teacher" ? "bg-green-100 text-green-800" :
+                              "bg-gray-100 text-gray-800"
+                            }`}>
+                              {teacher.subjectRole === "subject_admin" ? "教科管理者" :
+                               teacher.subjectRole === "subject_teacher" ? "教科担任" : "一般"}
                             </span>
                           </td>
                           <td className="p-2">
@@ -428,6 +468,35 @@ export default function TeachersListPage() {
                     ))}
                   </select>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-subject">担当教科</Label>
+                <select
+                  id="edit-subject"
+                  value={editForm.subjectCode}
+                  onChange={(e) => setEditForm({ ...editForm, subjectCode: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">未設定</option>
+                  {subjects.map((s) => (
+                    <option key={s.subjectCode} value={s.subjectCode}>
+                      {s.subjectName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-subjectRole">教科内権限</Label>
+                <select
+                  id="edit-subjectRole"
+                  value={editForm.subjectRole}
+                  onChange={(e) => setEditForm({ ...editForm, subjectRole: e.target.value })}
+                  className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                >
+                  <option value="general">教科一般教員（担当部屋の評価入力）</option>
+                  <option value="subject_admin">教科管理者（教科内の全機能）</option>
+                  <option value="subject_teacher">教科担任（閲覧のみ）</option>
+                </select>
               </div>
             </div>
             <div className="flex justify-end gap-2">
