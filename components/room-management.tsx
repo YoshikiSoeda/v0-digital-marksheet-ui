@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { loadRooms, saveRooms, type Room } from "@/lib/data-storage"
+import { loadRooms, saveRooms, loadSubjects, type Room, type Subject } from "@/lib/data-storage"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -20,13 +20,17 @@ export function RoomManagement() {
   const [newRoomNumber, setNewRoomNumber] = useState("")
   const [newRoomName, setNewRoomName] = useState("")
   const [newUniversityCode, setNewUniversityCode] = useState("")
+  const [newSubjectCode, setNewSubjectCode] = useState("")
   const [editRoomNumber, setEditRoomNumber] = useState("")
   const [editRoomName, setEditRoomName] = useState("")
   const [editUniversityCode, setEditUniversityCode] = useState("")
+  const [editSubjectCode, setEditSubjectCode] = useState("")
   const [isSpecialMaster, setIsSpecialMaster] = useState(false)
   const [universities, setUniversities] = useState<Record<string, string>>({})
   const [universitiesList, setUniversitiesList] = useState<Array<{ code: string; name: string }>>([])
   const [selectedUniversityFilter, setSelectedUniversityFilter] = useState<string>("all")
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -54,6 +58,12 @@ export function RoomManagement() {
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
     }
     fetchRooms()
+
+    const fetchSubjects = async () => {
+      const loadedSubjects = await loadSubjects()
+      setSubjects(loadedSubjects)
+    }
+    fetchSubjects()
   }, [])
 
   const handleAddRoom = async () => {
@@ -79,7 +89,8 @@ export function RoomManagement() {
       id: crypto.randomUUID(),
       roomNumber: newRoomNumber,
       roomName: newRoomName,
-      university_code: universityCode,
+      universityCode: universityCode,
+      subjectCode: newSubjectCode || undefined,
       createdAt: new Date().toISOString(),
     }
 
@@ -90,6 +101,7 @@ export function RoomManagement() {
     setNewRoomNumber("")
     setNewRoomName("")
     setNewUniversityCode("")
+    setNewSubjectCode("")
     setIsAddingRoom(false)
   }
 

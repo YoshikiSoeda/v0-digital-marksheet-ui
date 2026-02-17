@@ -39,6 +39,7 @@ export interface Patient {
   createdAt: string
   universityCode?: string // 大学コード
   accountType?: "special_master" | "university_master" | "admin" // アカウントタイプ
+  subjectCode?: string // 担当教科コード
 }
 
 // 出席状況データの型定義
@@ -50,6 +51,7 @@ export interface AttendanceRecord {
   roomNumber: string // 部屋番号
   timestamp: string // 記録時刻
   universityCode?: string // 大学コード
+  subjectCode?: string // 教科コード
 }
 
 // 評価結果データの型定義
@@ -75,6 +77,7 @@ export interface Room {
   roomName: string
   createdAt: string
   universityCode?: string // 大学コード
+  subjectCode?: string // 教科コード
 }
 
 // 問題管理データの型定義
@@ -282,6 +285,7 @@ export async function savePatients(patients: Patient[]) {
     assigned_room_number: p.assignedRoomNumber,
     university_code: p.universityCode || null,
     account_type: p.accountType || null,
+    subject_code: p.subjectCode || null,
   }))
 
   const { error } = await supabase.from("patients").upsert(patientsData, { onConflict: "email" })
@@ -295,7 +299,7 @@ export async function savePatients(patients: Patient[]) {
 }
 
 // 患者役データの読み込み
-export async function loadPatients(universityCode?: string): Promise<Patient[]> {
+export async function loadPatients(universityCode?: string, subjectCode?: string): Promise<Patient[]> {
   const supabase = createClient()
 
   let query = supabase
@@ -305,6 +309,10 @@ export async function loadPatients(universityCode?: string): Promise<Patient[]> 
 
   if (universityCode) {
     query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
   }
 
   const { data, error } = await query
@@ -330,6 +338,7 @@ export async function loadPatients(universityCode?: string): Promise<Patient[]> 
     createdAt: row.created_at,
     universityCode: row.university_code,
     accountType: row.account_type,
+    subjectCode: row.subject_code,
   }))
 }
 
@@ -448,6 +457,7 @@ export async function saveRooms(rooms: Room[]) {
     room_name: r.roomName,
     created_at: r.createdAt,
     university_code: r.universityCode || null,
+    subject_code: r.subjectCode || null,
   }))
 
   const { error } = await supabase.from("rooms").upsert(roomsData, { onConflict: "room_number" })
@@ -461,13 +471,17 @@ export async function saveRooms(rooms: Room[]) {
 }
 
 // ルームデータの読み込み
-export async function loadRooms(universityCode?: string): Promise<Room[]> {
+export async function loadRooms(universityCode?: string, subjectCode?: string): Promise<Room[]> {
   const supabase = createClient()
 
   let query = supabase.from("rooms").select("*").order("room_number", { ascending: true })
 
   if (universityCode) {
     query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
   }
 
   const { data, error } = await query
@@ -490,6 +504,7 @@ export async function loadRooms(universityCode?: string): Promise<Room[]> {
     roomName: row.room_name,
     createdAt: row.created_at,
     universityCode: row.university_code,
+    subjectCode: row.subject_code,
   }))
 }
 
