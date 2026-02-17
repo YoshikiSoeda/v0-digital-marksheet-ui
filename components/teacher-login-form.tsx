@@ -48,31 +48,42 @@ export function TeacherLoginForm() {
         return
       }
 
+      // 統合権限: general, subject_admin, university_admin, master_admin
+      const teacherRole = teacher.role as string
+
       const loginInfo = {
-        role: "teacher",
+        loginType: "teacher",
+        role: teacherRole,
         userId: teacher.id,
         userName: teacher.name,
         email: teacher.email,
         assignedRoomNumber: teacher.assignedRoomNumber || "",
         universityCode: teacher.universityCode || "dentshowa",
         subjectCode: teacher.subjectCode || "",
-        subjectRole: teacher.subjectRole || "subject_teacher",
       }
 
       sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
-      // Keep legacy keys for backward compatibility
       sessionStorage.setItem("teacherId", teacher.id)
       sessionStorage.setItem("teacherName", teacher.name)
       sessionStorage.setItem("teacherEmail", teacher.email)
-      sessionStorage.setItem("teacherRole", teacher.role)
+      sessionStorage.setItem("teacherRole", teacherRole)
       sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber || "")
       sessionStorage.setItem("universityCode", teacher.universityCode || "dentshowa")
       sessionStorage.setItem("subjectCode", teacher.subjectCode || "")
-      sessionStorage.setItem("subjectRole", teacher.subjectRole || "subject_teacher")
+      // 権限に応じたaccountType互換値を設定
+      const accountTypeMap: Record<string, string> = {
+        master_admin: "special_master",
+        university_admin: "university_master",
+        subject_admin: "subject_admin",
+        general: "general",
+      }
+      sessionStorage.setItem("accountType", accountTypeMap[teacherRole] || "general")
 
-      console.log("[v0] Teacher login successful, info:", loginInfo)
+      console.log("[v0] Teacher login successful, role:", teacherRole)
 
-      // Use window.location.href for more reliable navigation
+      // 権限に応じてリダイレクト先を変更
+      // general: 教員用試験画面のみ
+      // subject_admin以上: 管理画面にもアクセス可能だが、まず試験情報画面へ
       window.location.href = "/teacher/exam-info"
     } catch (error) {
       console.error("[v0] Error during login:", error)

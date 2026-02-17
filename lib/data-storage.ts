@@ -12,19 +12,23 @@ export interface Student {
 }
 
 // 教員データの型定義
+// 権限: general=一般教員, subject_admin=教科管理者, university_admin=大学管理者, master_admin=マスター管理者
+export type TeacherRole = "general" | "subject_admin" | "university_admin" | "master_admin"
+
 export interface Teacher {
   id: string
   teacherId: string
   name: string // 氏名
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
-  role: "general" | "admin" // 権限（一般 or 管理者）
+  role: TeacherRole // 統合権限
   assignedRoomNumber: string // 担当部屋番号（単一）
   createdAt: string
   universityCode?: string // 大学コード
-  accountType?: "special_master" | "university_master" | "admin" // アカウントタイプ
   subjectCode?: string // 担当教科コード
-  subjectRole?: "subject_admin" | "subject_general" | "subject_teacher" // 教科内での役割
+  // 後方互換用（非推奨）
+  accountType?: string
+  subjectRole?: string
 }
 
 // 患者役データの型定義
@@ -205,15 +209,13 @@ export async function saveTeachers(teachers: Teacher[]) {
   const supabase = createClient()
 
   const teachersData = teachers.map((t) => ({
-    name: t.name,
-    email: t.email,
-    password: t.password,
-    role: t.role,
-    assigned_room_number: t.assignedRoomNumber,
-    university_code: t.universityCode || null,
-    account_type: t.accountType || null,
-    subject_code: t.subjectCode || null, // Add subject_code
-    subject_role: t.subjectRole || "subject_general", // Add subject_role
+  name: t.name,
+  email: t.email,
+  password: t.password,
+  role: t.role, // general, subject_admin, university_admin, master_admin
+  assigned_room_number: t.assignedRoomNumber,
+  university_code: t.universityCode || null,
+  subject_code: t.subjectCode || null,
   }))
 
   const { error } = await supabase.from("teachers").upsert(teachersData, { onConflict: "email" })
@@ -266,14 +268,12 @@ export async function loadTeachers(universityCode?: string, subjectCode?: string
     role: row.role,
     assignedRoomNumber: row.assigned_room_number || "",
     createdAt: row.created_at,
-    universityCode: row.university_code,
-    accountType: row.account_type,
-    subjectCode: row.subject_code, // Add subject_code
-    subjectRole: row.subject_role || "subject_general", // Add subject_role
+  universityCode: row.university_code,
+  subjectCode: row.subject_code,
   }))
-}
-
-// 患者役データの保存
+  }
+  
+  // 患者役データの保存
 export async function savePatients(patients: Patient[]) {
   const supabase = createClient()
 

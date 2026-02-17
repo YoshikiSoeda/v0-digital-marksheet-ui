@@ -285,7 +285,6 @@ export default function TeachersListPage() {
                     <th className="text-left p-2">ログインパスワード</th>
                     <th className="text-left p-2">権限</th>
                     <th className="text-left p-2">担当教科</th>
-                    <th className="text-left p-2">教科内権限</th>
                     <th className="text-left p-2">担当部屋番号</th>
                     <th className="text-center p-2">操作</th>
                   </tr>
@@ -294,7 +293,7 @@ export default function TeachersListPage() {
                   {filteredTeachers.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={accountType === "special_master" ? 9 : 8}
+                        colSpan={accountType === "special_master" ? 8 : 7}
                         className="text-center p-8 text-muted-foreground"
                       >
                         登録されている教員がいません
@@ -320,26 +319,22 @@ export default function TeachersListPage() {
                           <td className="p-2">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                teacher.role === "admin"
-                                  ? "bg-primary/10 text-primary"
-                                  : "bg-secondary text-secondary-foreground"
+                                teacher.role === "master_admin"
+                                  ? "bg-red-100 text-red-800"
+                                  : teacher.role === "university_admin"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : teacher.role === "subject_admin"
+                                      ? "bg-orange-100 text-orange-800"
+                                      : "bg-gray-100 text-gray-800"
                               }`}
                             >
-                              {teacher.role === "admin" ? "管理者" : "一般"}
+                              {teacher.role === "master_admin" ? "マスター管理者" :
+                               teacher.role === "university_admin" ? "大学管理者" :
+                               teacher.role === "subject_admin" ? "教科管理者" : "一般"}
                             </span>
                           </td>
                           <td className="p-2">
                             {subjects.find((s) => s.subjectCode === teacher.subjectCode)?.subjectName || teacher.subjectCode || "-"}
-                          </td>
-                          <td className="p-2">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              teacher.subjectRole === "subject_admin" ? "bg-orange-100 text-orange-800" :
-                              teacher.subjectRole === "subject_teacher" ? "bg-green-100 text-green-800" :
-                              "bg-gray-100 text-gray-800"
-                            }`}>
-                              {teacher.subjectRole === "subject_admin" ? "教科管理者" :
-                               teacher.subjectRole === "subject_teacher" ? "教科担任" : "一般"}
-                            </span>
                           </td>
                           <td className="p-2">
                             <span
@@ -440,16 +435,22 @@ export default function TeachersListPage() {
                   id="edit-role"
                   className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "general" | "admin" })}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as any })}
                   disabled={accountType !== "special_master" && accountType !== "university_master"}
                 >
-                  <option value="general">一般</option>
-                  <option value="admin">管理者</option>
+                  <option value="general">一般（教員ログインのみ）</option>
+                  <option value="subject_admin">教科管理者（教科データの管理可能）</option>
+                  {(accountType === "special_master" || accountType === "university_master") && (
+                    <option value="university_admin">大学管理者（大学内全データ管理）</option>
+                  )}
+                  {accountType === "special_master" && (
+                    <option value="master_admin">マスター管理者（全権限）</option>
+                  )}
                 </select>
                 <p className="text-xs text-muted-foreground">
                   {accountType === "special_master" || accountType === "university_master"
-                    ? "一般: 採点機能のみ / 管理者: 全機能アクセス可"
-                    : "権限の変更はスペシャルマスターまたは大学マスターのみ可能です"}
+                    ? "権限を選択してください"
+                    : "権限の変更はマスター管理者または大学管理者のみ可能です"}
                 </p>
               </div>
               <div className="space-y-2">
@@ -490,20 +491,7 @@ export default function TeachersListPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-subjectRole">教科内権限</Label>
-                <select
-                  id="edit-subjectRole"
-                  value={editForm.subjectRole}
-                  onChange={(e) => setEditForm({ ...editForm, subjectRole: e.target.value })}
-                  className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={accountType !== "special_master" && accountType !== "university_master"}
-                >
-                  <option value="general">教科一般教員（担当部屋の評価入力）</option>
-                  <option value="subject_admin">教科管理者（教科内の全機能）</option>
-                  <option value="subject_teacher">教科担任（閲覧のみ）</option>
-                </select>
-              </div>
+
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditingTeacher(null)}>

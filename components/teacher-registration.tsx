@@ -38,7 +38,7 @@ export function TeacherRegistration() {
     roomNumber: "",
     university_code: "", // Add university_code to formData
     subjectCode: "",
-    subjectRole: "subject_general" as "subject_general" | "subject_admin" | "subject_teacher",
+
   })
   const [isDragging, setIsDragging] = useState(false)
 
@@ -148,7 +148,7 @@ export function TeacherRegistration() {
       createdAt: new Date().toISOString(),
       university_code: formData.university_code,
       subjectCode: formData.subjectCode,
-      subjectRole: formData.subjectRole,
+
     }
 
     console.log("[v0] New teacher object created:", newTeacher)
@@ -166,7 +166,7 @@ export function TeacherRegistration() {
       roomNumber: "",
       university_code: "",
       subjectCode: "",
-      subjectRole: "subject_general",
+
     })
   }
 
@@ -175,20 +175,18 @@ export function TeacherRegistration() {
     const newTeachers: Teacher[] = []
 
     for (let i = 1; i < lines.length; i++) {
-      const [name, email, password, role, roomNumber, university_code, subjectCode, subjectRole] = lines[i]
+      const [name, email, password, role, roomNumber, university_code, subjectCode] = lines[i]
         .split(",")
         .map((s) => s.trim())
       if (name && email && password) {
-        let teacherRole: "general" | "admin" = "general"
-        if (role === "admin" || role === "管理者") {
-          teacherRole = "admin"
-        }
-
-        let teacherSubjectRole: "subject_general" | "subject_admin" | "subject_teacher" = "subject_general"
-        if (subjectRole === "subject_admin" || subjectRole === "教科管理者") {
-          teacherSubjectRole = "subject_admin"
-        } else if (subjectRole === "subject_teacher" || subjectRole === "教科担任") {
-          teacherSubjectRole = "subject_teacher"
+        // 統合権限: general, subject_admin, university_admin, master_admin
+        let teacherRole: string = "general"
+        if (role === "subject_admin" || role === "教科管理者") {
+          teacherRole = "subject_admin"
+        } else if (role === "university_admin" || role === "大学管理者") {
+          teacherRole = "university_admin"
+        } else if (role === "master_admin" || role === "マスター管理者") {
+          teacherRole = "master_admin"
         }
 
         newTeachers.push({
@@ -197,12 +195,11 @@ export function TeacherRegistration() {
           name,
           email,
           password,
-          role: teacherRole,
+          role: teacherRole as any,
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
-          university_code: university_code || "", // Include university_code in newTeachers
+          universityCode: university_code || "",
           subjectCode: subjectCode || "",
-          subjectRole: teacherSubjectRole,
         })
       }
     }
@@ -263,39 +260,34 @@ export function TeacherRegistration() {
     document.getElementById("csv-upload")?.click()
   }
 
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case "master_admin": return "マスター管理者"
+      case "university_admin": return "大学管理者"
+      case "subject_admin": return "教科管理者"
+      default: return "一般"
+    }
+  }
+
   const handleExportCSV = () => {
-    let csvContent
+    let csvContent: string
     if (accountType === "special_master") {
       csvContent =
-        "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード,教科内権限\n" +
+        "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n" +
         teachers
           .map((t) => {
-            const roleLabel = t.role === "admin" ? "管理者" : "一般"
-            const universityName = universities[t.university_code || ""] || ""
-            const subjectName = subjects.find((s) => s.subjectCode === t.subjectCode)?.subjectName || ""
-            const subjectRoleLabel =
-              t.subjectRole === "subject_admin"
-                ? "教科管理者"
-                : t.subjectRole === "subject_teacher"
-                  ? "教科担任"
-                  : "教科一般教員"
-            return `${universityName},${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber},${t.subjectCode},${subjectRoleLabel}`
+            const roleLabel = getRoleLabel(t.role)
+            const universityName = universities[t.universityCode || ""] || ""
+            return `${universityName},${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber},${t.subjectCode || ""}`
           })
           .join("\n")
     } else {
       csvContent =
-        "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード,教科内権限\n" +
+        "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n" +
         teachers
           .map((t) => {
-            const roleLabel = t.role === "admin" ? "管理者" : "一般"
-            const subjectName = subjects.find((s) => s.subjectCode === t.subjectCode)?.subjectName || ""
-            const subjectRoleLabel =
-              t.subjectRole === "subject_admin"
-                ? "教科管理者"
-                : t.subjectRole === "subject_teacher"
-                  ? "教科担任"
-                  : "教科一般教員"
-            return `${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber},${t.subjectCode},${subjectRoleLabel}`
+            const roleLabel = getRoleLabel(t.role)
+            return `${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber},${t.subjectCode || ""}`
           })
           .join("\n")
     }
@@ -309,7 +301,7 @@ export function TeacherRegistration() {
 
   const handleDownloadTemplate = () => {
     const template =
-      "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード,教科内権限\n東京大学,田中先生,tanaka@example.com,password123,管理者,101,数学101,教科管理者\n京都大学,鈴木先生,suzuki@example.com,password456,一般,102,文学102,教科一般教員"
+      "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n東京大学,田中先生,tanaka@example.com,password123,教科管理者,101,数学101\n京都大学,鈴木先生,suzuki@example.com,password456,一般,102,文学102"
     const blob = new Blob([template], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -464,13 +456,23 @@ export function TeacherRegistration() {
                       id="role"
                       className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as "general" | "admin" })}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                       disabled={accountType !== "special_master" && accountType !== "university_master"}
                     >
-                      <option value="general">一般</option>
-                      <option value="admin">管理者</option>
+                      <option value="general">一般（教員ログインのみ）</option>
+                      <option value="subject_admin">教科管理者（教科データの管理可能）</option>
+                      {(accountType === "special_master" || accountType === "university_master") && (
+                        <option value="university_admin">大学管理者（大学内全データ管理）</option>
+                      )}
+                      {accountType === "special_master" && (
+                        <option value="master_admin">マスター管理者（全権限）</option>
+                      )}
                     </select>
-                    <p className="text-xs text-muted-foreground">一般: 採点機能のみ / 管理者: 全機能アクセス可</p>
+                    <p className="text-xs text-muted-foreground">
+                      {accountType === "special_master" || accountType === "university_master"
+                        ? "一般: 教員ログインのみ / 教科管理者: 教科データ管理 / 大学管理者: 大学内全管理"
+                        : "権限の変更はマスター管理者または大学管理者のみ可能です"}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="roomNumber">担当部屋番号 *</Label>
@@ -535,26 +537,7 @@ export function TeacherRegistration() {
                         ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="subjectRole">教科内権限</Label>
-                    <select
-                      id="subjectRole"
-                      disabled={accountType !== "special_master" && accountType !== "university_master"}
-                      value={formData.subjectRole}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          subjectRole: e.target.value as "subject_general" | "subject_admin" | "subject_teacher",
-                        })
-                      }
-                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
-                      required
-                    >
-                      <option value="subject_admin">教科管理者（教科内の全データ管理）</option>
-                      <option value="subject_general">教科一般教員（担当部屋の評価入力）</option>
-                      <option value="subject_teacher">教科担任（閲覧のみ）</option>
-                    </select>
-                  </div>
+
                 </div>
                 <Button onClick={handleAddTeacher} className="w-full" size="lg">
                   <UserPlus className="w-4 h-4 mr-2" />
@@ -600,10 +583,10 @@ export function TeacherRegistration() {
                   <div className="bg-muted p-4 rounded-lg">
                     <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-                      大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード,教科内権限
-                      {"\n"}
-                      東京大学,田中先生,tanaka@example.com,password123,管理者,101,数学101,教科管理者{"\n"}
-                      京都大学,鈴木先生,suzuki@example.com,password456,一般,102,文学102,教科一般教員
+大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード
+  {"\n"}
+  東京大学,田中先生,tanaka@example.com,password123,教科管理者,101,数学101{"\n"}
+  京都大学,鈴木先生,suzuki@example.com,password456,一般,102,文学102
                     </pre>
                   </div>
                 </div>
@@ -642,7 +625,7 @@ export function TeacherRegistration() {
                       <TableHead className="min-w-[150px]">権限</TableHead>
                       <TableHead className="min-w-[150px]">担当部屋番号</TableHead>
                       <TableHead className="min-w-[150px]">教科コード</TableHead>
-                      <TableHead className="min-w-[150px]">教科内権限</TableHead>
+                      
                       <TableHead className="min-w-[150px] text-center">操作</TableHead>
                     </tr>
                   </thead>
@@ -658,33 +641,20 @@ export function TeacherRegistration() {
                         <TableCell>
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              teacher.role === "admin"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-secondary text-secondary-foreground"
+                              teacher.role === "master_admin"
+                                ? "bg-red-100 text-red-800"
+                                : teacher.role === "university_admin"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : teacher.role === "subject_admin"
+                                    ? "bg-orange-100 text-orange-800"
+                                    : "bg-gray-100 text-gray-800"
                             }`}
                           >
-                            {teacher.role === "admin" ? "管理者" : "一般"}
+                            {getRoleLabel(teacher.role)}
                           </span>
                         </TableCell>
                         <TableCell>{teacher.assignedRoomNumber || "-"}</TableCell>
                         <TableCell>{teacher.subjectCode || "-"}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              teacher.subjectRole === "subject_admin"
-                                ? "bg-primary/10 text-primary"
-                                : teacher.subjectRole === "subject_teacher"
-                                  ? "bg-secondary text-secondary-foreground"
-                                  : "bg-success text-success-foreground"
-                            }`}
-                          >
-                            {teacher.subjectRole === "subject_admin"
-                              ? "教科管理者"
-                              : teacher.subjectRole === "subject_teacher"
-                                ? "教科担任"
-                                : "教科一般教員"}
-                          </span>
-                        </TableCell>
                         <TableCell className="text-center">
                           <Button
                             variant="ghost"

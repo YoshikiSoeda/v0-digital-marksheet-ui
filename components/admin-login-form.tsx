@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Shield } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { loadTeachers } from "@/lib/data-storage"
 
 export function AdminLoginForm() {
   const router = useRouter()
@@ -25,62 +26,127 @@ export function AdminLoginForm() {
     setError("")
     setIsLoading(true)
 
-    console.log("[v0] Admin login attempt:", { adminId, hasPassword: !!password })
-
     if (!adminId || !password) {
       setError("管理者IDとパスワードを入力してください")
       setIsLoading(false)
       return
     }
 
-    const supabase = createClient()
+    // 1. admin,admin でマスター管理者ログイン
+    if (adminId === "admin" && password === "admin") {
+      const supabase = createClient()
+      const { data: admins } = await supabase
+        .from("admins")
+        .select("*")
+        .eq("role", "master_admin")
+        .limit(1)
 
+      const admin = admins?.[0]
+      if (admin) {
+        const universityCodes = admin.university_codes || ["dentshowa"]
+        sessionStorage.setItem("loginInfo", JSON.stringify({
+          loginType: "admin",
+          role: "master_admin",
+          userId: admin.id,
+          userName: admin.name,
+          universityCodes,
+        }))
+        sessionStorage.setItem("userRole", "admin")
+        sessionStorage.setItem("userId", admin.id)
+        sessionStorage.setItem("userName", admin.name)
+        sessionStorage.setItem("universityCodes", JSON.stringify(universityCodes))
+        sessionStorage.setItem("accountType", "special_master")
+        sessionStorage.setItem("teacherRole", "master_admin")
+
+        window.location.href = "/admin/dashboard"
+        return
+      }
+    }
+
+    // 2. adminsテーブルから検索
+    const supabase = createClient()
     const emailToCheck = adminId === "ediand" ? "ediand@system.local" : adminId
 
-    const { data: admin, error: adminError } = await supabase
+    const { data: admin } = await supabase
       .from("admins")
       .select("*")
       .eq("email", emailToCheck)
       .eq("password", password)
       .single()
 
-    if (adminError) {
-      console.log("[v0] Admin login error:", adminError)
-    }
-
     if (admin) {
-      console.log("[v0] Admin login successful:", {
-        name: admin.name,
-        accountType: admin.account_type,
-        universityCodes: admin.university_codes,
-      })
-
-      const accountType = admin.account_type || "admin"
+      const role = admin.role || "master_admin"
+      const accountTypeMap: Record<string, string> = {
+        master_admin: "special_master",
+        university_admin: "university_master",
+      }
       const universityCodes = admin.university_codes || ["dentshowa"]
 
-      const loginInfo = {
-        role: "admin",
+      sessionStorage.setItem("loginInfo", JSON.stringify({
+        loginType: "admin",
+        role,
         userId: admin.id,
         userName: admin.name,
         universityCodes,
-        accountType,
-      }
-
-      sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
+      }))
       sessionStorage.setItem("userRole", "admin")
       sessionStorage.setItem("userId", admin.id)
       sessionStorage.setItem("userName", admin.name)
       sessionStorage.setItem("universityCodes", JSON.stringify(universityCodes))
-      sessionStorage.setItem("accountType", accountType)
-
-      console.log("[v0] Session storage set, redirecting to /admin/dashboard")
+      sessionStorage.setItem("accountType", accountTypeMap[role] || "admin")
+      sessionStorage.setItem("teacherRole", role)
 
       window.location.href = "/admin/dashboard"
-    } else {
-      console.log("[v0] No matching admin account found")
-      setError("管理者IDまたはパスワードが正しくありません")
-      setIsLoading(false)
+      return
     }
+
+    // 3. teachersテーブルからuniversity_admin以上を検索
+    try {
+      const teachers = await loadTeachers()
+      const teacher = teachers.find(
+        (t) => t.email === adminId && t.password === password &&
+               (t.role === "university_admin" || t.role === "master_admin" || t.role === "subject_admin")
+      )
+
+      if (teacher) {
+        const teacherRole = teacher.role as string
+        const accountTypeMap: Record<string, string> = {
+          master_admin: "special_master",
+          university_admin: "university_master",
+          subject_admin: "subject_admin",
+        }
+
+        sessionStorage.setItem("loginInfo", JSON.stringify({
+          loginType: "teacher_admin",
+          role: teacherRole,
+          userId: teacher.id,
+          userName: teacher.name,
+          email: teacher.email,
+          universityCode: teacher.universityCode || "dentshowa",
+          subjectCode: teacher.subjectCode || "",
+        }))
+        sessionStorage.setItem("userRole", "admin")
+        sessionStorage.setItem("userId", teacher.id)
+        sessionStorage.setItem("userName", teacher.name)
+        sessionStorage.setItem("teacherId", teacher.id)
+        sessionStorage.setItem("teacherName", teacher.name)
+        sessionStorage.setItem("teacherEmail", teacher.email)
+        sessionStorage.setItem("teacherRole", teacherRole)
+        sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber || "")
+        sessionStorage.setItem("universityCode", teacher.universityCode || "dentshowa")
+        sessionStorage.setItem("universityCodes", JSON.stringify([teacher.universityCode || "dentshowa"]))
+        sessionStorage.setItem("subjectCode", teacher.subjectCode || "")
+        sessionStorage.setItem("accountType", accountTypeMap[teacherRole] || "admin")
+
+        window.location.href = "/admin/dashboard"
+        return
+      }
+    } catch (err) {
+      console.error("[v0] Error checking teachers:", err)
+    }
+
+    setError("管理者IDまたはパスワードが正しくありません")
+    setIsLoading(false)
   }
 
   return (

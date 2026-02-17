@@ -135,6 +135,16 @@ const AdminDashboard = () => {
       const storedAccountType = sessionStorage.getItem("accountType")
       setAccountType(storedAccountType || "admin")
 
+      // teacherRole を取得（教員ログインからの管理画面アクセス時に使用）
+      const storedTeacherRole = sessionStorage.getItem("teacherRole") || ""
+      // subject_admin の場合、subjectCode でフィルタリング
+      if (storedTeacherRole === "subject_admin") {
+        const subjectCode = sessionStorage.getItem("subjectCode") || ""
+        if (subjectCode) {
+          sessionStorage.setItem("filterSubjectCode", subjectCode)
+        }
+      }
+
       if (storedAccountType === "special_master") {
         console.log("[v0] Fetching universities for special master")
         try {
