@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export function AdminSettings() {
   const [autoSave, setAutoSave] = useState(true)
   const [backupFormat, setBackupFormat] = useState("csv")
+  const [isSpecialMaster, setIsSpecialMaster] = useState(false)
+  const [universities, setUniversities] = useState<Array<{ code: string; name: string }>>([])
+  const [selectedUniversity, setSelectedUniversity] = useState<string>("")
+  const [testDuration, setTestDuration] = useState<Record<string, string>>({})
+  const [maxUsers, setMaxUsers] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const accountType = sessionStorage.getItem("accountType")
+    setIsSpecialMaster(accountType === "special_master")
+
+    if (accountType === "special_master") {
+      fetch("/api/universities")
+        .then((res) => res.json())
+        .then((data) => {
+          const universityList: Array<{ code: string; name: string }> = []
+          data.forEach((uni: any) => {
+            universityList.push({ code: uni.university_code, name: uni.university_name })
+          })
+          setUniversities(universityList)
+          if (universityList.length > 0) {
+            setSelectedUniversity(universityList[0].code)
+          }
+        })
+        .catch((err) => console.error("[v0] Failed to fetch universities:", err))
+    } else {
+      const universityCode = sessionStorage.getItem("universityCode") || ""
+      setSelectedUniversity(universityCode)
+    }
+  }, [])
+
+  const currentTestDuration = testDuration[selectedUniversity] || "90"
+  const currentMaxUsers = maxUsers[selectedUniversity] || "1000"
+
+  const handleTestDurationChange = (value: string) => {
+    setTestDuration({ ...testDuration, [selectedUniversity]: value })
+  }
+
+  const handleMaxUsersChange = (value: string) => {
+    setMaxUsers({ ...maxUsers, [selectedUniversity]: value })
+  }
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
@@ -28,21 +68,60 @@ export function AdminSettings() {
           <p className="text-muted-foreground">試験システムの設定を管理</p>
         </div>
 
+        {isSpecialMaster && (
+          <Card>
+            <CardHeader>
+              <CardTitle>大学選択</CardTitle>
+              <CardDescription>設定を変更する大学を選択してください</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {universities.map((uni) => (
+                    <SelectItem key={uni.code} value={uni.code}>
+                      {uni.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>試験設定</CardTitle>
-            <CardDescription>試験時間と制限の設定</CardDescription>
+            <CardDescription>
+              {isSpecialMaster && selectedUniversity
+                ? `${universities.find((u) => u.code === selectedUniversity)?.name || ""} の試験時間と制限の設定`
+                : "試験時間と制限の設定"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="duration">試験時間（分）</Label>
-              <Input id="duration" type="number" placeholder="90" defaultValue="90" />
+              <Input
+                id="duration"
+                type="number"
+                placeholder="90"
+                value={currentTestDuration}
+                onChange={(e) => handleTestDurationChange(e.target.value)}
+              />
               <p className="text-sm text-muted-foreground">試験の制限時間を設定してください</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="maxUsers">同時アクセス上限</Label>
-              <Input id="maxUsers" type="number" placeholder="1000" defaultValue="1000" />
+              <Input
+                id="maxUsers"
+                type="number"
+                placeholder="1000"
+                value={currentMaxUsers}
+                onChange={(e) => handleMaxUsersChange(e.target.value)}
+              />
               <p className="text-sm text-muted-foreground">同時に受験可能な人数の上限</p>
             </div>
           </CardContent>

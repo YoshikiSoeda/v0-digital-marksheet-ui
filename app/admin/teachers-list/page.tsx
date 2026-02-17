@@ -8,25 +8,60 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadTeachers, saveTeachers, loadRooms, type Teacher } from "@/lib/data-storage"
+import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, type Teacher } from "@/lib/data-storage"
 
 export default function TeachersListPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
   const [rooms, setRooms] = useState<Array<{ roomNumber: string; roomName: string }>>([])
+  const [accountType, setAccountType] = useState<string>("")
+  const [universities, setUniversities] = useState<Record<string, string>>({})
+  const [universitiesList, setUniversitiesList] = useState<Array<{ university_code: string; university_name: string }>>(
+    [],
+  )
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
     password: "",
     role: "general" as "general" | "admin",
     assignedRoomNumber: "",
+    university_code: "",
   })
 
   useEffect(() => {
     const fetchData = async () => {
+      const storedAccountType = sessionStorage.getItem("accountType") || ""
+      console.log("[v0] TeachersListPage: accountType =", storedAccountType)
+      setAccountType(storedAccountType)
+
+      if (storedAccountType === "special_master") {
+        try {
+          console.log("[v0] TeachersListPage: Fetching universities for special master...")
+          const response = await fetch("/api/universities")
+          if (response.ok) {
+            const data = await response.json()
+            console.log("[v0] TeachersListPage: Universities data:", data)
+            setUniversitiesList(Array.isArray(data) ? data : [])
+            const universityMap: Record<string, string> = {}
+            if (Array.isArray(data)) {
+              data.forEach((uni: any) => {
+                universityMap[uni.university_code] = uni.university_name
+              })
+            }
+            setUniversities(universityMap)
+            console.log("[v0] TeachersListPage: University map set:", universityMap)
+          }
+        } catch (error) {
+          console.error("[v0] TeachersListPage: Error fetching universities:", error)
+        }
+      }
+
+      console.log("[v0] TeachersListPage: Loading teachers and rooms...")
       const [fetchedTeachers, fetchedRooms] = await Promise.all([loadTeachers(), loadRooms()])
 
+      console.log("[v0] TeachersListPage: Loaded teachers:", fetchedTeachers?.length || 0)
+      console.log("[v0] TeachersListPage: Loaded rooms:", fetchedRooms?.length || 0)
       setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
       setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
     }
@@ -48,11 +83,14 @@ export default function TeachersListPage() {
       password: teacher.password,
       role: teacher.role,
       assignedRoomNumber: teacher.assignedRoomNumber || "",
+      university_code: teacher.university_code || "",
     })
   }
 
   const handleSaveEdit = async () => {
     if (!editingTeacher) return
+
+    console.log("[v0] TeachersListPage: Saving edit for teacher:", editingTeacher.id)
 
     const updatedTeachers = teachers.map((t) =>
       t.id === editingTeacher.id
@@ -63,11 +101,13 @@ export default function TeachersListPage() {
             password: editForm.password,
             role: editForm.role,
             assignedRoomNumber: editForm.assignedRoomNumber,
+            university_code: editForm.university_code,
           }
         : t,
     )
 
     await saveTeachers(updatedTeachers)
+    console.log("[v0] TeachersListPage: Teachers saved, refreshing...")
     setTeachers(updatedTeachers)
     setEditingTeacher(null)
     alert("教員情報を更新しました")
@@ -75,33 +115,57 @@ export default function TeachersListPage() {
 
   const handleDelete = async (id: string) => {
     if (confirm("この教員を削除しますか？")) {
-      const updated = teachers.filter((t) => t.id !== id)
-      await saveTeachers(updated)
-      setTeachers(updated)
+      console.log("[v0] TeachersListPage: Deleting teacher:", id)
+      try {
+        await deleteTeacher(id)
+        console.log("[v0] TeachersListPage: Teacher deleted from database")
+
+        const updated = teachers.filter((t) => t.id !== id)
+        setTeachers(updated)
+        alert("教員を削除しました")
+      } catch (error) {
+        console.error("[v0] TeachersListPage: Error deleting teacher:", error)
+        alert("削除に失敗しました")
+      }
     }
   }
 
   const handleDeleteAll = async () => {
     if (confirm("全ての教員データを削除しますか？この操作は取り消せません。")) {
-      await saveTeachers([])
-      setTeachers([])
-      alert("全ての教員データを削除しました")
+      try {
+        console.log("[v0] TeachersListPage: Deleting all teachers...")
+        for (const teacher of teachers) {
+          await deleteTeacher(teacher.id)
+        }
+        console.log("[v0] TeachersListPage: All teachers deleted from database")
+        setTeachers([])
+        alert("全ての教員データを削除しました")
+      } catch (error) {
+        console.error("[v0] TeachersListPage: Error deleting all teachers:", error)
+        alert("削除に失敗しました")
+      }
     }
   }
 
   const handleExportCSV = () => {
-    const csv = [
-      ["氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"],
-      ...teachers.map((t) => [
+    const headers =
+      accountType === "special_master"
+        ? ["大学名", "氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"]
+        : ["氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"]
+
+    const rows = teachers.map((t) => {
+      const baseRow = [
+        ...(accountType === "special_master" ? [universities[t.university_code || ""] || ""] : []),
         t.name,
         t.email,
         t.password,
         t.role === "admin" ? "管理者" : "一般",
         t.assignedRoomNumber || "",
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
+      ]
+      return baseRow
+    })
+
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
@@ -115,6 +179,14 @@ export default function TeachersListPage() {
     return rooms.some((r) => r.roomNumber === roomNumber)
   }
 
+  const handleRefresh = async () => {
+    console.log("[v0] TeachersListPage: Refreshing data...")
+    const [fetchedTeachers, fetchedRooms] = await Promise.all([loadTeachers(), loadRooms()])
+    console.log("[v0] TeachersListPage: Refreshed teachers:", fetchedTeachers?.length || 0)
+    setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
+    setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
+  }
+
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -123,7 +195,17 @@ export default function TeachersListPage() {
             <h1 className="text-3xl font-bold text-primary">教員一覧</h1>
             <p className="text-muted-foreground">登録済み教員: {teachers.length}名</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={handleRefresh} variant="outline">
+              <Search className="w-4 h-4 mr-2" />
+              更新
+            </Button>
+            <Link href="/admin/account-management">
+              <Button variant="default">
+                <Edit className="w-4 h-4 mr-2" />
+                教員登録
+              </Button>
+            </Link>
             {teachers.length > 0 && (
               <>
                 <Button onClick={handleExportCSV} variant="outline">
@@ -136,7 +218,7 @@ export default function TeachersListPage() {
                 </Button>
               </>
             )}
-            <Link href="/admin/account-management">
+            <Link href="/admin/dashboard">
               <Button variant="outline">
                 <Home className="w-4 h-4 mr-2" />
                 戻る
@@ -172,6 +254,7 @@ export default function TeachersListPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
+                    {accountType === "special_master" && <th className="text-left p-2">大学名</th>}
                     <th className="text-left p-2">氏名</th>
                     <th className="text-left p-2">メールアドレス（ログインID）</th>
                     <th className="text-left p-2">ログインパスワード</th>
@@ -183,53 +266,68 @@ export default function TeachersListPage() {
                 <tbody>
                   {filteredTeachers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center p-8 text-muted-foreground">
+                      <td
+                        colSpan={accountType === "special_master" ? 7 : 6}
+                        className="text-center p-8 text-muted-foreground"
+                      >
                         登録されている教員がいません
                       </td>
                     </tr>
                   ) : (
-                    filteredTeachers.map((teacher) => (
-                      <tr key={teacher.id} className="border-b hover:bg-accent/50">
-                        <td className="p-2">{teacher.name}</td>
-                        <td className="p-2">{teacher.email}</td>
-                        <td className="p-2">{"*".repeat(8)}</td>
-                        <td className="p-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              teacher.role === "admin"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-secondary text-secondary-foreground"
-                            }`}
-                          >
-                            {teacher.role === "admin" ? "管理者" : "一般"}
-                          </span>
-                        </td>
-                        <td className="p-2">
-                          <span
-                            className={
-                              teacher.assignedRoomNumber && !isValidRoom(teacher.assignedRoomNumber)
-                                ? "text-red-600 font-bold"
-                                : ""
-                            }
-                          >
-                            {teacher.assignedRoomNumber || "-"}
-                            {teacher.assignedRoomNumber && !isValidRoom(teacher.assignedRoomNumber) && (
-                              <AlertTriangle className="w-3 h-3 inline ml-1" />
-                            )}
-                          </span>
-                        </td>
-                        <td className="p-2 text-center">
-                          <div className="flex justify-center gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(teacher)}>
-                              <Edit className="w-4 h-4 text-blue-600" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(teacher.id)}>
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    filteredTeachers.map((teacher) => {
+                      console.log(`[v0] Rendering teacher ${teacher.name}:`, {
+                        university_code: teacher.university_code,
+                        universityCode: teacher.universityCode,
+                        mapped_value: universities[teacher.university_code || ""],
+                        universities_map: universities,
+                      })
+                      const universityCode = teacher.universityCode || ""
+                      const universityName = universities[universityCode] || "-"
+
+                      return (
+                        <tr key={teacher.id} className="border-b hover:bg-accent/50">
+                          {accountType === "special_master" && <td className="p-2">{universityName}</td>}
+                          <td className="p-2">{teacher.name}</td>
+                          <td className="p-2">{teacher.email}</td>
+                          <td className="p-2">{"*".repeat(8)}</td>
+                          <td className="p-2">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                teacher.role === "admin"
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-secondary text-secondary-foreground"
+                              }`}
+                            >
+                              {teacher.role === "admin" ? "管理者" : "一般"}
+                            </span>
+                          </td>
+                          <td className="p-2">
+                            <span
+                              className={
+                                teacher.assignedRoomNumber && !isValidRoom(teacher.assignedRoomNumber)
+                                  ? "text-red-600 font-bold"
+                                  : ""
+                              }
+                            >
+                              {teacher.assignedRoomNumber || "-"}
+                              {teacher.assignedRoomNumber && !isValidRoom(teacher.assignedRoomNumber) && (
+                                <AlertTriangle className="w-3 h-3 inline ml-1" />
+                              )}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <div className="flex justify-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(teacher)}>
+                                <Edit className="w-4 h-4 text-blue-600" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDelete(teacher.id)}>
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -246,6 +344,30 @@ export default function TeachersListPage() {
               <DialogDescription>教員の登録情報を編集できます</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {accountType === "special_master" && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-university">大学名 *</Label>
+                  {universitiesList.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      大学が登録されていません。先に大学マスターを登録してください。
+                    </div>
+                  ) : (
+                    <select
+                      id="edit-university"
+                      value={editForm.university_code}
+                      onChange={(e) => setEditForm({ ...editForm, university_code: e.target.value })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="">選択してください</option>
+                      {universitiesList.map((uni) => (
+                        <option key={uni.university_code} value={uni.university_code}>
+                          {uni.university_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="edit-name">氏名 *</Label>
                 <Input

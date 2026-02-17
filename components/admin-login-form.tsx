@@ -11,12 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Shield } from "lucide-react"
 import Link from "next/link"
-import { loadTeachers } from "@/lib/data-storage"
-
-const MASTER_ACCOUNT = {
-  id: "admin",
-  password: "admin",
-}
+import { createClient } from "@/lib/supabase/client"
 
 export function AdminLoginForm() {
   const router = useRouter()
@@ -38,49 +33,51 @@ export function AdminLoginForm() {
       return
     }
 
-    if (adminId === MASTER_ACCOUNT.id && password === MASTER_ACCOUNT.password) {
-      console.log("[v0] Master account login successful")
+    const supabase = createClient()
+
+    const emailToCheck = adminId === "ediand" ? "ediand@system.local" : adminId
+
+    const { data: admin, error: adminError } = await supabase
+      .from("admins")
+      .select("*")
+      .eq("email", emailToCheck)
+      .eq("password", password)
+      .single()
+
+    if (adminError) {
+      console.log("[v0] Admin login error:", adminError)
+    }
+
+    if (admin) {
+      console.log("[v0] Admin login successful:", {
+        name: admin.name,
+        accountType: admin.account_type,
+        universityCodes: admin.university_codes,
+      })
+
+      const accountType = admin.account_type || "admin"
+      const universityCodes = admin.university_codes || ["dentshowa"]
+
       const loginInfo = {
         role: "admin",
-        userId: adminId,
-        userName: "マスター管理者",
+        userId: admin.id,
+        userName: admin.name,
+        universityCodes,
+        accountType,
       }
+
       sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
       sessionStorage.setItem("userRole", "admin")
-      sessionStorage.setItem("userId", adminId)
-      sessionStorage.setItem("userName", "マスター管理者")
+      sessionStorage.setItem("userId", admin.id)
+      sessionStorage.setItem("userName", admin.name)
+      sessionStorage.setItem("universityCodes", JSON.stringify(universityCodes))
+      sessionStorage.setItem("accountType", accountType)
+
       console.log("[v0] Session storage set, redirecting to /admin/dashboard")
 
       window.location.href = "/admin/dashboard"
-      return
-    }
-
-    const teachers = await loadTeachers()
-    console.log("[v0] Loaded teachers data:", teachers)
-    const teacher = teachers.find((t) => t.email === adminId && t.password === password)
-
-    if (teacher) {
-      console.log("[v0] Teacher found:", { name: teacher.name, role: teacher.role })
-      if (teacher.role === "admin") {
-        const loginInfo = {
-          role: "admin",
-          userId: teacher.id,
-          userName: teacher.name,
-        }
-        sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
-        sessionStorage.setItem("userRole", "admin")
-        sessionStorage.setItem("userId", teacher.id)
-        sessionStorage.setItem("userName", teacher.name)
-        console.log("[v0] Session storage set, redirecting to /admin/dashboard")
-
-        window.location.href = "/admin/dashboard"
-      } else {
-        console.log("[v0] Teacher does not have admin role")
-        setError("管理者権限がありません。一般教員は採点画面からログインしてください。")
-        setIsLoading(false)
-      }
     } else {
-      console.log("[v0] No matching teacher or master account found")
+      console.log("[v0] No matching admin account found")
       setError("管理者IDまたはパスワードが正しくありません")
       setIsLoading(false)
     }
@@ -93,9 +90,7 @@ export function AdminLoginForm() {
           <Shield className="w-6 h-6 text-primary" />
         </div>
         <CardTitle className="text-2xl text-center">管理者ログイン</CardTitle>
-        <CardDescription className="text-center">
-          マスターアカウント、または管理者権限を持つ教員IDでログインしてください
-        </CardDescription>
+        <CardDescription className="text-center">管理者アカウントでログインしてください</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -110,7 +105,7 @@ export function AdminLoginForm() {
             <Input
               id="adminId"
               type="text"
-              placeholder="例: admin または teacher@example.com"
+              placeholder="例: ediand または admin@example.com"
               value={adminId}
               onChange={(e) => setAdminId(e.target.value)}
               required

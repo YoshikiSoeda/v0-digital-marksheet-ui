@@ -54,6 +54,9 @@ export function TeacherLoginForm() {
         userName: teacher.name,
         email: teacher.email,
         assignedRoomNumber: teacher.assignedRoomNumber || "",
+        universityCode: teacher.universityCode || "dentshowa",
+        subjectCode: teacher.subjectCode || "",
+        subjectRole: teacher.subjectRole || "subject_teacher",
       }
 
       sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
@@ -63,6 +66,9 @@ export function TeacherLoginForm() {
       sessionStorage.setItem("teacherEmail", teacher.email)
       sessionStorage.setItem("teacherRole", teacher.role)
       sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber || "")
+      sessionStorage.setItem("universityCode", teacher.universityCode || "dentshowa")
+      sessionStorage.setItem("subjectCode", teacher.subjectCode || "")
+      sessionStorage.setItem("subjectRole", teacher.subjectRole || "subject_teacher")
 
       console.log("[v0] Teacher login successful, info:", loginInfo)
 
