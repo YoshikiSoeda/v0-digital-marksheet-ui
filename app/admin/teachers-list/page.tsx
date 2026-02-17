@@ -30,7 +30,6 @@ export default function TeachersListPage() {
     assignedRoomNumber: "",
     university_code: "",
     subjectCode: "",
-    subjectRole: "general" as string,
   })
 
   useEffect(() => {
@@ -92,7 +91,6 @@ export default function TeachersListPage() {
       assignedRoomNumber: teacher.assignedRoomNumber || "",
       university_code: teacher.university_code || "",
       subjectCode: teacher.subjectCode || "",
-      subjectRole: teacher.subjectRole || "general",
     })
   }
 
@@ -112,7 +110,6 @@ export default function TeachersListPage() {
             assignedRoomNumber: editForm.assignedRoomNumber,
             university_code: editForm.university_code,
             subjectCode: editForm.subjectCode,
-            subjectRole: editForm.subjectRole as "subject_admin" | "general" | "subject_teacher",
           }
         : t,
     )

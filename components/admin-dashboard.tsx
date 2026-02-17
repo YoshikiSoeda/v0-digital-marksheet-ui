@@ -645,18 +645,34 @@ const AdminDashboard = () => {
           <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" size="sm">
             {isRefreshing ? "更新中..." : "データを更新"}
           </Button>
-          <Button onClick={() => router.push("/admin/master-management")} variant="outline" size="sm">
-            マスター管理
-          </Button>
-          <Button onClick={() => router.push("/admin/account-management")} variant="outline" size="sm">
-            アカウント管理
-          </Button>
+          {/* マスター管理: マスター管理者・大学管理者のみ */}
+          {(accountType === "special_master" || accountType === "university_master") && (
+            <Button onClick={() => router.push("/admin/master-management")} variant="outline" size="sm">
+              マスター管理
+            </Button>
+          )}
+          {/* アカウント管理: マスター管理者・大学管理者のみ */}
+          {(accountType === "special_master" || accountType === "university_master") && (
+            <Button onClick={() => router.push("/admin/account-management")} variant="outline" size="sm">
+              アカウント管理
+            </Button>
+          )}
+          {/* 問題管理: 全管理者（subject_admin以上） */}
           <Button onClick={() => router.push("/admin/question-management")} variant="outline" size="sm">
             問題管理
           </Button>
-          <Button onClick={() => router.push("/admin/settings")} variant="outline" size="sm">
-            設定
-          </Button>
+          {/* 設定: マスター管理者・大学管理者のみ */}
+          {(accountType === "special_master" || accountType === "university_master") && (
+            <Button onClick={() => router.push("/admin/settings")} variant="outline" size="sm">
+              設定
+            </Button>
+          )}
+          {/* 教員ログインから来た場合に試験画面に戻るボタン */}
+          {sessionStorage.getItem("teacherId") && (
+            <Button onClick={() => router.push("/teacher/exam-info")} variant="outline" size="sm" className="border-blue-500 text-blue-700">
+              試験画面に戻る
+            </Button>
+          )}
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
