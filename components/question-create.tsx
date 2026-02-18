@@ -601,14 +601,10 @@ export function QuestionCreate() {
           </Button>
         </div>
 
-        <Card className="mb-6">
-          <CardHeader className="py-3">
-            <CardTitle className="text-lg">テスト情報</CardTitle>
-          </CardHeader>
-          <CardContent className="py-3">
-            <div className="grid gap-3">
-              {/* 大学・教科・既存テストコード・新規登録を1行に配置 */}
-              <div className="flex items-end gap-3 flex-wrap">
+        <Card className="mb-4">
+          <CardContent className="px-4 py-3">
+            <p className="text-sm font-semibold mb-2">テスト情報</p>
+            <div className="flex items-end gap-3 flex-wrap">
                 {isSpecialMaster && universities.length > 0 && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">大学</Label>
