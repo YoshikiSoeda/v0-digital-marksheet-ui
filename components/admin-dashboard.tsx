@@ -115,6 +115,7 @@ const AdminDashboard = () => {
   const [selectedUniversity, setSelectedUniversity] = useState<string>("")
   const [selectedTestCode, setSelectedTestCode] = useState<string>("all")
   const [tests, setTests] = useState<any[]>([])
+  const [isTeacherLogin, setIsTeacherLogin] = useState(false)
   const hasSetDefaultUniversity = useRef(false)
 
   useEffect(() => {
@@ -139,6 +140,10 @@ const AdminDashboard = () => {
 
       // teacherRole を取得（教員ログインからの管理画面アクセス時に使用）
       const storedTeacherRole = sessionStorage.getItem("teacherRole") || ""
+      const storedTeacherId = sessionStorage.getItem("teacherId") || ""
+      if (storedTeacherId) {
+        setIsTeacherLogin(true)
+      }
       // subject_admin の場合、subjectCode でフィルタリング
       if (storedTeacherRole === "subject_admin") {
         const subjectCode = sessionStorage.getItem("subjectCode") || ""
@@ -670,7 +675,7 @@ const AdminDashboard = () => {
             </Button>
           )}
           {/* 教員ログインから来た場合に試験画面に戻るボタン */}
-          {sessionStorage.getItem("teacherId") && (
+          {isTeacherLogin && (
             <Button onClick={() => router.push("/teacher/exam-info")} variant="outline" size="sm" className="border-blue-500 text-blue-700">
               試験画面に戻る
             </Button>
@@ -743,7 +748,7 @@ const AdminDashboard = () => {
             {filteredRooms.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">表示する部屋がありません</p>
             ) : (
-              <div className="grid grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                 {filteredRooms.map((room) => (
                   <Card key={room.roomNumber} className="bg-accent/30 hover:bg-accent/50 transition-colors">
                     <CardContent className="p-4">
