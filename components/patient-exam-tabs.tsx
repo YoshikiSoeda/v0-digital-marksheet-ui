@@ -113,13 +113,17 @@ export default function PatientExamTabs({
 
         let students: any[] = []
         try {
-          const loadedStudents = await loadStudents(patientRoomNumber)
+          // loadStudentsの引数はuniversityCode, subjectCodeなので、部屋番号では渡さない
+          // 全学生を取得した後、部屋番号でフィルタする
+          const loadedStudents = await loadStudents()
 
           if (!Array.isArray(loadedStudents)) {
             console.error("[v0] Students is not an array:", loadedStudents)
             students = []
           } else {
-            students = loadedStudents
+            // 部屋番号でフィルタ
+            students = loadedStudents.filter((s) => s.roomNumber === patientRoomNumber)
+            console.log("[v0] Filtered students for room", patientRoomNumber, ":", students.length, "out of", loadedStudents.length)
           }
         } catch (error) {
           console.error("[v0] Error loading students:", error)
