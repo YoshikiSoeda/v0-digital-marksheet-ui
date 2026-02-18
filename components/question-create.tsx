@@ -680,51 +680,49 @@ export function QuestionCreate() {
                 </Button>
               </div>
 
-              {/* 新規登録フォーム（トグル表示） */}
               {showNewTestCodeForm && (
-                <Card className="border-2 border-[#00417A]/20 bg-secondary/30">
+                <Card className="mt-2 border-2 border-[#00417A]/20 bg-secondary/30">
                   <CardContent className="p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">テストコード</Label>
                         <Input
-                            className="h-8 text-sm"
-                            value={newTestCode}
-                            onChange={(e) => setNewTestCode(e.target.value)}
-                            placeholder="例: 20251201-OSCE"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">実施日</Label>
-                          <Input
-                            type="date"
-                            className="h-8 text-sm"
-                            value={newTestDate}
-                            onChange={(e) => setNewTestDate(e.target.value)}
-                          />
-                        </div>
+                          className="h-8 text-sm"
+                          value={newTestCode}
+                          onChange={(e) => setNewTestCode(e.target.value)}
+                          placeholder="例: 20251201-OSCE"
+                        />
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleCreateTestCode}
-                          size="sm"
-                          className="h-7 bg-[#00417A] hover:bg-[#00417A]/90"
-                        >
-                          登録
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 bg-transparent"
-                          onClick={() => setShowNewTestCodeForm(false)}
-                        >
-                          キャンセル
-                        </Button>
+                      <div>
+                        <Label className="text-xs">実施日</Label>
+                        <Input
+                          type="date"
+                          className="h-8 text-sm"
+                          value={newTestDate}
+                          onChange={(e) => setNewTestDate(e.target.value)}
+                        />
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-            </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleCreateTestCode}
+                        size="sm"
+                        className="h-7 bg-[#00417A] hover:bg-[#00417A]/90"
+                      >
+                        登録
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 bg-transparent"
+                        onClick={() => setShowNewTestCodeForm(false)}
+                      >
+                        キャンセル
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
           </CardContent>
         </Card>
 
