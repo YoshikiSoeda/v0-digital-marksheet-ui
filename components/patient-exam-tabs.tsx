@@ -296,16 +296,6 @@ export default function PatientExamTabs({
   const totalScore = calculateScore(assignedStudents[activeStudentIndex]?.id || "")
   const activeStudent = assignedStudents[activeStudentIndex]
 
-
-
-    try {
-      await saveAttendanceRecords([attendanceRecord])
-      console.log("[v0] Saved attendance record:", studentId)
-    } catch (error) {
-      console.error("[v0] Error saving attendance:", error)
-    }
-  }
-
   const groupedQuestions: Array<{
     sheetTitle: string
     categories: Array<{
