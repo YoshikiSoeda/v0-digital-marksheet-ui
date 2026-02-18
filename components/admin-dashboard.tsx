@@ -130,7 +130,9 @@ const AdminDashboard = () => {
       const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
       const isMasterAdmin = universityCodes.includes("ALL")
 
-      setUserRole(parsedLoginInfo.role)
+      // userRole は "admin" を設定（ダッシュボードのアクセス許可用）
+      // loginType が admin/teacher_admin、または role が admin/master_admin/university_admin/subject_admin
+      setUserRole("admin")
 
       const storedAccountType = sessionStorage.getItem("accountType")
       setAccountType(storedAccountType || "admin")
