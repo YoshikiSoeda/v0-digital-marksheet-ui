@@ -3,8 +3,9 @@ import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { subject_name, description, is_active } = body
 
@@ -16,10 +17,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         is_active,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
 
     if (error) throw error
+
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: "Subject not found" }, { status: 404 })
+    }
 
     return NextResponse.json(data[0])
   } catch (error) {
@@ -28,9 +33,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { error } = await supabase.from("subjects").delete().eq("id", params.id)
+    const { id } = await params
+    const { error } = await supabase.from("subjects").delete().eq("id", id)
 
     if (error) throw error
 

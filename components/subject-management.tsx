@@ -93,7 +93,15 @@ export function SubjectManagement() {
     try {
       setIsLoading(true)
       const response = await fetch("/api/subjects")
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
       const data = await response.json()
+
+      if (!Array.isArray(data)) {
+        console.error("Unexpected subjects data:", data)
+        return
+      }
 
       // Filter by selected university
       const filtered =
@@ -130,9 +138,11 @@ export function SubjectManagement() {
         toast.success(editingSubject ? "教科を更新しました" : "教科を登録しました")
         setIsDialogOpen(false)
         resetForm()
-        loadSubjects()
+        await loadSubjects()
       } else {
-        throw new Error("Failed to save subject")
+        const errorData = await response.json().catch(() => ({}))
+        console.error("Save subject error:", response.status, errorData)
+        throw new Error(`Failed to save subject: ${response.status}`)
       }
     } catch (error) {
       console.error("Failed to save subject:", error)
