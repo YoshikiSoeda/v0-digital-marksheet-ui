@@ -13,6 +13,7 @@ import {
   loadEvaluationResults,
   loadAttendanceRecords,
   loadTests,
+  loadSubjects,
 } from "@/lib/data-storage"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -116,6 +117,7 @@ const AdminDashboard = () => {
   const [selectedTestCode, setSelectedTestCode] = useState<string>("all")
   const [tests, setTests] = useState<any[]>([])
   const [isTeacherLogin, setIsTeacherLogin] = useState(false)
+  const [assignedSubjectName, setAssignedSubjectName] = useState<string>("")
   const hasSetDefaultUniversity = useRef(false)
 
   useEffect(() => {
@@ -149,6 +151,20 @@ const AdminDashboard = () => {
         const subjectCode = sessionStorage.getItem("subjectCode") || ""
         if (subjectCode) {
           sessionStorage.setItem("filterSubjectCode", subjectCode)
+        }
+      }
+
+      // アカウントに割り当てられた教科名を取得
+      const mySubjectCode = sessionStorage.getItem("subjectCode") || ""
+      if (mySubjectCode) {
+        try {
+          const allSubjects = await loadSubjects()
+          const mySubject = allSubjects.find((s: any) => s.subjectCode === mySubjectCode)
+          if (mySubject) {
+            setAssignedSubjectName(mySubject.subjectName)
+          }
+        } catch (e) {
+          console.error("[v0] Failed to load subjects for name:", e)
         }
       }
 
@@ -738,6 +754,13 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {assignedSubjectName && (
+          <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
+            <p className="text-sm text-blue-600 font-medium">担当教科</p>
+            <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
+          </div>
+        )}
 
         <Card>
           <CardHeader>
