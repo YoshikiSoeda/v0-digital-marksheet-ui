@@ -27,8 +27,15 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   const [selectedSubjectCode, setSelectedSubjectCode] = useState("")
   const [universities, setUniversities] = useState<any[]>([])
   const [selectedUniversity, setSelectedUniversity] = useState("")
+  const [accountType, setAccountType] = useState<string>("")
 
   useEffect(() => {
+    const storedAccountType = sessionStorage.getItem("accountType") || ""
+    setAccountType(storedAccountType)
+
+    // 大学管理者の場合、大学コードを固定
+    const storedUniversityCode = sessionStorage.getItem("universityCode") || ""
+
     const fetchTest = async () => {
       try {
         const [sessionsRes, subjectsRes, universitiesRes] = await Promise.all([
@@ -341,21 +348,30 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   placeholder="例: 全身の医療面接評価シート"
                 />
               </div>
-              <div>
-                <Label htmlFor="university">大学</Label>
-                <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="大学を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {universities.map((uni) => (
-                      <SelectItem key={uni.university_code} value={uni.university_code}>
-                        {uni.university_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {accountType === "special_master" ? (
+                <div>
+                  <Label htmlFor="university">大学</Label>
+                  <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="大学を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {universities.map((uni) => (
+                        <SelectItem key={uni.university_code} value={uni.university_code}>
+                          {uni.university_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="university">大学</Label>
+                  <p className="mt-1 text-sm px-3 py-2 border rounded-md bg-muted">
+                    {universities.find((u) => u.university_code === selectedUniversity)?.university_name || selectedUniversity}
+                  </p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="subject">教科（任意）</Label>
                 <Select value={selectedSubjectCode || "default"} onValueChange={setSelectedSubjectCode}>
