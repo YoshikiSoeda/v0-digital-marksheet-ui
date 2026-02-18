@@ -13,7 +13,6 @@ import {
   loadRooms,
   loadAttendanceRecords,
   loadEvaluationResults,
-  saveAttendanceRecords,
   saveEvaluationResults,
 } from "@/lib/data-storage"
 import type { Question } from "@/lib/types" // Declare the Question variable
@@ -176,6 +175,28 @@ export default function PatientExamTabs({
     }
 
     fetchData()
+
+    // 教員側の出席変更をポーリングで反映（10秒ごと）
+    const pollAttendance = setInterval(async () => {
+      try {
+        const attendanceData = await loadAttendanceRecords()
+        if (Array.isArray(attendanceData)) {
+          setAttendanceStatus((prev) => {
+            const updated = { ...prev }
+            for (const record of attendanceData) {
+              if (record.studentId && record.status) {
+                updated[record.studentId] = record.status
+              }
+            }
+            return updated
+          })
+        }
+      } catch (e) {
+        // ポーリングエラーは無視
+      }
+    }, 10000)
+
+    return () => clearInterval(pollAttendance)
   }, [testId, patientRoomNumber, patientEmail, router])
 
   const handleAnswerChange = async (questionNumber: number, value: number) => {
@@ -275,20 +296,7 @@ export default function PatientExamTabs({
   const totalScore = calculateScore(assignedStudents[activeStudentIndex]?.id || "")
   const activeStudent = assignedStudents[activeStudentIndex]
 
-  const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
-    setAttendanceStatus((prev) => ({
-      ...prev,
-      [studentId]: status,
-    }))
 
-    const attendanceRecord: AttendanceRecord = {
-      studentId,
-      status,
-      markedBy: patientEmail,
-      markedByType: "patient",
-      roomNumber: patientRoomNumber,
-      timestamp: new Date().toISOString(),
-    }
 
     try {
       await saveAttendanceRecords([attendanceRecord])
@@ -388,32 +396,17 @@ export default function PatientExamTabs({
                 <div className="font-medium text-sm mb-2 text-center truncate">{student.name}</div>
 
                 <div className="flex gap-1 mb-2">
-                  <Button
-                    variant={attendance === "present" ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 h-7 text-xs px-1"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleAttendanceChange(student.id, "present")
-                    }}
-                    disabled={isStudentCompleted}
-                  >
-                    出席
-                  </Button>
-                  <Button
-                    variant={attendance === "absent" ? "destructive" : "outline"}
-                    size="sm"
-                    className={`flex-1 h-7 text-xs px-1 ${
-                      attendance === "absent" ? "bg-red-500 hover:bg-red-600 text-white" : ""
+                  <div
+                    className={`flex-1 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
+                      attendance === "present"
+                        ? "bg-primary text-primary-foreground"
+                        : attendance === "absent"
+                          ? "bg-red-500 text-white"
+                          : "bg-muted text-muted-foreground"
                     }`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleAttendanceChange(student.id, "absent")
-                    }}
-                    disabled={isStudentCompleted}
                   >
-                    欠席
-                  </Button>
+                    {attendance === "present" ? "出席" : attendance === "absent" ? "欠席" : "未確認"}
+                  </div>
                   <div
                     className={`flex-1 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
                       isStudentCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
@@ -445,7 +438,7 @@ export default function PatientExamTabs({
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
-          <div className="text-center py-8 text-muted-foreground">出席ボタンを押してから入力してください</div>
+          <div className="text-center py-8 text-muted-foreground">教員による出席確認を待っています...</div>
         )}
 
         {attendanceStatus[activeStudent?.id || ""] === "present" && (
