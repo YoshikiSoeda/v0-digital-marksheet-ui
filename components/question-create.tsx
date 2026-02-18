@@ -88,7 +88,13 @@ export function QuestionCreate() {
     try {
       const res = await fetch(`/api/subjects${universityCode ? `?university_code=${universityCode}` : ""}`)
       const data = await res.json()
-      setSubjects(data)
+      if (Array.isArray(data)) {
+        const mapped = data.map((s: any) => ({
+          code: s.subject_code,
+          name: s.subject_name,
+        }))
+        setSubjects(mapped)
+      }
     } catch (err) {
       console.error("[v0] Failed to fetch subjects:", err)
     }
