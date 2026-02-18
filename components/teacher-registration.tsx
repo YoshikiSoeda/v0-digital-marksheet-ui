@@ -637,7 +637,7 @@ export function TeacherRegistration() {
                         )}
                         <TableCell className="font-medium">{teacher.name}</TableCell>
                         <TableCell>{teacher.email}</TableCell>
-                        <TableCell>{"*".repeat(8)}</TableCell>
+                        <TableCell>{"********"}</TableCell>
                         <TableCell>
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

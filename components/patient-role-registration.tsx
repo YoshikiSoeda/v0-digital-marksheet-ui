@@ -530,7 +530,7 @@ export function PatientRoleRegistration() {
                         )}
                         <TableCell className="font-medium">{patient.name}</TableCell>
                         <TableCell>{patient.email}</TableCell>
-                        <TableCell>{"*".repeat(8)}</TableCell>
+                        <TableCell>{"********"}</TableCell>
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded text-xs font-semibold ${

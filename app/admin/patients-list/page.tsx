@@ -264,7 +264,7 @@ export default function PatientsListPage() {
                           {accountType === "special_master" && <td className="p-2">{universityName}</td>}
                           <td className="p-2">{patient.name}</td>
                           <td className="p-2">{patient.email}</td>
-                          <td className="p-2">{"*".repeat(8)}</td>
+                          <td className="p-2">{"********"}</td>
                           <td className="p-2">
                             <span
                               className={`px-2 py-1 rounded text-xs font-semibold ${

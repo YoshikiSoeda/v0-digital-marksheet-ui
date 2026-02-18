@@ -312,7 +312,7 @@ export default function TeachersListPage() {
                           {accountType === "special_master" && <td className="p-2">{universityName}</td>}
                           <td className="p-2">{teacher.name}</td>
                           <td className="p-2">{teacher.email}</td>
-                          <td className="p-2">{"*".repeat(8)}</td>
+                          <td className="p-2">{"********"}</td>
                           <td className="p-2">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${

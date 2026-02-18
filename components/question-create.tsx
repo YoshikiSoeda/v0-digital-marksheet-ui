@@ -608,7 +608,7 @@ export function QuestionCreate() {
           <CardContent className="py-3">
             <div className="grid gap-3">
               {isSpecialMaster && universities.length > 0 && (
-                <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+                <div className="flex items-center gap-3">
                   <Label htmlFor="university" className="text-sm">
                     大学
                   </Label>
@@ -628,7 +628,7 @@ export function QuestionCreate() {
               )}
 
               {!isTeacher && subjects.length > 0 && (
-                <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+                <div className="flex items-center gap-3">
                   <Label htmlFor="subject" className="text-sm">
                     教科
                   </Label>
@@ -649,7 +649,7 @@ export function QuestionCreate() {
               )}
 
               {isTeacher && teacherSubjectCode && (
-                <div className="grid grid-cols-[120px_1fr] items-center gap-3">
+                <div className="flex items-center gap-3">
                   <Label className="text-sm">担当教科</Label>
                   <div className="flex items-center h-9 px-3 bg-blue-50 rounded-md">
                     <span className="text-sm text-[#00417A] font-semibold">
