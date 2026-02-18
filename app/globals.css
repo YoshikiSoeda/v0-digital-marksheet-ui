@@ -75,7 +75,10 @@
   }
 }
 
-@layer utilities {
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+  }
   .animate-in {
     animation-name: enter;
     animation-duration: 150ms;
@@ -109,10 +112,4 @@
   .slide-in-from-right-52 { --tw-enter-translate-x: 13rem; }
   .slide-out-to-right-52 { --tw-exit-translate-x: 13rem; }
   .slide-out-to-left-52 { --tw-exit-translate-x: -13rem; }
-}
-
-@layer base {
-  body {
-    @apply bg-background text-foreground;
-  }
 }
