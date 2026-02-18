@@ -607,81 +607,91 @@ export function QuestionCreate() {
           </CardHeader>
           <CardContent className="py-3">
             <div className="grid gap-3">
-              {isSpecialMaster && universities.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <Label htmlFor="university" className="text-sm">
-                    大学
-                  </Label>
-                  <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="大学を選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {universities.map((uni) => (
-                        <SelectItem key={uni.code} value={uni.code}>
-                          {uni.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {!isTeacher && subjects.length > 0 && (
-                <div className="flex items-center gap-3">
-                  <Label htmlFor="subject" className="text-sm">
-                    教科
-                  </Label>
-                  <Select value={selectedSubject || "none"} onValueChange={setSelectedSubject}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="教科を選択（任意）" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">教科なし</SelectItem>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.code} value={subject.code}>
-                          {subject.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {isTeacher && teacherSubjectCode && (
-                <div className="flex items-center gap-3">
-                  <Label className="text-sm">担当教科</Label>
-                  <div className="flex items-center h-9 px-3 bg-blue-50 rounded-md">
-                    <span className="text-sm text-[#00417A] font-semibold">
-                      {subjects.find((s) => s.code === teacherSubjectCode)?.name || teacherSubjectCode}
-                    </span>
+              {/* 大学・教科・既存テストコード・新規登録を1行に配置 */}
+              <div className="flex items-end gap-3 flex-wrap">
+                {isSpecialMaster && universities.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">大学</Label>
+                    <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
+                      <SelectTrigger className="h-9 w-44">
+                        <SelectValue placeholder="大学を選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {universities.map((uni) => (
+                          <SelectItem key={uni.code} value={uni.code}>
+                            {uni.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="testCode" className="text-sm">
-                    テストコード
-                  </Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs bg-transparent"
-                    onClick={() => setShowNewTestCodeForm(!showNewTestCodeForm)}
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    新規登録
-                  </Button>
+                {!isTeacher && subjects.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">教科</Label>
+                    <Select value={selectedSubject || "none"} onValueChange={setSelectedSubject}>
+                      <SelectTrigger className="h-9 w-44">
+                        <SelectValue placeholder="教科を選択（任意）" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">教科なし</SelectItem>
+                        {subjects.map((subject) => (
+                          <SelectItem key={subject.code} value={subject.code}>
+                            {subject.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {isTeacher && teacherSubjectCode && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">担当教科</Label>
+                    <div className="flex items-center h-9 px-3 bg-blue-50 rounded-md">
+                      <span className="text-sm text-[#00417A] font-semibold">
+                        {subjects.find((s) => s.code === teacherSubjectCode)?.name || teacherSubjectCode}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1 flex-1 min-w-48">
+                  <Label className="text-xs text-muted-foreground">既存テストコード</Label>
+                  <Select value={selectedTestCode || "none"} onValueChange={setSelectedTestCode}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="テストコードを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredTestSessions.map((ts) => (
+                        <SelectItem key={ts.id} value={ts.test_code}>
+                          {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {showNewTestCodeForm && (
-                  <Card className="border-2 border-[#00417A]/20 bg-secondary/30">
-                    <CardContent className="p-3 space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs">テストコード</Label>
-                          <Input
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs bg-transparent shrink-0"
+                  onClick={() => setShowNewTestCodeForm(!showNewTestCodeForm)}
+                >
+                  <Plus className="mr-1 h-3 w-3" />
+                  新規登録
+                </Button>
+              </div>
+
+              {/* 新規登録フォーム（トグル表示） */}
+              {showNewTestCodeForm && (
+                <Card className="border-2 border-[#00417A]/20 bg-secondary/30">
+                  <CardContent className="p-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">テストコード</Label>
+                        <Input
                             className="h-8 text-sm"
                             value={newTestCode}
                             onChange={(e) => setNewTestCode(e.target.value)}
@@ -718,23 +728,6 @@ export function QuestionCreate() {
                     </CardContent>
                   </Card>
                 )}
-
-                <Select value={selectedTestCode || "none"} onValueChange={setSelectedTestCode}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="テストコードを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredTestSessions.map((ts) => (
-                      <SelectItem key={ts.id} value={ts.test_code}>
-                        {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  ※テストコードを新規登録するか、既存のものを選択してください
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>
