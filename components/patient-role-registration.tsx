@@ -172,7 +172,7 @@ export function PatientRoleRegistration() {
           name,
           email,
           password,
-          role: (role === "admin" ? "admin" : "general") as "general" | "admin",
+              role: "general" as "general" | "admin", // 患者役は常に一般権限
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
           university_code: university_code || "", // Include university_code in newPatients
@@ -370,18 +370,8 @@ export function PatientRoleRegistration() {
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">権限 *</Label>
-                    <select
-                      id="role"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as "general" | "admin" })}
-                    >
-                      <option value="general">一般</option>
-                      <option value="admin">管理者</option>
-                    </select>
-                  </div>
+                  {/* 患者役は常に「一般」権限。セレクタは非表示 */}
+                  <input type="hidden" value="general" />
                   <div className="space-y-2">
                     <Label htmlFor="roomNumber">担当部屋番号 *</Label>
                     {rooms.length === 0 ? (

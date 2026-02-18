@@ -499,7 +499,7 @@ export function TeacherRegistration() {
                       この部屋に属する学生が自動的に評価対象として表示されます
                     </p>
                   </div>
-                  {accountType !== "special_master" && (
+                  {accountType === "special_master" && (
                     <div className="space-y-2">
                       <Label htmlFor="university">大学</Label>
                       <select
