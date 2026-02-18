@@ -655,29 +655,30 @@ export function QuestionCreate() {
 
                 <div className="space-y-1 flex-1 min-w-48">
                   <Label className="text-xs text-muted-foreground">既存テストコード</Label>
-                  <Select value={selectedTestCode || "none"} onValueChange={setSelectedTestCode}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="テストコードを選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredTestSessions.map((ts) => (
-                        <SelectItem key={ts.id} value={ts.test_code}>
-                          {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedTestCode || "none"} onValueChange={setSelectedTestCode}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="テストコードを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredTestSessions.map((ts) => (
+                          <SelectItem key={ts.id} value={ts.test_code}>
+                            {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-xs bg-transparent shrink-0 whitespace-nowrap"
+                      onClick={() => setShowNewTestCodeForm(!showNewTestCodeForm)}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      テストコード新規登録
+                    </Button>
+                  </div>
                 </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 text-xs bg-transparent shrink-0"
-                  onClick={() => setShowNewTestCodeForm(!showNewTestCodeForm)}
-                >
-                  <Plus className="mr-1 h-3 w-3" />
-                  新規登録
-                </Button>
               </div>
 
               {showNewTestCodeForm && (
