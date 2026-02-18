@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadStudents, saveStudents, loadRooms, type Student } from "@/lib/data-storage"
+import { loadStudents, saveStudents, loadRooms, loadSubjects, type Student, type Subject } from "@/lib/data-storage"
 import {
   Dialog,
   DialogContent,
@@ -22,29 +22,67 @@ export default function StudentsListPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [rooms, setRooms] = useState<Array<{ roomNumber: string; roomName: string }>>([])
+  const [accountType, setAccountType] = useState<string>("")
+  const [universities, setUniversities] = useState<Record<string, string>>({})
+  const [universitiesList, setUniversitiesList] = useState<Array<{ university_code: string; university_name: string }>>(
+    [],
+  )
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [editForm, setEditForm] = useState({
     studentId: "",
     name: "",
     email: "",
     department: "",
     roomNumber: "",
+    university_code: "",
+    subjectCode: "",
   })
 
   useEffect(() => {
     const fetchData = async () => {
-      const [fetchedStudents, fetchedRooms] = await Promise.all([loadStudents(), loadRooms()])
+      const storedAccountType = sessionStorage.getItem("accountType") || ""
+      console.log("[v0] StudentsListPage: accountType =", storedAccountType)
+      setAccountType(storedAccountType)
+
+      if (storedAccountType === "special_master") {
+        try {
+          console.log("[v0] StudentsListPage: Fetching universities for special master...")
+          const response = await fetch("/api/universities")
+          if (response.ok) {
+            const data = await response.json()
+            console.log("[v0] StudentsListPage: Universities data:", data)
+            setUniversitiesList(Array.isArray(data) ? data : [])
+            const universityMap: Record<string, string> = {}
+            if (Array.isArray(data)) {
+              data.forEach((uni: any) => {
+                universityMap[uni.university_code] = uni.university_name
+              })
+            }
+            setUniversities(universityMap)
+            console.log("[v0] StudentsListPage: University map set:", universityMap)
+          }
+        } catch (error) {
+          console.error("[v0] StudentsListPage: Error fetching universities:", error)
+        }
+      }
+
+      const [fetchedStudents, fetchedRooms, fetchedSubjects] = await Promise.all([loadStudents(), loadRooms(), loadSubjects()])
       setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
       setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
+      setSubjects(Array.isArray(fetchedSubjects) ? fetchedSubjects : [])
     }
     fetchData()
   }, [])
 
-  const filteredStudents = students.filter(
-    (s) =>
+  const filteredStudents = students.filter((s) => {
+    const matchesSearch =
       s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      s.roomNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSubject = selectedSubjectFilter === "all" || (s as any).subjectCode === selectedSubjectFilter
+    return matchesSearch && matchesSubject
+  })
 
   const handleEdit = (student: Student) => {
     setEditingStudent(student)
@@ -54,6 +92,7 @@ export default function StudentsListPage() {
       email: student.email || "",
       department: student.department,
       roomNumber: student.roomNumber,
+      university_code: student.university_code || "",
     })
   }
 
@@ -69,6 +108,7 @@ export default function StudentsListPage() {
             email: editForm.email,
             department: editForm.department,
             roomNumber: editForm.roomNumber,
+            university_code: editForm.university_code,
           }
         : s,
     )
@@ -94,19 +134,25 @@ export default function StudentsListPage() {
   }
 
   const handleExportCSV = () => {
-    const csv = [
-      ["No.", "学籍番号", "氏名", "メールアドレス", "学部・学科", "部屋番号"],
-      ...students.map((s, index) => [
+    const headers =
+      accountType === "special_master"
+        ? ["No.", "学籍番号", "大学名", "氏名", "メールアドレス", "学部・学科", "部屋番号"]
+        : ["No.", "学籍番号", "氏名", "メールアドレス", "学部・学科", "部屋番号"]
+
+    const rows = students.map((s, index) => {
+      const baseRow = [
         (index + 1).toString(),
         s.studentId,
+        ...(accountType === "special_master" ? [universities[s.university_code || ""] || ""] : []),
         s.name,
         s.email || "",
         s.department,
         s.roomNumber,
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
+      ]
+      return baseRow
+    })
+
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
@@ -151,14 +197,28 @@ export default function StudentsListPage() {
             <CardDescription>学生ID、氏名、部屋番号で検索</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={selectedSubjectFilter}
+                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                className="flex h-10 rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">全教科</option>
+                {subjects.map((s) => (
+                  <option key={s.subjectCode} value={s.subjectCode}>
+                    {s.subjectName}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>
@@ -174,6 +234,7 @@ export default function StudentsListPage() {
                   <tr className="border-b">
                     <th className="text-left p-2">No.</th>
                     <th className="text-left p-2">学籍番号</th>
+                    {accountType === "special_master" && <th className="text-left p-2">大学名</th>}
                     <th className="text-left p-2">氏名</th>
                     <th className="text-left p-2">メールアドレス</th>
                     <th className="text-left p-2">学部・学科</th>
@@ -184,36 +245,49 @@ export default function StudentsListPage() {
                 <tbody>
                   {filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                      <td
+                        colSpan={accountType === "special_master" ? 8 : 7}
+                        className="text-center p-8 text-muted-foreground"
+                      >
                         登録されている学生がいません
                       </td>
                     </tr>
                   ) : (
-                    filteredStudents.map((student, index) => (
-                      <tr key={student.id} className="border-b hover:bg-accent/50">
-                        <td className="p-2">{index + 1}</td>
-                        <td className="p-2">{student.studentId}</td>
-                        <td className="p-2">{student.name}</td>
-                        <td className="p-2">{student.email || "-"}</td>
-                        <td className="p-2">{student.department || "-"}</td>
-                        <td className="p-2">
-                          <span className={!isValidRoom(student.roomNumber) ? "text-red-600 font-bold" : ""}>
-                            {student.roomNumber}
-                            {!isValidRoom(student.roomNumber) && <AlertTriangle className="w-3 h-3 inline ml-1" />}
-                          </span>
-                        </td>
-                        <td className="p-2 text-center">
-                          <div className="flex gap-1 justify-center">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(student)}>
-                              <Edit className="w-4 h-4 text-blue-600" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(student.id)}>
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    filteredStudents.map((student, index) => {
+                      console.log(`[v0] Rendering student ${student.name}:`, {
+                        universityCode: student.university_code,
+                        universities_map: universities,
+                      })
+                      const universityCode = (student as any).university_code || (student as any).universityCode || ""
+                      const universityName = universities[universityCode] || "-"
+
+                      return (
+                        <tr key={student.id} className="border-b hover:bg-accent/50">
+                          <td className="p-2">{index + 1}</td>
+                          <td className="p-2">{student.studentId}</td>
+                          {accountType === "special_master" && <td className="p-2">{universityName}</td>}
+                          <td className="p-2">{student.name}</td>
+                          <td className="p-2">{student.email || "-"}</td>
+                          <td className="p-2">{student.department || "-"}</td>
+                          <td className="p-2">
+                            <span className={!isValidRoom(student.roomNumber) ? "text-red-600 font-bold" : ""}>
+                              {student.roomNumber}
+                              {!isValidRoom(student.roomNumber) && <AlertTriangle className="w-3 h-3 inline ml-1" />}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <div className="flex gap-1 justify-center">
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(student)}>
+                                <Edit className="w-4 h-4 text-blue-600" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDelete(student.id)}>
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -229,6 +303,30 @@ export default function StudentsListPage() {
             <DialogDescription>学生の登録情報を編集します</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {accountType === "special_master" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-university">大学名 *</Label>
+                {universitiesList.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    大学が登録されていません。先に大学マスターを登録してください。
+                  </div>
+                ) : (
+                  <select
+                    id="edit-university"
+                    value={editForm.university_code}
+                    onChange={(e) => setEditForm({ ...editForm, university_code: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">選択してください</option>
+                    {universitiesList.map((uni) => (
+                      <option key={uni.university_code} value={uni.university_code}>
+                        {uni.university_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="edit-studentId">学籍番号</Label>
               <Input

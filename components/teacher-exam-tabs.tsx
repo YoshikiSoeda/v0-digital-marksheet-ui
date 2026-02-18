@@ -368,7 +368,9 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                 key={student.id}
                 onClick={() => setActiveStudentIndex(index)}
                 className={`flex-shrink-0 w-44 p-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                  activeStudentIndex === index ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                  activeStudentIndex === index
+                    ? "border-primary bg-primary/5"
+                    : "border-gray-200 hover:border-primary/50"
                 }`}
               >
                 {/* 名前（上部） */}
@@ -461,7 +463,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                         return (
                           <div
                             key={`${category.categoryNumber}-${question.number}`}
-                            className="flex items-center gap-4 py-2 border-b border-border/40"
+                            className="flex items-center gap-4 py-2 border-b border-gray-200/40"
                           >
                             <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
                               {question.number}

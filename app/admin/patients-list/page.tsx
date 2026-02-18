@@ -8,35 +8,73 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadPatients, savePatients, loadRooms, type Patient } from "@/lib/data-storage"
+import { loadPatients, savePatients, loadRooms, loadSubjects, type Patient, type Subject } from "@/lib/data-storage"
 
 export default function PatientsListPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
   const [rooms, setRooms] = useState<Array<{ roomNumber: string; roomName: string }>>([])
+  const [accountType, setAccountType] = useState<string>("")
+  const [universities, setUniversities] = useState<Record<string, string>>({})
+  const [universitiesList, setUniversitiesList] = useState<Array<{ university_code: string; university_name: string }>>(
+    [],
+  )
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
     password: "",
     role: "general" as "general" | "admin",
     roomNumber: "",
+    university_code: "",
+    subjectCode: "",
   })
 
   useEffect(() => {
     const fetchData = async () => {
-      const [loadedPatients, loadedRooms] = await Promise.all([loadPatients(), loadRooms()])
+      const storedAccountType = sessionStorage.getItem("accountType") || ""
+      console.log("[v0] PatientsListPage: accountType =", storedAccountType)
+      setAccountType(storedAccountType)
+
+      if (storedAccountType === "special_master") {
+        try {
+          console.log("[v0] PatientsListPage: Fetching universities for special master...")
+          const response = await fetch("/api/universities")
+          if (response.ok) {
+            const data = await response.json()
+            console.log("[v0] PatientsListPage: Universities data:", data)
+            setUniversitiesList(Array.isArray(data) ? data : [])
+            const universityMap: Record<string, string> = {}
+            if (Array.isArray(data)) {
+              data.forEach((uni: any) => {
+                universityMap[uni.university_code] = uni.university_name
+              })
+            }
+            setUniversities(universityMap)
+            console.log("[v0] PatientsListPage: University map set:", universityMap)
+          }
+        } catch (error) {
+          console.error("[v0] PatientsListPage: Error fetching universities:", error)
+        }
+      }
+
+      const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([loadPatients(), loadRooms(), loadSubjects()])
       setPatients(Array.isArray(loadedPatients) ? loadedPatients : [])
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
+      setSubjects(Array.isArray(loadedSubjects) ? loadedSubjects : [])
     }
     fetchData()
   }, [])
 
-  const filteredPatients = patients.filter(
-    (p) =>
+  const filteredPatients = patients.filter((p) => {
+    const matchesSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      p.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSubject = selectedSubjectFilter === "all" || p.subjectCode === selectedSubjectFilter
+    return matchesSearch && matchesSubject
+  })
 
   const handleEdit = (patient: Patient) => {
     setEditingPatient(patient)
@@ -46,6 +84,7 @@ export default function PatientsListPage() {
       password: patient.password,
       role: patient.role,
       roomNumber: patient.assignedRoomNumber || "",
+      university_code: patient.university_code || "",
     })
   }
 
@@ -66,6 +105,7 @@ export default function PatientsListPage() {
             password: editForm.password,
             role: editForm.role,
             assignedRoomNumber: editForm.roomNumber,
+            university_code: editForm.university_code,
           }
         : p,
     )
@@ -93,18 +133,24 @@ export default function PatientsListPage() {
   }
 
   const handleExportCSV = () => {
-    const csv = [
-      ["氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"],
-      ...patients.map((p) => [
+    const headers =
+      accountType === "special_master"
+        ? ["大学名", "氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"]
+        : ["氏名", "メールアドレス（ログインID）", "ログインパスワード", "権限", "担当部屋番号"]
+
+    const rows = patients.map((p) => {
+      const baseRow = [
+        ...(accountType === "special_master" ? [universities[p.university_code || ""] || ""] : []),
         p.name,
         p.email,
         p.password,
         p.role === "admin" ? "管理者" : "一般",
         p.assignedRoomNumber || "",
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n")
+      ]
+      return baseRow
+    })
+
+    const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
@@ -154,14 +200,28 @@ export default function PatientsListPage() {
             <CardDescription>氏名、メールアドレスで検索</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="検索..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={selectedSubjectFilter}
+                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                className="flex h-10 rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">全教科</option>
+                {subjects.map((s) => (
+                  <option key={s.subjectCode} value={s.subjectCode}>
+                    {s.subjectName}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>
@@ -175,6 +235,7 @@ export default function PatientsListPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
+                    {accountType === "special_master" && <th className="text-left p-2">大学名</th>}
                     <th className="text-left p-2">氏名</th>
                     <th className="text-left p-2">メールアドレス（ログインID）</th>
                     <th className="text-left p-2">ログインパスワード</th>
@@ -186,51 +247,60 @@ export default function PatientsListPage() {
                 <tbody>
                   {filteredPatients.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center p-8 text-muted-foreground">
+                      <td
+                        colSpan={accountType === "special_master" ? 7 : 6}
+                        className="text-center p-8 text-muted-foreground"
+                      >
                         登録されている患者役がいません
                       </td>
                     </tr>
                   ) : (
-                    filteredPatients.map((patient) => (
-                      <tr key={patient.id} className="border-b hover:bg-accent/50">
-                        <td className="p-2">{patient.name}</td>
-                        <td className="p-2">{patient.email}</td>
-                        <td className="p-2">{"*".repeat(8)}</td>
-                        <td className="p-2">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-semibold ${
-                              patient.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {patient.role === "admin" ? "管理者" : "一般"}
-                          </span>
-                        </td>
-                        <td className="p-2">
-                          <span
-                            className={
-                              patient.assignedRoomNumber && !isValidRoom(patient.assignedRoomNumber)
-                                ? "text-red-600 font-bold"
-                                : ""
-                            }
-                          >
-                            {patient.assignedRoomNumber || "-"}
-                            {patient.assignedRoomNumber && !isValidRoom(patient.assignedRoomNumber) && (
-                              <AlertTriangle className="w-3 h-3 inline ml-1" />
-                            )}
-                          </span>
-                        </td>
-                        <td className="p-2 text-center">
-                          <div className="flex justify-center gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(patient)}>
-                              <Edit className="w-4 h-4 text-blue-600" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(patient.id)}>
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    filteredPatients.map((patient) => {
+                      const universityCode = patient.universityCode || ""
+                      const universityName = universities[universityCode] || "-"
+
+                      return (
+                        <tr key={patient.id} className="border-b hover:bg-accent/50">
+                          {accountType === "special_master" && <td className="p-2">{universityName}</td>}
+                          <td className="p-2">{patient.name}</td>
+                          <td className="p-2">{patient.email}</td>
+                          <td className="p-2">{"********"}</td>
+                          <td className="p-2">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-semibold ${
+                                patient.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {patient.role === "admin" ? "管理者" : "一般"}
+                            </span>
+                          </td>
+                          <td className="p-2">
+                            <span
+                              className={
+                                patient.assignedRoomNumber && !isValidRoom(patient.assignedRoomNumber)
+                                  ? "text-red-600 font-bold"
+                                  : ""
+                              }
+                            >
+                              {patient.assignedRoomNumber || "-"}
+                              {patient.assignedRoomNumber && !isValidRoom(patient.assignedRoomNumber) && (
+                                <AlertTriangle className="w-3 h-3 inline ml-1" />
+                              )}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <div className="flex justify-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(patient)}>
+                                <Edit className="w-4 h-4 text-blue-600" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDelete(patient.id)}>
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -247,6 +317,30 @@ export default function PatientsListPage() {
               <DialogDescription>患者役の登録情報を編集できます</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {accountType === "special_master" && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-university">大学名 *</Label>
+                  {universitiesList.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      大学が登録されていません。先に大学マスターを登録してください。
+                    </div>
+                  ) : (
+                    <select
+                      id="edit-university"
+                      value={editForm.university_code}
+                      onChange={(e) => setEditForm({ ...editForm, university_code: e.target.value })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">選択してください</option>
+                      {universitiesList.map((uni) => (
+                        <option key={uni.university_code} value={uni.university_code}>
+                          {uni.university_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="edit-name">氏名 *</Label>
                 <Input

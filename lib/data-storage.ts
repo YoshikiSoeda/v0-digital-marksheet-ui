@@ -7,18 +7,28 @@ export interface Student {
   department: string // 学部・学科
   roomNumber: string // 部屋番号
   createdAt: string
+  universityCode?: string // 大学コード
+  subjectCode?: string // 担当教科コード
 }
 
 // 教員データの型定義
+// 権限: general=一般教員, subject_admin=教科管理者, university_admin=大学管理者, master_admin=マスター管理者
+export type TeacherRole = "general" | "subject_admin" | "university_admin" | "master_admin"
+
 export interface Teacher {
   id: string
   teacherId: string
   name: string // 氏名
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
-  role: "general" | "admin" // 権限（一般 or 管理者）
+  role: TeacherRole // 統合権限
   assignedRoomNumber: string // 担当部屋番号（単一）
   createdAt: string
+  universityCode?: string // 大学コード
+  subjectCode?: string // 担当教科コード
+  // 後方互換用（非推奨）
+  accountType?: string
+  subjectRole?: string
 }
 
 // 患者役データの型定義
@@ -31,6 +41,9 @@ export interface Patient {
   role: "general" | "admin" // 権限（一般 or 管理者）
   assignedRoomNumber: string // 担当部屋番号（単一）
   createdAt: string
+  universityCode?: string // 大学コード
+  accountType?: "special_master" | "university_master" | "admin" // アカウントタイプ
+  subjectCode?: string // 担当教科コード
 }
 
 // 出席状況データの型定義
@@ -41,6 +54,8 @@ export interface AttendanceRecord {
   markedByType: "teacher" | "patient" // 評価者の種別
   roomNumber: string // 部屋番号
   timestamp: string // 記録時刻
+  universityCode?: string // 大学コード
+  subjectCode?: string // 教科コード
 }
 
 // 評価結果データの型定義
@@ -57,6 +72,7 @@ export interface EvaluationResult {
   completedAt?: string
   createdAt: string
   updatedAt: string
+  universityCode?: string // 大学コード
 }
 
 export interface Room {
@@ -64,6 +80,8 @@ export interface Room {
   roomNumber: string
   roomName: string
   createdAt: string
+  universityCode?: string // 大学コード
+  subjectCode?: string // 教科コード
 }
 
 // 問題管理データの型定義
@@ -78,6 +96,7 @@ export interface Question {
   option5: string // 選択肢5
   isAlertTarget: boolean // アラート対象ON/OFF
   alertOptions: number[] // アラート対象の選択肢番号（1-5）
+  universityCode?: string // 大学コード
 }
 
 export interface Category {
@@ -85,12 +104,14 @@ export interface Category {
   title: string // タイトル3（カテゴリ名）
   number: number // カテゴリ番号
   questions: Question[]
+  universityCode?: string // 大学コード
 }
 
 export interface Sheet {
   id: string
   title: string // タイトル2（シート名）
   categories: Category[]
+  universityCode?: string // 大学コード
 }
 
 export interface Test {
@@ -99,6 +120,9 @@ export interface Test {
   sheets: Sheet[]
   createdAt: string
   updatedAt: string
+  universityCode?: string // 大学コード
+  testSessionId?: string // Add test_session_id
+  subjectCode?: string // 教科コード
 }
 
 // localStorage キー
@@ -110,6 +134,7 @@ const STORAGE_KEYS = {
   evaluations: "medical_exam_evaluations",
   rooms: "medical_exam_rooms",
   tests: "medical_exam_tests", // Adding tests storage key
+  subjects: "medical_exam_subjects", // Adding subjects storage key
 }
 
 import { createClient } from "./supabase/client"
@@ -124,6 +149,8 @@ export async function saveStudents(students: Student[]) {
     email: s.email || null,
     department: s.department,
     room_number: s.roomNumber,
+    university_code: s.universityCode || null,
+    subject_code: s.subjectCode || null, // Add subject_code
   }))
 
   const { error } = await supabase.from("students").upsert(studentsData, { onConflict: "student_id" })
@@ -137,10 +164,20 @@ export async function saveStudents(students: Student[]) {
 }
 
 // 学生データの読み込み
-export async function loadStudents(): Promise<Student[]> {
+export async function loadStudents(universityCode?: string, subjectCode?: string): Promise<Student[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: true })
+  let query = supabase.from("students").select("*").order("created_at", { ascending: true })
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[v0] Error loading students:", error)
@@ -162,6 +199,8 @@ export async function loadStudents(): Promise<Student[]> {
     department: row.department,
     roomNumber: row.room_number || "",
     createdAt: row.created_at,
+    universityCode: row.university_code,
+    subjectCode: row.subject_code, // Add subject_code
   }))
 }
 
@@ -170,11 +209,13 @@ export async function saveTeachers(teachers: Teacher[]) {
   const supabase = createClient()
 
   const teachersData = teachers.map((t) => ({
-    name: t.name,
-    email: t.email,
-    password: t.password,
-    role: t.role,
-    assigned_room_number: t.assignedRoomNumber,
+  name: t.name,
+  email: t.email,
+  password: t.password,
+  role: t.role, // general, subject_admin, university_admin, master_admin
+  assigned_room_number: t.assignedRoomNumber,
+  university_code: t.universityCode || null,
+  subject_code: t.subjectCode || null,
   }))
 
   const { error } = await supabase.from("teachers").upsert(teachersData, { onConflict: "email" })
@@ -188,13 +229,23 @@ export async function saveTeachers(teachers: Teacher[]) {
 }
 
 // 教員データの読み込み
-export async function loadTeachers(): Promise<Teacher[]> {
+export async function loadTeachers(universityCode?: string, subjectCode?: string): Promise<Teacher[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("teachers")
     .select("*")
     .order("assigned_room_number", { ascending: true, nullsFirst: false })
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[v0] Error loading teachers:", error)
@@ -217,10 +268,12 @@ export async function loadTeachers(): Promise<Teacher[]> {
     role: row.role,
     assignedRoomNumber: row.assigned_room_number || "",
     createdAt: row.created_at,
+  universityCode: row.university_code,
+  subjectCode: row.subject_code,
   }))
-}
-
-// 患者役データの保存
+  }
+  
+  // 患者役データの保存
 export async function savePatients(patients: Patient[]) {
   const supabase = createClient()
 
@@ -230,6 +283,9 @@ export async function savePatients(patients: Patient[]) {
     password: p.password,
     role: p.role,
     assigned_room_number: p.assignedRoomNumber,
+    university_code: p.universityCode || null,
+    account_type: p.accountType || null,
+    subject_code: p.subjectCode || null,
   }))
 
   const { error } = await supabase.from("patients").upsert(patientsData, { onConflict: "email" })
@@ -243,20 +299,28 @@ export async function savePatients(patients: Patient[]) {
 }
 
 // 患者役データの読み込み
-export async function loadPatients(): Promise<Patient[]> {
+export async function loadPatients(universityCode?: string, subjectCode?: string): Promise<Patient[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("patients")
     .select("*")
     .order("assigned_room_number", { ascending: true, nullsFirst: false })
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[v0] Error loading patients:", error)
     return []
   }
-
-  console.log("[v0] Loaded patients data:", data)
 
   if (!data || !Array.isArray(data)) {
     console.error("[v0] Patients data is not an array:", data)
@@ -272,6 +336,9 @@ export async function loadPatients(): Promise<Patient[]> {
     role: row.role,
     assignedRoomNumber: row.assigned_room_number || "",
     createdAt: row.created_at,
+    universityCode: row.university_code,
+    accountType: row.account_type,
+    subjectCode: row.subject_code,
   }))
 }
 
@@ -283,6 +350,7 @@ export async function saveAttendanceRecords(records: AttendanceRecord[]) {
     room_number: r.roomNumber,
     status: r.status,
     recorded_at: r.timestamp,
+    university_code: r.universityCode || null,
   }))
 
   const { error } = await supabase
@@ -297,13 +365,16 @@ export async function saveAttendanceRecords(records: AttendanceRecord[]) {
   return { success: true }
 }
 
-export async function loadAttendanceRecords(): Promise<AttendanceRecord[]> {
+export async function loadAttendanceRecords(universityCode?: string): Promise<AttendanceRecord[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase
-    .from("attendance_records")
-    .select("*")
-    .order("recorded_at", { ascending: false })
+  let query = supabase.from("attendance_records").select("*").order("recorded_at", { ascending: false })
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[v0] Error loading attendance records:", error)
@@ -317,6 +388,7 @@ export async function loadAttendanceRecords(): Promise<AttendanceRecord[]> {
     markedByType: "teacher", // Default
     roomNumber: row.room_number,
     timestamp: row.recorded_at,
+    universityCode: row.university_code,
   }))
 }
 
@@ -332,6 +404,7 @@ export async function saveEvaluationResults(results: EvaluationResult[]) {
     total_score: r.totalScore,
     is_completed: r.isCompleted,
     has_alert: r.hasAlert || false,
+    university_code: r.universityCode || null,
   }))
 
   const { error } = await supabase.from("exam_results").upsert(evaluationData)
@@ -344,10 +417,16 @@ export async function saveEvaluationResults(results: EvaluationResult[]) {
   return { success: true }
 }
 
-export async function loadEvaluationResults(): Promise<EvaluationResult[]> {
+export async function loadEvaluationResults(universityCode?: string): Promise<EvaluationResult[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase.from("exam_results").select("*").order("created_at", { ascending: false })
+  let query = supabase.from("exam_results").select("*").order("created_at", { ascending: false }).limit(1000) // Limit to most recent 1000 records
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[v0] Error loading evaluation results:", error)
@@ -366,6 +445,7 @@ export async function loadEvaluationResults(): Promise<EvaluationResult[]> {
     hasAlert: row.has_alert || false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    universityCode: row.university_code,
   }))
 }
 
@@ -376,6 +456,8 @@ export async function saveRooms(rooms: Room[]) {
     room_number: r.roomNumber,
     room_name: r.roomName,
     created_at: r.createdAt,
+    university_code: r.universityCode || null,
+    subject_code: r.subjectCode || null,
   }))
 
   const { error } = await supabase.from("rooms").upsert(roomsData, { onConflict: "room_number" })
@@ -389,10 +471,20 @@ export async function saveRooms(rooms: Room[]) {
 }
 
 // ルームデータの読み込み
-export async function loadRooms(): Promise<Room[]> {
+export async function loadRooms(universityCode?: string, subjectCode?: string): Promise<Room[]> {
   const supabase = createClient()
 
-  const { data, error } = await supabase.from("rooms").select("*").order("room_number", { ascending: true })
+  let query = supabase.from("rooms").select("*").order("room_number", { ascending: true })
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error("[v0] Error loading rooms:", error)
@@ -411,6 +503,8 @@ export async function loadRooms(): Promise<Room[]> {
     roomNumber: row.room_number,
     roomName: row.room_name,
     createdAt: row.created_at,
+    universityCode: row.university_code,
+    subjectCode: row.subject_code,
   }))
 }
 
@@ -419,26 +513,27 @@ export async function saveTests(tests: Test[]) {
   const supabase = createClient()
 
   for (const test of tests) {
-    // Save test
     const { data: testData, error: testError } = await supabase
       .from("tests")
       .upsert(
         {
           id: test.id,
           title: test.title,
+          test_session_id: test.testSessionId || null,
           created_at: test.createdAt,
           updated_at: test.updatedAt,
+          university_code: test.universityCode || null,
+          subject_code: test.subjectCode || null, // Add subject_code
         },
         { onConflict: "id" },
       )
       .select()
 
     if (testError) {
-      console.error("[v0] Error saving test:", testError)
-      continue
+      console.error("[v0] Error saving test:", testError.message)
+      throw testError
     }
 
-    // Save sheets
     for (const sheet of test.sheets) {
       const { data: sheetData, error: sheetError } = await supabase
         .from("sheets")
@@ -457,7 +552,6 @@ export async function saveTests(tests: Test[]) {
         continue
       }
 
-      // Save categories
       for (const category of sheet.categories) {
         const { data: categoryData, error: categoryError } = await supabase
           .from("categories")
@@ -477,7 +571,6 @@ export async function saveTests(tests: Test[]) {
           continue
         }
 
-        // Save questions
         for (const question of category.questions) {
           const { error: questionError } = await supabase.from("questions").upsert(
             {
@@ -508,11 +601,11 @@ export async function saveTests(tests: Test[]) {
 }
 
 // テストデータの読み込み
-export async function loadTests(): Promise<Test[]> {
+export async function loadTests(universityCode?: string, subjectCode?: string): Promise<Test[]> {
   const supabase = createClient()
 
-  // Load tests with all related data
-  const { data: tests, error: testsError } = await supabase
+  // Load tests with all related data including test_session_id
+  let query = supabase
     .from("tests")
     .select(`
       *,
@@ -526,25 +619,39 @@ export async function loadTests(): Promise<Test[]> {
     `)
     .order("created_at", { ascending: true })
 
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  if (subjectCode) {
+    query = query.eq("subject_code", subjectCode)
+  }
+
+  const { data: tests, error: testsError } = await query
+
   if (testsError) {
     console.error("[v0] Error loading tests:", testsError)
     return []
   }
 
+  console.log("[v0] Loaded tests from DB:", tests)
+
   return (tests || []).map((test) => ({
     id: test.id,
     title: test.title,
+    testSessionId: test.test_session_id, // Add test_session_id
+    subjectCode: test.subject_code, // Add subject_code
     sheets: (test.sheets || []).map((sheet: any) => ({
       id: sheet.id,
       title: sheet.title,
       categories: (sheet.categories || [])
-        .sort((a: any, b: any) => a.number - b.number) // Sort categories by number
+        .sort((a: any, b: any) => a.number - b.number)
         .map((category: any) => ({
           id: category.id,
           title: category.title,
           number: category.number,
           questions: (category.questions || [])
-            .sort((a: any, b: any) => a.number - b.number) // Sort questions by number
+            .sort((a: any, b: any) => a.number - b.number)
             .map((question: any) => ({
               id: question.id,
               number: question.number,
@@ -561,5 +668,89 @@ export async function loadTests(): Promise<Test[]> {
     })),
     createdAt: test.created_at,
     updatedAt: test.updated_at,
+    universityCode: test.university_code, // Add university_code
   }))
+}
+
+export interface Subject {
+  id: string
+  subjectCode: string
+  subjectName: string
+  universityCode: string
+  description?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export async function saveSubjects(subjects: Subject[]) {
+  const supabase = createClient()
+
+  const subjectsData = subjects.map((s) => ({
+    subject_code: s.subjectCode,
+    subject_name: s.subjectName,
+    university_code: s.universityCode,
+    description: s.description || null,
+    is_active: s.isActive,
+  }))
+
+  const { error } = await supabase.from("subjects").upsert(subjectsData, { onConflict: "subject_code" })
+
+  if (error) {
+    console.error("[v0] Error saving subjects:", error.message)
+    throw error
+  }
+
+  return { success: true }
+}
+
+export async function loadSubjects(universityCode?: string): Promise<Subject[]> {
+  const supabase = createClient()
+
+  let query = supabase.from("subjects").select("*").order("subject_code", { ascending: true })
+
+  if (universityCode) {
+    query = query.eq("university_code", universityCode)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("[v0] Error loading subjects:", error)
+    return []
+  }
+
+  console.log("[v0] Loaded subjects data:", data)
+
+  if (!data || !Array.isArray(data)) {
+    console.error("[v0] Subjects data is not an array:", data)
+    return []
+  }
+
+  return data.map((row) => ({
+    id: row.id,
+    subjectCode: row.subject_code,
+    subjectName: row.subject_name,
+    universityCode: row.university_code,
+    description: row.description,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }))
+}
+
+export async function deleteTeacher(teacherId: string) {
+  const supabase = createClient()
+
+  console.log("[v0] Deleting teacher from database:", teacherId)
+
+  const { error } = await supabase.from("teachers").delete().eq("id", teacherId)
+
+  if (error) {
+    console.error("[v0] Error deleting teacher:", error.message)
+    throw error
+  }
+
+  console.log("[v0] Teacher deleted successfully from database")
+  return { success: true }
 }

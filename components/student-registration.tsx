@@ -9,37 +9,90 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Home, UserPlus, Upload, Download, Trash2 } from "lucide-react"
-import { saveStudents, loadStudents, loadRooms, type Student, type Room } from "@/lib/data-storage"
+import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
+import { saveStudents, loadStudents, loadRooms, loadSubjects, type Student, type Room, type Subject } from "@/lib/data-storage"
 
 export function StudentRegistration() {
   const router = useRouter()
   const [students, setStudents] = useState<Student[]>([])
   const [rooms, setRooms] = useState<Room[]>([]) // Add rooms state
   const [isLoading, setIsLoading] = useState(true)
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [formData, setFormData] = useState({
     name: "",
     studentId: "",
     email: "",
     department: "",
     roomNumber: "",
+    university_code: "",
+    subjectCode: "",
   })
   const [isDragging, setIsDragging] = useState(false)
+  const [accountType, setAccountType] = useState<string>("")
+  const [universities, setUniversities] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    console.log("[v0] StudentRegistration: useEffect TRIGGERED")
     const loadData = async () => {
+      console.log("[v0] StudentRegistration: Starting to load data")
+      setIsLoading(true)
       try {
-        const [studentsData, roomsData] = await Promise.all([loadStudents(), loadRooms()])
-        console.log("[v0] Loaded students:", studentsData)
-        console.log("[v0] Loaded rooms:", roomsData)
+        const accountType = sessionStorage.getItem("accountType") || ""
+        console.log("[v0] StudentRegistration: accountType from sessionStorage =", accountType)
+        setAccountType(accountType as any)
+
+        console.log("[v0] StudentRegistration: Attempting to fetch universities...")
+        try {
+          const response = await fetch("/api/universities")
+          console.log("[v0] StudentRegistration: Universities API response status:", response.status)
+          console.log("[v0] StudentRegistration: Universities API response ok:", response.ok)
+
+          if (response.ok) {
+            const data = await response.json()
+            console.log("[v0] StudentRegistration: Universities data received:", data)
+            console.log(
+              "[v0] StudentRegistration: Universities data type:",
+              typeof data,
+              "isArray:",
+              Array.isArray(data),
+            )
+
+            const universityMap: Record<string, string> = {}
+            if (Array.isArray(data)) {
+              data.forEach((uni: any) => {
+                universityMap[uni.university_code] = uni.university_name
+                console.log("[v0] StudentRegistration: Mapped", uni.university_code, "->", uni.university_name)
+              })
+            }
+            console.log("[v0] StudentRegistration: Final university map:", universityMap)
+            console.log("[v0] StudentRegistration: University map keys:", Object.keys(universityMap))
+            setUniversities(universityMap)
+          } else {
+            const errorText = await response.text()
+            console.error(
+              "[v0] StudentRegistration: Failed to fetch universities, status:",
+              response.status,
+              "error:",
+              errorText,
+            )
+          }
+        } catch (error) {
+          console.error("[v0] StudentRegistration: Error fetching universities:", error)
+        }
+
+        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(), loadRooms(), loadSubjects()])
+        setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
+        console.log("[v0] StudentRegistration: Loaded students count:", studentsData?.length)
+        console.log("[v0] StudentRegistration: Loaded rooms count:", roomsData?.length)
         setStudents(Array.isArray(studentsData) ? studentsData : [])
         setRooms(Array.isArray(roomsData) ? roomsData : [])
       } catch (error) {
-        console.error("[v0] Error loading data:", error)
+        console.error("[v0] StudentRegistration: Error loading data:", error)
         setStudents([])
         setRooms([])
       } finally {
         setIsLoading(false)
+        console.log("[v0] StudentRegistration: Loading complete")
       }
     }
 
@@ -65,11 +118,12 @@ export function StudentRegistration() {
       email: formData.email || undefined,
       department: formData.department,
       roomNumber: formData.roomNumber,
+      university_code: formData.university_code, // Include university_code in newStudent
       createdAt: new Date().toISOString(),
     }
 
     setStudents([...students, newStudent])
-    setFormData({ name: "", studentId: "", email: "", department: "", roomNumber: "" })
+    setFormData({ name: "", studentId: "", email: "", department: "", roomNumber: "", university_code: "" })
   }
 
   const handleDeleteStudent = (id: string) => {
@@ -82,7 +136,7 @@ export function StudentRegistration() {
     const invalidRooms: string[] = [] // Track invalid room numbers
 
     for (let i = 1; i < lines.length; i++) {
-      const [studentId, name, email, department, roomNumber] = lines[i].split(",").map((s) => s.trim())
+      const [studentId, name, email, department, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
       if (studentId && name && department && roomNumber) {
         const roomExists = rooms.some((r) => r.roomNumber === roomNumber)
         if (!roomExists) {
@@ -96,6 +150,7 @@ export function StudentRegistration() {
           email: email || undefined,
           department,
           roomNumber,
+          university_code: university_code || "", // Include university_code in newStudent
           createdAt: new Date().toISOString(),
         })
       }
@@ -165,11 +220,23 @@ export function StudentRegistration() {
   }
 
   const handleExportCSV = () => {
-    const csvContent =
-      "No.,学籍番号,氏名,メールアドレス,学部・学科,部屋番号\n" +
-      students
-        .map((s, index) => `${index + 1},${s.studentId},${s.name},${s.email || ""},${s.department},${s.roomNumber}`)
-        .join("\n")
+    let csvContent
+    if (accountType === "special_master") {
+      csvContent =
+        "No.,学籍番号,大学名,氏名,メールアドレス,学部・学科,部屋番号\n" +
+        students
+          .map(
+            (s, index) =>
+              `${index + 1},${s.studentId},${universities[s.university_code || ""] || ""},${s.name},${s.email || ""},${s.department},${s.roomNumber}`,
+          )
+          .join("\n")
+    } else {
+      csvContent =
+        "No.,学籍番号,氏名,メールアドレス,学部・学科,部屋番号\n" +
+        students
+          .map((s, index) => `${index + 1},${s.studentId},${s.name},${s.email || ""},${s.department},${s.roomNumber}`)
+          .join("\n")
+    }
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
@@ -180,7 +247,7 @@ export function StudentRegistration() {
 
   const handleDownloadTemplate = () => {
     const template =
-      "学籍番号,氏名,メールアドレス,学部・学科,部屋番号\n2024001,山田太郎,yamada@example.com,医学部医学科,1\n2024002,佐藤花子,,看護学部看護学科,2"
+      "学籍番号,氏名,メールアドレス,学部・学科,部屋番号,大学コード\n2024001,山田太郎,yamada@example.com,医学部医学科,1,UNI001\n2024002,佐藤花子,,看護学部看護学科,2,UNI002"
     const blob = new Blob(["\uFEFF" + template], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -199,7 +266,7 @@ export function StudentRegistration() {
       alert(`${students.length}名の学生情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      console.error("[v0] Error saving students:", error)
+      console.error("[v0] StudentRegistration: Error saving students:", error)
       alert("学生情報の保存中にエラーが発生しました")
     }
   }
@@ -216,6 +283,7 @@ export function StudentRegistration() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
+      {console.log("[v0] StudentRegistration: RENDERING, accountType=", accountType, "universities=", universities)}
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -223,12 +291,22 @@ export function StudentRegistration() {
             <h1 className="text-3xl font-bold text-primary">学生登録</h1>
             <p className="text-muted-foreground">受験者情報を登録・管理</p>
           </div>
-          <Link href="/admin/dashboard">
-            <Button variant="outline">
-              <Home className="w-4 h-4 mr-2" />
-              ダッシュボードに戻る
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            {accountType === "special_master" && (
+              <Link href="/admin/account-management">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  戻る
+                </Button>
+              </Link>
+            )}
+            <Link href="/admin/dashboard">
+              <Button variant="outline" size="sm">
+                <Home className="mr-2 h-4 w-4" />
+                ダッシュボード
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <Tabs defaultValue="manual" className="w-full">
@@ -305,6 +383,41 @@ export function StudentRegistration() {
                       </select>
                     )}
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subjectCode">教科</Label>
+                    <select
+                      id="subjectCode"
+                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                      value={formData.subjectCode}
+                      onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
+                    >
+                      <option value="">選択してください</option>
+                      {subjects.map((s) => (
+                        <option key={s.subjectCode} value={s.subjectCode}>
+                          {s.subjectName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {accountType === "special_master" && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="university">大学</Label>
+                      <select
+                        id="university"
+                        value={formData.university_code}
+                        onChange={(e) => setFormData({ ...formData, university_code: e.target.value })}
+                        className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
+                        required
+                      >
+                        <option value="">選択してください</option>
+                        {Object.entries(universities).map(([code, name]) => (
+                          <option key={code} value={code}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <Button onClick={handleAddStudent} className="w-full" size="lg" disabled={rooms.length === 0}>
                   <UserPlus className="w-4 h-4 mr-2" />
@@ -330,7 +443,7 @@ export function StudentRegistration() {
 
                   <div
                     className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                      isDragging ? "border-primary bg-primary/5" : "border-border"
+                      isDragging ? "border-primary bg-primary/5" : "border-gray-200"
                     }`}
                     onDragEnter={handleDragEnter}
                     onDragOver={handleDragOver}
@@ -351,9 +464,9 @@ export function StudentRegistration() {
                   <div className="bg-muted p-4 rounded-lg">
                     <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-                      学籍番号,氏名,メールアドレス,学部・学科,部屋番号{"\n"}
-                      2024001,山田太郎,yamada@example.com,医学部医学科,1{"\n"}
-                      2024002,佐藤花子,,看護学部看護学科,2
+                      学籍番号,氏名,メールアドレス,学部・学科,部屋番号,大学コード{"\n"}
+                      2024001,山田太郎,yamada@example.com,医学部医学科,1,UNI001{"\n"}
+                      2024002,佐藤花子,,看護学部看護学科,2,UNI002
                     </pre>
                   </div>
                 </div>
@@ -386,6 +499,7 @@ export function StudentRegistration() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
+                      {accountType === "special_master" && <th className="text-left p-3 font-semibold">大学名</th>}
                       <th className="text-left p-3 font-semibold">学籍番号</th>
                       <th className="text-left p-3 font-semibold">氏名</th>
                       <th className="text-left p-3 font-semibold">メールアドレス</th>
@@ -397,7 +511,10 @@ export function StudentRegistration() {
                   <tbody>
                     {students.map((student) => (
                       <tr key={student.id} className="border-b hover:bg-muted/50">
-                        <td className="p-3">{student.studentId}</td>
+                        {accountType === "special_master" && (
+                          <td className="p-3">{universities[student.university_code || ""] || "-"}</td>
+                        )}
+                        <td className="p-3 font-medium">{student.studentId}</td>
                         <td className="p-3">{student.name}</td>
                         <td className="p-3">{student.email || "-"}</td>
                         <td className="p-3">{student.department}</td>

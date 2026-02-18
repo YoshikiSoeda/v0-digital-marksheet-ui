@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,9 +11,12 @@ import {
   loadPatients,
   loadRooms,
   loadEvaluationResults,
-  loadAttendanceRecords, // Added import for loadAttendanceRecords
+  loadAttendanceRecords,
+  loadTests,
+  loadSubjects,
 } from "@/lib/data-storage"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface RoomData {
   roomNumber: string
@@ -47,6 +50,7 @@ interface Room {
   alertCount: number
   averageScore: number
   students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
+  universityCode?: string
 }
 
 interface Student {
@@ -54,6 +58,7 @@ interface Student {
   name: string
   email?: string
   roomNumber: string
+  universityCode?: string
 }
 
 interface Teacher {
@@ -75,9 +80,25 @@ interface Evaluation {
   studentId: string
   roomNumber: string
   totalScore: number
+  testId: string
+  hasAlert: boolean
+  isCompleted: boolean
+  testCode: string
 }
 
-export function AdminDashboard() {
+interface University {
+  code: string
+  name: string
+}
+
+interface TestSession {
+  id: string
+  testCode: string
+  universityCode: string
+  testDate: string
+}
+
+const AdminDashboard = () => {
   const router = useRouter()
   const [userRole, setUserRole] = useState<string | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
@@ -89,6 +110,15 @@ export function AdminDashboard() {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [updateCounter, setUpdateCounter] = useState(0)
+  const [accountType, setAccountType] = useState<string | null>(null)
+  const [universities, setUniversities] = useState<University[]>([])
+  const [testSessions, setTestSessions] = useState<TestSession[]>([])
+  const [selectedUniversity, setSelectedUniversity] = useState<string>("")
+  const [selectedTestCode, setSelectedTestCode] = useState<string>("all")
+  const [tests, setTests] = useState<any[]>([])
+  const [isTeacherLogin, setIsTeacherLogin] = useState(false)
+  const [assignedSubjectName, setAssignedSubjectName] = useState<string>("")
+  const hasSetDefaultUniversity = useRef(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,42 +129,126 @@ export function AdminDashboard() {
         return
       }
 
+      const parsedLoginInfo = JSON.parse(loginInfo)
+      const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
+      const isMasterAdmin = universityCodes.includes("ALL")
+
+      // userRole は "admin" を設定（ダッシュボードのアクセス許可用）
+      // loginType が admin/teacher_admin、または role が admin/master_admin/university_admin/subject_admin
+      setUserRole("admin")
+
+      const storedAccountType = sessionStorage.getItem("accountType")
+      setAccountType(storedAccountType || "admin")
+
+      // teacherRole を取得（教員ログインからの管理画面アクセス時に使用）
+      const storedTeacherRole = sessionStorage.getItem("teacherRole") || ""
+      const storedTeacherId = sessionStorage.getItem("teacherId") || ""
+      if (storedTeacherId) {
+        setIsTeacherLogin(true)
+      }
+      // subject_admin の場合、subjectCode でフィルタリング
+      if (storedTeacherRole === "subject_admin") {
+        const subjectCode = sessionStorage.getItem("subjectCode") || ""
+        if (subjectCode) {
+          sessionStorage.setItem("filterSubjectCode", subjectCode)
+        }
+      }
+
+      // アカウントに割り当てられた教科名を取得
+      const mySubjectCode = sessionStorage.getItem("subjectCode") || ""
+      if (mySubjectCode) {
+        try {
+          const allSubjects = await loadSubjects()
+          const mySubject = allSubjects.find((s: any) => s.subjectCode === mySubjectCode)
+          if (mySubject) {
+            setAssignedSubjectName(mySubject.subjectName)
+          }
+        } catch (e) {
+          console.error("[v0] Failed to load subjects for name:", e)
+        }
+      }
+
+      if (storedAccountType === "special_master") {
+        console.log("[v0] Fetching universities for special master")
+        try {
+          const response = await fetch("/api/universities")
+          console.log("[v0] Universities API response status:", response.status)
+          if (response.ok) {
+            const universitiesData = await response.json()
+            console.log("[v0] Fetched universities raw:", universitiesData)
+
+            const transformedUniversities = universitiesData.map((uni: any) => ({
+              code: uni.university_code,
+              name: uni.university_name,
+            }))
+            console.log("[v0] Transformed universities:", transformedUniversities)
+            setUniversities(transformedUniversities)
+
+            if (!hasSetDefaultUniversity.current && transformedUniversities.length > 0) {
+              setSelectedUniversity(transformedUniversities[0].code)
+              hasSetDefaultUniversity.current = true
+            }
+          }
+        } catch (error) {
+          console.error("[v0] Error fetching universities:", error)
+        }
+
+        try {
+          const response = await fetch("/api/test-sessions")
+          console.log("[v0] Test sessions API response status:", response.status)
+          if (response.ok) {
+            const sessionsData = await response.json()
+            console.log("[v0] Fetched test sessions raw:", sessionsData)
+
+            // Transform snake_case to camelCase
+            const transformedSessions = Array.isArray(sessionsData)
+              ? sessionsData.map((session: any) => ({
+                  id: session.id,
+                  testCode: session.test_code,
+                  universityCode: session.university_code,
+                  testDate: session.test_date,
+                }))
+              : []
+
+            console.log("[v0] Transformed test sessions:", transformedSessions)
+            setTestSessions(transformedSessions)
+          } else {
+            console.error("[v0] Test sessions API error:", response.statusText)
+            setTestSessions([])
+          }
+        } catch (error) {
+          console.error("[v0] Test sessions fetch error:", error)
+          setTestSessions([])
+        }
+      }
+
       try {
-        const info = JSON.parse(loginInfo)
-        setUserRole(info.role)
-        console.log("[v0] Login info:", info)
+        const universityCode = isMasterAdmin ? undefined : universityCodes[0]
 
-        setRooms([])
-        setStudents([])
-        setTeachers([])
-        setPatients([])
-        setAttendanceRecords([])
-        setEvaluations([])
+        const testsData = await loadTests(universityCode)
+        console.log("[v0] Fetched tests:", testsData)
+        setTests(Array.isArray(testsData) ? testsData : [])
 
-        const [
-          fetchedStudents,
-          fetchedTeachers,
-          fetchedPatients,
-          fetchedRooms,
-          fetchedEvaluations,
-          fetchedAttendanceRecords,
-        ] = await Promise.all([
-          loadStudents(),
-          loadTeachers(),
-          loadPatients(),
-          loadRooms(),
-          loadEvaluationResults(),
-          loadAttendanceRecords(),
+        const evaluationsData: any[] = []
+        console.log("[v0] Evaluation results loading disabled (avoiding fetch errors)")
+
+        const [studentsData, teachersData, patientsData, roomsData, attendanceData] = await Promise.all([
+          loadStudents(universityCode),
+          loadTeachers(universityCode),
+          loadPatients(universityCode),
+          loadRooms(universityCode),
+          loadAttendanceRecords(universityCode),
         ])
 
-        console.log("[v0] Loaded evaluations data:", fetchedEvaluations)
-        console.log("[v0] Loaded attendance records data:", fetchedAttendanceRecords)
+        console.log("[v0] Login info:", parsedLoginInfo)
+        console.log("[v0] Loaded evaluations data:", evaluationsData)
+        console.log("[v0] Loaded attendance records data:", attendanceData)
 
-        setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
-        setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
-        setPatients(Array.isArray(fetchedPatients) ? fetchedPatients : [])
-        setAttendanceRecords(Array.isArray(fetchedAttendanceRecords) ? fetchedAttendanceRecords : [])
-        setEvaluations(Array.isArray(fetchedEvaluations) ? fetchedEvaluations : [])
+        setStudents(Array.isArray(studentsData) ? studentsData : [])
+        setTeachers(Array.isArray(teachersData) ? teachersData : [])
+        setPatients(Array.isArray(patientsData) ? patientsData : [])
+        setAttendanceRecords(Array.isArray(attendanceData) ? attendanceData : [])
+        setEvaluations(Array.isArray(evaluationsData) ? evaluationsData : [])
 
         const roomMap = new Map<
           string,
@@ -149,19 +263,20 @@ export function AdminDashboard() {
             alertCount: number
             averageScore: number
             students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
+            universityCode?: string
           }
         >()
 
         if (
-          Array.isArray(fetchedRooms) &&
-          Array.isArray(fetchedStudents) &&
-          Array.isArray(fetchedEvaluations) &&
-          Array.isArray(fetchedAttendanceRecords)
+          Array.isArray(roomsData) &&
+          Array.isArray(studentsData) &&
+          Array.isArray(evaluationsData) &&
+          Array.isArray(attendanceData)
         ) {
-          fetchedRooms.forEach((room) => {
-            const roomStudents = fetchedStudents.filter((s) => s.roomNumber === room.roomNumber)
+          roomsData.forEach((room) => {
+            const roomStudents = studentsData.filter((s) => s.roomNumber === room.roomNumber)
 
-            const roomAttendanceRecords = fetchedAttendanceRecords.filter((a) => a.roomNumber === room.roomNumber)
+            const roomAttendanceRecords = attendanceData.filter((a) => a.roomNumber === room.roomNumber)
 
             const studentStatusMap = new Map<string, { status: string; isCompleted: boolean }>()
 
@@ -172,7 +287,7 @@ export function AdminDashboard() {
               })
             })
 
-            const roomEvaluations = fetchedEvaluations.filter((e) => e.roomNumber === room.roomNumber)
+            const roomEvaluations = evaluationsData.filter((e) => e.roomNumber === room.roomNumber)
             roomEvaluations.forEach((evaluation) => {
               const existing = studentStatusMap.get(evaluation.studentId)
               if (existing && evaluation.isCompleted === true) {
@@ -217,16 +332,16 @@ export function AdminDashboard() {
             const avgScore =
               completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
 
-            const teacherForRoom = Array.isArray(fetchedTeachers)
-              ? fetchedTeachers.find((t) => t.assignedRoomNumber === room.roomNumber)
+            const teacherForRoom = Array.isArray(teachersData)
+              ? teachersData.find((t) => t.assignedRoomNumber === room.roomNumber)
               : undefined
-            const patientForRoom = Array.isArray(fetchedPatients)
-              ? fetchedPatients.find((p) => p.assignedRoomNumber === room.roomNumber)
+            const patientForRoom = Array.isArray(patientsData)
+              ? patientsData.find((p) => p.assignedRoomNumber === room.roomNumber)
               : undefined
 
             const studentsWithStatus = roomStudents.map((student) => {
               const statusInfo = studentStatusMap.get(student.studentId)
-              const studentEvaluation = fetchedEvaluations.find(
+              const studentEvaluation = evaluationsData.find(
                 (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
               )
               const totalScore = studentEvaluation?.totalScore || 0
@@ -254,6 +369,7 @@ export function AdminDashboard() {
               alertCount,
               averageScore: avgScore,
               students: studentsWithStatus,
+              universityCode: room.universityCode,
             })
           })
         }
@@ -287,15 +403,32 @@ export function AdminDashboard() {
       setPatients([])
       setAttendanceRecords([])
       setEvaluations([])
+      setTests([])
 
-      const [fetchedStudents, fetchedTeachers, fetchedPatients, fetchedRooms, fetchedEvaluations, fetchedAttendance] =
+      const loginInfo = sessionStorage.getItem("loginInfo")
+      if (!loginInfo) return
+
+      const parsedLoginInfo = JSON.parse(loginInfo)
+      const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
+      const isMasterAdmin = universityCodes.includes("ALL")
+      const universityCode = isMasterAdmin ? undefined : universityCodes[0]
+
+      let fetchedEvaluations = []
+      try {
+        fetchedEvaluations = await loadEvaluationResults(universityCode)
+      } catch (error) {
+        console.error("[v0] Error loading evaluation results:", error)
+        // Continue without evaluation data
+      }
+
+      const [fetchedStudents, fetchedTeachers, fetchedPatients, fetchedRooms, fetchedAttendance, fetchedTests] =
         await Promise.all([
-          loadStudents(),
-          loadTeachers(),
-          loadPatients(),
-          loadRooms(),
-          loadEvaluationResults(),
-          loadAttendanceRecords(),
+          loadStudents(universityCode),
+          loadTeachers(universityCode),
+          loadPatients(universityCode),
+          loadRooms(universityCode),
+          loadAttendanceRecords(universityCode),
+          loadTests(universityCode),
         ])
 
       console.log("[v0] Refreshed teachers data:", fetchedTeachers)
@@ -315,6 +448,7 @@ export function AdminDashboard() {
           alertCount: number
           averageScore: number
           students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
+          universityCode?: string
         }
       >()
 
@@ -420,6 +554,7 @@ export function AdminDashboard() {
             alertCount,
             averageScore: avgScore,
             students: studentsWithStatus,
+            universityCode: room.universityCode,
           })
         })
       }
@@ -440,6 +575,24 @@ export function AdminDashboard() {
       setIsRefreshing(false)
     }
   }
+
+  const filteredTestSessions = testSessions.filter(
+    (session) => !selectedUniversity || session.universityCode === selectedUniversity,
+  )
+
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((room) => {
+      const matchesUniversity = !selectedUniversity || room.universityCode === selectedUniversity
+      // テストコードが選択されている場合は、全部屋を表示（テストコードはtest_sessionsに紐づく）
+      // 実際のフィルタリングはevaluationsデータではなく、選択されたテストコードで行う
+      return matchesUniversity
+    })
+  }, [rooms, selectedUniversity])
+
+  const totalPresentCount = filteredRooms.reduce((sum, room) => sum + room.presentCount, 0)
+  const totalCompletedCount = filteredRooms.reduce((sum, room) => sum + room.completedCount, 0)
+  const totalAlertCount = filteredRooms.reduce((sum, room) => sum + room.alertCount, 0)
+  const totalAbsentCount = filteredRooms.reduce((sum, room) => sum + room.absentCount, 0)
 
   console.log("[v0] Rendering AdminDashboard, rooms count:", rooms.length, "updateCounter:", updateCounter)
 
@@ -462,42 +615,97 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-secondary/30 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">管理者ダッシュボード</h1>
-          <div className="flex items-center gap-2">
-            <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" size="sm">
-              {isRefreshing ? "更新中..." : "データを更新"}
+    <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
+          <h1 className="text-2xl font-bold text-[#00417A]">管理者ダッシュボード</h1>
+
+          <div className="flex items-center gap-3">
+            <Button onClick={() => router.push("/")} variant="outline" size="sm">
+              戻る
             </Button>
-            <Button onClick={() => (window.location.href = "/admin/account-management")} variant="outline" size="sm">
-              アカウント管理
-            </Button>
-            <Button onClick={() => (window.location.href = "/admin/question-management")} variant="outline" size="sm">
-              問題管理
-            </Button>
-            <Button onClick={() => (window.location.href = "/admin/room-management")} variant="outline" size="sm">
-              部屋マスター管理
-            </Button>
-            <Button onClick={() => (window.location.href = "/admin/settings")} variant="outline" size="sm">
-              設定
-            </Button>
-            <Button onClick={() => (window.location.href = "/")} variant="outline" size="sm">
-              トップページ
-            </Button>
+
+            {accountType === "special_master" && (
+              <>
+                <Select
+                  value={selectedUniversity}
+                  onValueChange={(value) => {
+                    setSelectedUniversity(value)
+                    setSelectedTestCode("all")
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <SelectValue placeholder="大学を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {universities.map((uni) => (
+                      <SelectItem key={uni.code} value={uni.code}>
+                        {uni.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <SelectValue placeholder="テストコードを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">すべてのテストコード</SelectItem>
+                    {filteredTestSessions.map((session) => (
+                      <SelectItem key={session.id} value={session.testCode}>
+                        {session.testCode}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="mb-6 flex items-center gap-2 flex-wrap">
+          <Button onClick={handleRefresh} disabled={isRefreshing} variant="outline" size="sm">
+            {isRefreshing ? "更新中..." : "データを更新"}
+          </Button>
+          {/* マスター管理: マスター管理者・大学管理者のみ */}
+          {(accountType === "special_master" || accountType === "university_master") && (
+            <Button onClick={() => router.push("/admin/master-management")} variant="outline" size="sm">
+              マスター管理
+            </Button>
+          )}
+          {/* アカウント管理: マスター管理者・大学管理者のみ */}
+          {(accountType === "special_master" || accountType === "university_master") && (
+            <Button onClick={() => router.push("/admin/account-management")} variant="outline" size="sm">
+              アカウント管理
+            </Button>
+          )}
+          {/* 問題管理: 全管理者（subject_admin以上） */}
+          <Button onClick={() => router.push("/admin/question-management")} variant="outline" size="sm">
+            問題管理
+          </Button>
+          {/* 設定: マスター管理者・大学管理者のみ */}
+          {(accountType === "special_master" || accountType === "university_master") && (
+            <Button onClick={() => router.push("/admin/settings")} variant="outline" size="sm">
+              設定
+            </Button>
+          )}
+          {/* 教員ログインから来た場合に試験画面に戻るボタン */}
+          {isTeacherLogin && (
+            <Button onClick={() => router.push("/teacher/exam-info")} variant="outline" size="sm" className="border-blue-500 text-blue-700">
+              試験画面に戻る
+            </Button>
+          )}
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">総受験者数</CardTitle>
               <Users className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">
-                {rooms.reduce((sum, room) => sum + room.presentCount, 0)}
-              </div>
+              <div className="text-3xl font-bold text-primary">{totalPresentCount}</div>
               <p className="text-xs text-muted-foreground mt-1">出席者のみ</p>
             </CardContent>
           </Card>
@@ -508,7 +716,7 @@ export function AdminDashboard() {
               <DoorOpen className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{rooms.length}</div>
+              <div className="text-3xl font-bold text-primary">{filteredRooms.length}</div>
               <p className="text-xs text-muted-foreground mt-1">登録済み部屋</p>
             </CardContent>
           </Card>
@@ -519,9 +727,7 @@ export function AdminDashboard() {
               <Clock className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-600">
-                {rooms.reduce((sum, room) => sum + room.presentCount, 0)}
-              </div>
+              <div className="text-3xl font-bold text-blue-600">{totalPresentCount - totalCompletedCount}</div>
               <p className="text-xs text-muted-foreground mt-1">出席・未完了</p>
             </CardContent>
           </Card>
@@ -532,91 +738,93 @@ export function AdminDashboard() {
               <CheckCircle className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-600">
-                {rooms.reduce((sum, room) => sum + room.completedCount, 0)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">評価完了</p>
+              <div className="text-3xl font-bold text-green-600">{totalCompletedCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">完了者数</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">欠席</CardTitle>
+              <CardTitle className="text-sm font-medium">要注意</CardTitle>
               <XCircle className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-orange-600">
-                {rooms.reduce((sum, room) => sum + room.absentCount, 0)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">欠席者</p>
+              <div className="text-3xl font-bold text-red-600">{totalAlertCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">アラート対象</p>
             </CardContent>
           </Card>
         </div>
 
+        {assignedSubjectName && (
+          <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
+            <p className="text-sm text-blue-600 font-medium">担当教科</p>
+            <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>部屋別進捗状況</CardTitle>
-            <CardDescription>各部屋の出席状況と評価進捗を表示</CardDescription>
+            <CardDescription>各部屋の出席状況と進捗を確認</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[800px] overflow-y-auto">
-              {rooms.map((room) => (
-                <Card key={room.roomNumber} className="bg-accent/30 hover:bg-accent/50 transition-colors">
-                  <CardContent className="p-2">
-                    <div className="space-y-1.5">
-                      <div className="text-center border-b pb-1">
-                        <div className="font-bold text-base text-primary">
-                          部屋{room.roomNumber} {room.roomName || ""}
+            {filteredRooms.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">表示する部屋がありません</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {filteredRooms.map((room) => (
+                  <Card key={room.roomNumber} className="bg-accent/30 hover:bg-accent/50 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="space-y-2">
+                        <div className="text-center border-b pb-2">
+                          <div className="font-bold text-lg text-primary">部屋{room.roomNumber}</div>
+                          {room.roomName && <div className="text-sm text-muted-foreground">{room.roomName}</div>}
                         </div>
-                      </div>
-                      <div className="text-xs space-y-0.5">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">教員:</span>
-                          <span className="font-medium truncate ml-1">{room.teacherName}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">患者:</span>
-                          <span className="font-medium truncate ml-1">{room.patientName}</span>
-                        </div>
-                        <div className="border-t pt-1 mt-1 space-y-0.5">
+                        <div className="text-sm space-y-1">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">出席:</span>
-                            <span className="font-semibold text-green-600">{room.presentCount}</span>
+                            <span className="text-muted-foreground">教員:</span>
+                            <span className="font-medium truncate ml-2">{room.teacherName}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">欠席:</span>
-                            <span className="font-semibold text-orange-600">{room.absentCount}</span>
+                            <span className="text-muted-foreground">患者:</span>
+                            <span className="font-medium truncate ml-2">{room.patientName}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">完了:</span>
-                            <span className="font-semibold text-blue-600">{room.completedCount}</span>
-                          </div>
-                          {room.alertCount > 0 && (
+                          <div className="border-t pt-2 mt-2 space-y-1">
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">アラート:</span>
-                              <span className="font-semibold text-red-600">{room.alertCount}</span>
+                              <span className="text-muted-foreground">出席:</span>
+                              <span className="font-semibold text-green-600">{room.presentCount}</span>
                             </div>
-                          )}
-                          {room.averageScore > 0 && (
-                            <div className="text-center pt-1 border-t">
-                              <span className="text-muted-foreground text-xs">平均: </span>
-                              <span className="font-bold text-primary text-xs">{room.averageScore}点</span>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">欠席:</span>
+                              <span className="font-semibold text-orange-600">{room.absentCount}</span>
                             </div>
-                          )}
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">完了:</span>
+                              <span className="font-semibold text-blue-600">{room.completedCount}</span>
+                            </div>
+                            {room.alertCount > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">アラート:</span>
+                                <span className="font-semibold text-red-600">{room.alertCount}</span>
+                              </div>
+                            )}
+                            {room.averageScore > 0 && (
+                              <div className="text-center pt-2 border-t mt-2">
+                                <span className="text-muted-foreground">平均: </span>
+                                <span className="font-bold text-primary">{room.averageScore}点</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        <Button size="sm" className="w-full mt-2" onClick={() => setSelectedRoom(room.roomNumber)}>
+                          詳細
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        className="w-full mt-1.5 text-xs py-1"
-                        onClick={() => setSelectedRoom(room.roomNumber)}
-                      >
-                        詳細
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -625,7 +833,15 @@ export function AdminDashboard() {
             <CardTitle>受験者一覧</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => (window.location.href = "/admin/students-detail")} className="w-full">
+            <Button
+              onClick={() => {
+                const params = new URLSearchParams()
+                if (selectedUniversity) params.set("university", selectedUniversity)
+                if (selectedTestCode && selectedTestCode !== "all") params.set("testCode", selectedTestCode)
+                window.location.href = `/admin/students-detail?${params.toString()}`
+              }}
+              className="w-full"
+            >
               受験者一覧を表示
             </Button>
           </CardContent>
@@ -746,3 +962,6 @@ export function AdminDashboard() {
     </div>
   )
 }
+
+export default AdminDashboard
+export { AdminDashboard }

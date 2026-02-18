@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { loadTests, saveTests, type Sheet, type Question } from "@/lib/data-storage"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface QuestionEditProps {
   testId: string
@@ -17,13 +18,39 @@ interface QuestionEditProps {
 
 export function QuestionEdit({ testId }: QuestionEditProps) {
   const router = useRouter()
+  const [selectedTestCode, setSelectedTestCode] = useState("")
+  const [testSessions, setTestSessions] = useState<any[]>([])
   const [testTitle, setTestTitle] = useState("")
   const [sheets, setSheets] = useState<Sheet[]>([])
   const [loading, setLoading] = useState(true)
+  const [subjects, setSubjects] = useState<any[]>([])
+  const [selectedSubjectCode, setSelectedSubjectCode] = useState("")
+  const [universities, setUniversities] = useState<any[]>([])
+  const [selectedUniversity, setSelectedUniversity] = useState("")
+  const [accountType, setAccountType] = useState<string>("")
 
   useEffect(() => {
+    const storedAccountType = sessionStorage.getItem("accountType") || ""
+    setAccountType(storedAccountType)
+
+    // 大学管理者の場合、大学コードを固定
+    const storedUniversityCode = sessionStorage.getItem("universityCode") || ""
+
     const fetchTest = async () => {
       try {
+        const [sessionsRes, subjectsRes, universitiesRes] = await Promise.all([
+          fetch("/api/test-sessions"),
+          fetch("/api/subjects"),
+          fetch("/api/universities"),
+        ])
+        const sessionsData = await sessionsRes.json()
+        const subjectsData = await subjectsRes.json()
+        const universitiesData = await universitiesRes.json()
+
+        setTestSessions(sessionsData)
+        setSubjects(subjectsData)
+        setUniversities(universitiesData)
+
         const tests = await loadTests()
         const test = Array.isArray(tests) ? tests.find((t) => t.id === testId) : null
 
@@ -35,6 +62,15 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
 
         setTestTitle(test.title)
         setSheets(test.sheets)
+        setSelectedUniversity(test.universityCode || "")
+        setSelectedSubjectCode(test.subjectCode || "")
+
+        if (test.testSessionId) {
+          const session = sessionsData.find((s: any) => s.id === test.testSessionId)
+          if (session) {
+            setSelectedTestCode(session.test_code)
+          }
+        }
       } catch (error) {
         console.error("[v0] Error loading test:", error)
         alert("テストの読み込みに失敗しました")
@@ -46,6 +82,10 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
 
     fetchTest()
   }, [testId, router])
+
+  const filteredSubjects = selectedUniversity
+    ? subjects.filter((s) => s.university_code === selectedUniversity)
+    : subjects
 
   const addSheet = () => {
     setSheets([
@@ -211,12 +251,23 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   }
 
   const handleSave = async () => {
+    if (!selectedTestCode) {
+      alert("テストコードを選択してください")
+      return
+    }
+
     if (!testTitle.trim()) {
       alert("テスト名を入力してください")
       return
     }
 
     try {
+      const testSession = testSessions.find((ts) => ts.test_code === selectedTestCode)
+      if (!testSession) {
+        alert("選択されたテストコードが見つかりません")
+        return
+      }
+
       const tests = await loadTests()
       const testsArray = Array.isArray(tests) ? tests : []
       const updatedTests = testsArray.map((t) =>
@@ -225,6 +276,9 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
               ...t,
               title: testTitle,
               sheets,
+              testSessionId: testSession.id,
+              universityCode: testSession.university_code,
+              subjectCode: selectedSubjectCode || null,
               updatedAt: new Date().toISOString(),
             }
           : t,
@@ -272,13 +326,67 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="testTitle">テスト名（タイトル1）</Label>
+                <Label htmlFor="testCode">テストコード</Label>
+                <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="テストコードを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {testSessions.map((ts) => (
+                      <SelectItem key={ts.id} value={ts.test_code}>
+                        {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>テスト名</Label>
                 <Input
-                  id="testTitle"
                   value={testTitle}
                   onChange={(e) => setTestTitle(e.target.value)}
-                  placeholder="例: 2024年度 OSCE実技試験"
+                  placeholder="例: 全身の医療面接評価シート"
                 />
+              </div>
+              {accountType === "special_master" ? (
+                <div>
+                  <Label htmlFor="university">大学</Label>
+                  <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="大学を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {universities.map((uni) => (
+                        <SelectItem key={uni.university_code} value={uni.university_code}>
+                          {uni.university_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="university">大学</Label>
+                  <p className="mt-1 text-sm px-3 py-2 border rounded-md bg-muted">
+                    {universities.find((u) => u.university_code === selectedUniversity)?.university_name || selectedUniversity}
+                  </p>
+                </div>
+              )}
+              <div>
+                <Label htmlFor="subject">教科（任意）</Label>
+                <Select value={selectedSubjectCode || "default"} onValueChange={setSelectedSubjectCode}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="教科を選択（未設定も可）" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">未設定</SelectItem>
+                    {filteredSubjects.map((subject) => (
+                      <SelectItem key={subject.subject_code} value={subject.subject_code}>
+                        {subject.subject_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardContent>
@@ -288,13 +396,15 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           {sheets.map((sheet) => (
             <Card key={sheet.id}>
               <CardHeader className="flex flex-row items-center justify-between">
-                <div className="flex-1">
-                  <Label>シート名（タイトル2）</Label>
-                  <Input
-                    value={sheet.title}
-                    onChange={(e) => updateSheetTitle(sheet.id, e.target.value)}
-                    placeholder="例: 教員評価シート"
-                  />
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <Label>シート名</Label>
+                    <Input
+                      value={sheet.title}
+                      onChange={(e) => updateSheetTitle(sheet.id, e.target.value)}
+                      placeholder="例: オーラルフィジシャンの基盤"
+                    />
+                  </div>
                 </div>
                 {sheets.length > 1 && (
                   <Button variant="ghost" size="sm" onClick={() => removeSheet(sheet.id)} className="ml-2 text-red-600">

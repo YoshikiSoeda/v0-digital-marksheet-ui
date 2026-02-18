@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, ChevronRight, Calendar } from "lucide-react"
+import { FileText, ChevronRight, Calendar, Shield } from "lucide-react"
 import { loadTests, type Test } from "@/lib/data-storage"
+import Link from "next/link"
 
 interface TestSelectionScreenProps {
   examPath: string
@@ -15,8 +16,14 @@ interface TestSelectionScreenProps {
 export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenProps) {
   const router = useRouter()
   const [tests, setTests] = useState<Test[]>([])
+  const [teacherRole, setTeacherRole] = useState<string>("")
 
   useEffect(() => {
+    if (userType === "teacher") {
+      const role = sessionStorage.getItem("teacherRole") || "general"
+      setTeacherRole(role)
+    }
+
     const fetchTests = async () => {
       try {
         const fetchedTests = await loadTests()
@@ -64,9 +71,19 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-primary">評価テスト選択</h1>
-          <p className="text-muted-foreground mt-2">実施するテストを選択してください</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-primary">評価テスト選択</h1>
+            <p className="text-muted-foreground mt-2">実施するテストを選択してください</p>
+          </div>
+          {userType === "teacher" && teacherRole !== "general" && teacherRole !== "" && (
+            <Link href="/admin/dashboard">
+              <Button variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-700 hover:bg-blue-50">
+                <Shield className="w-4 h-4" />
+                管理画面
+              </Button>
+            </Link>
+          )}
         </div>
 
         <div className="grid gap-4">
