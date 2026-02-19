@@ -238,7 +238,7 @@ export async function loadTeachers(universityCode?: string, subjectCode?: string
     .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
   if (universityCode) {
-    query = query.eq("university_code", universityCode)
+    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
   }
 
   if (subjectCode) {
@@ -308,17 +308,17 @@ export async function loadPatients(universityCode?: string, subjectCode?: string
     .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
   if (universityCode) {
-    query = query.eq("university_code", universityCode)
+  query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
   }
-
+  
   if (subjectCode) {
-    query = query.eq("subject_code", subjectCode)
+  query = query.eq("subject_code", subjectCode)
   }
-
+  
   const { data, error } = await query
-
+  
   if (error) {
-    console.error("[v0] Error loading patients:", error)
+  console.error("[v0] Error loading patients:", error)
     return []
   }
 
@@ -371,7 +371,7 @@ export async function loadAttendanceRecords(universityCode?: string): Promise<At
   let query = supabase.from("attendance_records").select("*").order("recorded_at", { ascending: false })
 
   if (universityCode) {
-    query = query.eq("university_code", universityCode)
+    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
   }
 
   const { data, error } = await query
@@ -423,7 +423,7 @@ export async function loadEvaluationResults(universityCode?: string): Promise<Ev
   let query = supabase.from("exam_results").select("*").order("created_at", { ascending: false }).limit(1000) // Limit to most recent 1000 records
 
   if (universityCode) {
-    query = query.eq("university_code", universityCode)
+    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
   }
 
   const { data, error } = await query
