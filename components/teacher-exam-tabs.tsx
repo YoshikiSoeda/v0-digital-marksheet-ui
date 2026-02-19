@@ -40,8 +40,9 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       try {
         const loginInfo = sessionStorage.getItem("loginInfo")
         const universityCode = loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
-        const fetchedTeachers = await loadTeachers(universityCode)
+        const fetchedTeachers = await loadTeachers(universityCode, undefined, testSessionId)
         if (Array.isArray(fetchedTeachers)) {
           const teacher = fetchedTeachers.find((t) => t.email === teacherEmail)
           if (teacher) {
@@ -52,7 +53,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         const fetchedTests = await loadTests()
         setTests(Array.isArray(fetchedTests) ? fetchedTests : [])
 
-        const fetchedStudents = await loadStudents(universityCode)
+        const fetchedStudents = await loadStudents(universityCode, undefined, testSessionId)
         const filteredStudents = Array.isArray(fetchedStudents)
           ? fetchedStudents.filter((student) => student.roomNumber === teacherRoomNumber)
           : []
@@ -85,7 +86,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           setQuestions(allQuestions)
         }
 
-        const fetchedAttendanceRecords = await loadAttendanceRecords(universityCode)
+        const fetchedAttendanceRecords = await loadAttendanceRecords(universityCode, testSessionId)
         if (Array.isArray(fetchedAttendanceRecords)) {
           setAttendanceStatus(
             fetchedAttendanceRecords.reduce(
@@ -98,7 +99,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           )
         }
 
-        const fetchedEvaluationResults = await loadEvaluationResults(universityCode)
+        const fetchedEvaluationResults = await loadEvaluationResults(universityCode, testSessionId)
         if (Array.isArray(fetchedEvaluationResults)) {
           const answersByStudent: Record<string, Record<number, number>> = {}
           const completionByStudent: Record<string, boolean> = {}
@@ -131,6 +132,10 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     } catch { return "" }
   }
 
+  const getTestSessionId = (): string => {
+    return sessionStorage.getItem("testSessionId") || ""
+  }
+
   const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
@@ -149,13 +154,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     setStudentAnswers(updatedAnswers)
 
     const universityCode = getUniversityCode()
+    const testSessionId = getTestSessionId()
     const studentAnswersData = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
     const question = questions.find((q) => q.number === questionNumber)
     const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
 
-    // Save only this student's evaluation (upsert with onConflict handles duplicates)
     const newEvaluation: EvaluationResult = {
       studentId: activeStudent.id,
       evaluatorId: teacherEmail,
@@ -169,6 +174,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       hasAlert,
       timestamp: new Date().toISOString(),
       universityCode,
+      testSessionId,
     }
 
     await saveEvaluationResults([newEvaluation])
