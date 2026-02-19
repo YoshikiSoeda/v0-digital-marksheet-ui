@@ -798,7 +798,7 @@ const AdminDashboard = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                 {filteredRooms.map((room) => (
-                  <Card key={room.roomNumber} className="bg-accent/30 hover:bg-accent/50 transition-colors">
+                  <Card key={room.roomNumber} className={`transition-colors ${room.alertCount > 0 ? "bg-red-50 border-red-200 hover:bg-red-100" : "bg-accent/30 hover:bg-accent/50"}`}>
                     <CardContent className="p-4">
                       <div className="space-y-2">
                         <div className="text-center border-b pb-2">
