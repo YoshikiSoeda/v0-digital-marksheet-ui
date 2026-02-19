@@ -80,7 +80,8 @@ export function StudentRegistration() {
           console.error("[v0] StudentRegistration: Error fetching universities:", error)
         }
 
-        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(), loadRooms(), loadSubjects()])
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
+        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
         console.log("[v0] StudentRegistration: Loaded students count:", studentsData?.length)
         console.log("[v0] StudentRegistration: Loaded rooms count:", roomsData?.length)
@@ -111,16 +112,17 @@ export function StudentRegistration() {
       return
     }
 
-    const newStudent: Student = {
-      id: crypto.randomUUID(),
-      studentId: formData.studentId,
-      name: formData.name,
-      email: formData.email || undefined,
-      department: formData.department,
-      roomNumber: formData.roomNumber,
-      university_code: formData.university_code, // Include university_code in newStudent
-      createdAt: new Date().toISOString(),
-    }
+  const newStudent: Student = {
+  id: crypto.randomUUID(),
+  studentId: formData.studentId,
+  name: formData.name,
+  email: formData.email || undefined,
+  department: formData.department,
+  roomNumber: formData.roomNumber,
+  university_code: formData.university_code,
+  testSessionId: sessionStorage.getItem("testSessionId") || "",
+  createdAt: new Date().toISOString(),
+  }
 
     setStudents([...students, newStudent])
     setFormData({ name: "", studentId: "", email: "", department: "", roomNumber: "", university_code: "" })
@@ -133,7 +135,8 @@ export function StudentRegistration() {
   const parseCSV = (text: string) => {
     const lines = text.split("\n").filter((line) => line.trim())
     const newStudents: Student[] = []
-    const invalidRooms: string[] = [] // Track invalid room numbers
+    const invalidRooms: string[] = []
+    const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
     for (let i = 1; i < lines.length; i++) {
       const [studentId, name, email, department, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
@@ -150,7 +153,8 @@ export function StudentRegistration() {
           email: email || undefined,
           department,
           roomNumber,
-          university_code: university_code || "", // Include university_code in newStudent
+          university_code: university_code || "",
+          testSessionId,
           createdAt: new Date().toISOString(),
         })
       }

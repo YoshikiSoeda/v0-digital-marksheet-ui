@@ -41,7 +41,8 @@ export function PatientRoleRegistration() {
         console.log("[v0] PatientRoleRegistration: accountType from sessionStorage =", storedAccountType)
         setAccountType(storedAccountType)
 
-        const [patientsData, roomsData, subjectsData] = await Promise.all([loadPatients(), loadRooms(), loadSubjects()])
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
+        const [patientsData, roomsData, subjectsData] = await Promise.all([loadPatients(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
 
         console.log("[v0] PatientRoleRegistration: Loaded patients count:", patientsData?.length)
@@ -131,7 +132,8 @@ export function PatientRoleRegistration() {
       role: formData.role,
       assignedRoomNumber: formData.roomNumber,
       createdAt: new Date().toISOString(),
-      university_code: formData.university_code, // Include university_code in newPatient
+      university_code: formData.university_code,
+      testSessionId: sessionStorage.getItem("testSessionId") || "",
     }
 
     setPatients([...patients, newPatient])
@@ -154,7 +156,8 @@ export function PatientRoleRegistration() {
     } catch (error) {
       console.error("[v0] Error deleting patient:", error)
       alert("削除中にエラーが発生しました")
-      const data = await loadPatients()
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      const data = await loadPatients(undefined, undefined, testSessionId)
       setPatients(Array.isArray(data) ? data : [])
     }
   }
@@ -162,6 +165,7 @@ export function PatientRoleRegistration() {
   const parseCSV = (text: string) => {
     const lines = text.split("\n").filter((line) => line.trim())
     const newPatients: Patient[] = []
+    const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
     for (let i = 1; i < lines.length; i++) {
       const [name, email, password, role, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
@@ -172,10 +176,11 @@ export function PatientRoleRegistration() {
           name,
           email,
           password,
-              role: "general" as "general" | "admin", // 患者役は常に一般権限
+          role: "general" as "general" | "admin",
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
-          university_code: university_code || "", // Include university_code in newPatients
+          university_code: university_code || "",
+          testSessionId,
         })
       }
     }

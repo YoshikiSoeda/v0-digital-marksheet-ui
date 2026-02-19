@@ -51,7 +51,8 @@ export function TeacherRegistration() {
         console.log("[v0] TeacherRegistration: accountType from sessionStorage =", storedAccountType)
         setAccountType(storedAccountType)
 
-        const [teachersData, roomsData, subjectsData] = await Promise.all([loadTeachers(), loadRooms(), loadSubjects()])
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
+        const [teachersData, roomsData, subjectsData] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
 
         console.log("[v0] TeacherRegistration: Loaded teachers count:", teachersData?.length)
         console.log("[v0] TeacherRegistration: Loaded rooms count:", roomsData?.length)
@@ -148,7 +149,7 @@ export function TeacherRegistration() {
       createdAt: new Date().toISOString(),
       university_code: formData.university_code,
       subjectCode: formData.subjectCode,
-
+      testSessionId: sessionStorage.getItem("testSessionId") || "",
     }
 
     console.log("[v0] New teacher object created:", newTeacher)
@@ -173,13 +174,13 @@ export function TeacherRegistration() {
   const parseCSV = (text: string) => {
     const lines = text.split("\n").filter((line) => line.trim())
     const newTeachers: Teacher[] = []
+    const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
     for (let i = 1; i < lines.length; i++) {
       const [name, email, password, role, roomNumber, university_code, subjectCode] = lines[i]
         .split(",")
         .map((s) => s.trim())
       if (name && email && password) {
-        // 統合権限: general, subject_admin, university_admin, master_admin
         let teacherRole: string = "general"
         if (role === "subject_admin" || role === "教科管理者") {
           teacherRole = "subject_admin"
@@ -200,6 +201,7 @@ export function TeacherRegistration() {
           createdAt: new Date().toISOString(),
           universityCode: university_code || "",
           subjectCode: subjectCode || "",
+          testSessionId,
         })
       }
     }
