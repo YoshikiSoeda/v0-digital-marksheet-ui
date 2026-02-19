@@ -97,11 +97,14 @@ export function ExamResultsScreen() {
         }
       })
 
-      // Count completed/alert by matching against actual students in the room
+      // Count completed/alert only for present students
       let completedCount = 0
       let alertCount = 0
       let totalScore = 0
       roomStudents.forEach((student) => {
+        const attendance = studentStatusMap.get(student.id)
+        // Only count evaluations for students who are present
+        if (attendance !== "present") return
         const evaluation = evaluationMap.get(student.id)
         if (evaluation?.isCompleted) {
           completedCount++
@@ -123,12 +126,14 @@ export function ExamResultsScreen() {
       const details = roomStudents.map((student) => {
         const status = studentStatusMap.get(student.id)
         const evaluation = evaluationMap.get(student.id)
+        // Absent students should not show completion or scores regardless of evaluation data
+        const isPresent = status === "present"
         return {
           name: student.name,
           studentId: student.studentId,
           status: status || "未記録",
-          isCompleted: evaluation?.isCompleted || false,
-          score: evaluation?.totalScore || 0,
+          isCompleted: isPresent ? (evaluation?.isCompleted || false) : false,
+          score: isPresent ? (evaluation?.totalScore || 0) : 0,
         }
       })
       setStudentDetails(details)
