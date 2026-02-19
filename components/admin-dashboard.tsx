@@ -230,10 +230,15 @@ const AdminDashboard = () => {
         console.log("[v0] Fetched tests:", testsData)
         setTests(Array.isArray(testsData) ? testsData : [])
 
-        const evaluationsData: any[] = []
-        console.log("[v0] Evaluation results loading disabled (avoiding fetch errors)")
-
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
+
+        let evaluationsData: any[] = []
+        try {
+          evaluationsData = await loadEvaluationResults(universityCode, testSessionId)
+        } catch (error) {
+          console.error("[v0] Error loading evaluation results:", error)
+        }
+
         const [studentsData, teachersData, patientsData, roomsData, attendanceData] = await Promise.all([
           loadStudents(universityCode, undefined, testSessionId),
           loadTeachers(universityCode, undefined, testSessionId),
