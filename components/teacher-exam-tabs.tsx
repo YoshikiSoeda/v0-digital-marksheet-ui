@@ -35,10 +35,24 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [teacherName, setTeacherName] = useState("")
   const [elapsedTime, setElapsedTime] = useState<number>(0)
 
+  // Get universityCode from session
+  const getUniversityCode = (): string => {
+    try {
+      const loginInfo = sessionStorage.getItem("loginInfo")
+      if (loginInfo) {
+        const info = JSON.parse(loginInfo)
+        return info.universityCode || ""
+      }
+    } catch {}
+    return ""
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const fetchedTeachers = await loadTeachers()
+        const universityCode = getUniversityCode()
+
+        const fetchedTeachers = await loadTeachers(universityCode)
         if (Array.isArray(fetchedTeachers)) {
           const teacher = fetchedTeachers.find((t) => t.email === teacherEmail)
           if (teacher) {
@@ -49,7 +63,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         const fetchedTests = await loadTests()
         setTests(Array.isArray(fetchedTests) ? fetchedTests : [])
 
-        const fetchedStudents = await loadStudents()
+        const fetchedStudents = await loadStudents(universityCode)
         const filteredStudents = Array.isArray(fetchedStudents)
           ? fetchedStudents.filter((student) => student.roomNumber === teacherRoomNumber)
           : []
@@ -82,7 +96,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           setQuestions(allQuestions)
         }
 
-        const fetchedAttendanceRecords = await loadAttendanceRecords()
+        const fetchedAttendanceRecords = await loadAttendanceRecords(universityCode)
         if (Array.isArray(fetchedAttendanceRecords)) {
           setAttendanceStatus(
             fetchedAttendanceRecords.reduce(
@@ -95,7 +109,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           )
         }
 
-        const fetchedEvaluationResults = await loadEvaluationResults()
+        const fetchedEvaluationResults = await loadEvaluationResults(universityCode)
         if (Array.isArray(fetchedEvaluationResults)) {
           const answersByStudent: Record<string, Record<number, number>> = {}
           const completionByStudent: Record<string, boolean> = {}
@@ -138,7 +152,8 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     }
     setStudentAnswers(updatedAnswers)
 
-    const evaluations = await loadEvaluationResults()
+    const universityCode = getUniversityCode()
+    const evaluations = await loadEvaluationResults(universityCode)
     if (!Array.isArray(evaluations)) {
       console.error("[v0] loadEvaluationResults did not return an array:", evaluations)
       return
@@ -166,6 +181,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       isCompleted: false,
       hasAlert,
       timestamp: new Date().toISOString(),
+      universityCode,
     }
 
     if (existingIndex >= 0) {
@@ -180,7 +196,8 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
     setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
 
-    const attendanceRecords = await loadAttendanceRecords()
+    const universityCode = getUniversityCode()
+    const attendanceRecords = await loadAttendanceRecords(universityCode)
     if (!Array.isArray(attendanceRecords)) {
       console.error("[v0] loadAttendanceRecords did not return an array:", attendanceRecords)
       return
@@ -195,6 +212,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       markedByType: "teacher",
       roomNumber: teacherRoomNumber,
       timestamp: new Date().toISOString(),
+      universityCode,
     }
 
     if (existingIndex >= 0) {
@@ -217,7 +235,8 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       setCompletionStatus((prev) => ({ ...prev, [studentId]: true }))
       setEditMode((prev) => ({ ...prev, [studentId]: false }))
 
-      const evaluationResults = await loadEvaluationResults()
+      const universityCode = getUniversityCode()
+      const evaluationResults = await loadEvaluationResults(universityCode)
       if (!Array.isArray(evaluationResults)) {
         console.error("[v0] loadEvaluationResults did not return an array:", evaluationResults)
         return
@@ -244,6 +263,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           isCompleted: true,
           hasAlert: false,
           timestamp: new Date().toISOString(),
+          universityCode,
         }
         evaluationResults.push(newResult)
       }
