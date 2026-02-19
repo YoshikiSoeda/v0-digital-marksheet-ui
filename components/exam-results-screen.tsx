@@ -50,11 +50,12 @@ export function ExamResultsScreen() {
 
       const info = JSON.parse(loginInfo)
       const currentRoomNumber = info.assignedRoomNumber
+      const universityCode = info.universityCode || ""
 
       const [students, evaluations, attendanceRecords] = await Promise.all([
-        loadStudents(),
-        loadEvaluationResults(),
-        loadAttendanceRecords(),
+        loadStudents(universityCode),
+        loadEvaluationResults(universityCode),
+        loadAttendanceRecords(universityCode),
       ])
 
       const roomStudents = students.filter((s) => s.roomNumber === currentRoomNumber)
@@ -64,8 +65,21 @@ export function ExamResultsScreen() {
       )
       const roomAttendance = attendanceRecords.filter((a) => a.roomNumber === currentRoomNumber)
 
-      const presentCount = roomAttendance.filter((a) => a.status === "present").length
-      const absentCount = roomAttendance.filter((a) => a.status === "absent").length
+      // Build a map keyed by studentId (UUID) to deduplicate attendance records
+      const studentStatusMap = new Map<string, string>()
+      roomAttendance.forEach((a) => {
+        // Only use UUID-format student IDs, or overwrite with latest
+        studentStatusMap.set(a.studentId, a.status)
+      })
+
+      // Count attendance by matching against actual students in the room
+      let presentCount = 0
+      let absentCount = 0
+      roomStudents.forEach((student) => {
+        const status = studentStatusMap.get(student.id)
+        if (status === "present") presentCount++
+        else if (status === "absent") absentCount++
+      })
 
       const completedEvaluations = roomEvaluations.filter((e) => e.isCompleted)
       const alertEvaluations = roomEvaluations.filter((e) => e.hasAlert)
@@ -83,12 +97,12 @@ export function ExamResultsScreen() {
       })
 
       const details = roomStudents.map((student) => {
-        const attendance = roomAttendance.find((a) => a.studentId === student.id)
+        const status = studentStatusMap.get(student.id)
         const evaluation = roomEvaluations.find((e) => e.studentId === student.id)
         return {
           name: student.name,
           studentId: student.studentId,
-          status: attendance?.status || "未記録",
+          status: status || "未記録",
           isCompleted: evaluation?.isCompleted || false,
           score: evaluation?.totalScore || 0,
         }
