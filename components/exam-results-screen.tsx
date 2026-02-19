@@ -30,7 +30,8 @@ export function ExamResultsScreen() {
     if (loginInfo) {
       const info = JSON.parse(loginInfo)
       setRoomNumber(info.assignedRoomNumber || "")
-      setEvaluatorType(info.role === "teacher" ? "teacher" : "patient")
+      const isTeacherRole = info.loginType === "teacher" || info.role === "teacher" || info.role === "subject_admin" || info.role === "university_admin"
+      setEvaluatorType(isTeacherRole ? "teacher" : "patient")
     }
 
     if (startTime) {
@@ -59,11 +60,16 @@ export function ExamResultsScreen() {
       ])
 
       const roomStudents = students.filter((s) => s.roomNumber === currentRoomNumber)
+      // loginType is "teacher" or "patient", role can be "teacher", "subject_admin", "university_admin", etc.
+      const isTeacher = info.loginType === "teacher" || info.role === "teacher" || info.role === "subject_admin" || info.role === "university_admin"
+      const expectedEvaluatorType = isTeacher ? "teacher" : "patient"
       const roomEvaluations = evaluations.filter(
         (e) =>
-          e.roomNumber === currentRoomNumber && e.evaluatorType === (info.role === "teacher" ? "teacher" : "patient"),
+          e.roomNumber === currentRoomNumber && e.evaluatorType === expectedEvaluatorType,
       )
       const roomAttendance = attendanceRecords.filter((a) => a.roomNumber === currentRoomNumber)
+
+
 
       // Build a map keyed by studentId (UUID) to deduplicate attendance records
       const studentStatusMap = new Map<string, string>()
