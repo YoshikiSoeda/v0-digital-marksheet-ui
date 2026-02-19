@@ -81,24 +81,42 @@ export function ExamResultsScreen() {
         else if (status === "absent") absentCount++
       })
 
-      const completedEvaluations = roomEvaluations.filter((e) => e.isCompleted)
-      const alertEvaluations = roomEvaluations.filter((e) => e.hasAlert)
+      // Build evaluation map keyed by student UUID to deduplicate and get latest
+      const evaluationMap = new Map<string, typeof roomEvaluations[0]>()
+      roomEvaluations.forEach((e) => {
+        const existing = evaluationMap.get(e.studentId)
+        // Keep the most recent or the completed one
+        if (!existing || e.isCompleted || (!existing.isCompleted && (e.updatedAt || "") >= (existing.updatedAt || ""))) {
+          evaluationMap.set(e.studentId, e)
+        }
+      })
 
-      const totalScore = completedEvaluations.reduce((sum, e) => sum + (e.totalScore || 0), 0)
-      const avgScore = completedEvaluations.length > 0 ? Math.round(totalScore / completedEvaluations.length) : 0
+      // Count completed/alert by matching against actual students in the room
+      let completedCount = 0
+      let alertCount = 0
+      let totalScore = 0
+      roomStudents.forEach((student) => {
+        const evaluation = evaluationMap.get(student.id)
+        if (evaluation?.isCompleted) {
+          completedCount++
+          totalScore += evaluation.totalScore || 0
+        }
+        if (evaluation?.hasAlert) alertCount++
+      })
+      const avgScore = completedCount > 0 ? Math.round(totalScore / completedCount) : 0
 
       setRoomStats({
         totalStudents: roomStudents.length,
         presentCount,
         absentCount,
-        completedCount: completedEvaluations.length,
-        alertCount: alertEvaluations.length,
+        completedCount,
+        alertCount,
         averageScore: avgScore,
       })
 
       const details = roomStudents.map((student) => {
         const status = studentStatusMap.get(student.id)
-        const evaluation = roomEvaluations.find((e) => e.studentId === student.id)
+        const evaluation = evaluationMap.get(student.id)
         return {
           name: student.name,
           studentId: student.studentId,

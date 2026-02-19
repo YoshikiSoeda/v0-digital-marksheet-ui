@@ -407,7 +407,9 @@ export async function saveEvaluationResults(results: EvaluationResult[]) {
     university_code: r.universityCode || null,
   }))
 
-  const { error } = await supabase.from("exam_results").upsert(evaluationData)
+  const { error } = await supabase.from("exam_results").upsert(evaluationData, {
+    onConflict: "student_id,evaluator_email,evaluator_type,room_number",
+  })
 
   if (error) {
     console.error("[v0] Error saving evaluation results:", error)

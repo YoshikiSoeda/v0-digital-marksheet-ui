@@ -149,22 +149,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     setStudentAnswers(updatedAnswers)
 
     const universityCode = getUniversityCode()
-    const evaluations = await loadEvaluationResults(universityCode)
-    if (!Array.isArray(evaluations)) {
-      console.error("[v0] loadEvaluationResults did not return an array:", evaluations)
-      return
-    }
-
     const studentAnswersData = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
     const question = questions.find((q) => q.number === questionNumber)
     const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
 
-    const existingIndex = evaluations.findIndex(
-      (e) => e.studentId === activeStudent.id && e.evaluatorType === "teacher" && e.evaluatorId === teacherEmail,
-    )
-
+    // Save only this student's evaluation (upsert with onConflict handles duplicates)
     const newEvaluation: EvaluationResult = {
       studentId: activeStudent.id,
       evaluatorId: teacherEmail,
@@ -174,33 +165,21 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       answers: studentAnswersData,
       totalScore,
       answeredCount: Object.keys(studentAnswersData).length,
-      isCompleted: false,
+      isCompleted: completionStatus[activeStudent.id] || false,
       hasAlert,
       timestamp: new Date().toISOString(),
       universityCode,
     }
 
-    if (existingIndex >= 0) {
-      evaluations[existingIndex] = newEvaluation
-    } else {
-      evaluations.push(newEvaluation)
-    }
-
-    await saveEvaluationResults(evaluations)
+    await saveEvaluationResults([newEvaluation])
   }
 
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
     setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
 
     const universityCode = getUniversityCode()
-    const attendanceRecords = await loadAttendanceRecords(universityCode)
-    if (!Array.isArray(attendanceRecords)) {
-      console.error("[v0] loadAttendanceRecords did not return an array:", attendanceRecords)
-      return
-    }
 
-    const existingIndex = attendanceRecords.findIndex((r) => r.studentId === studentId)
-
+    // Save only this student's attendance record (upsert with onConflict handles duplicates)
     const newRecord: AttendanceRecord = {
       studentId,
       status,
@@ -211,13 +190,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       universityCode,
     }
 
-    if (existingIndex >= 0) {
-      attendanceRecords[existingIndex] = newRecord
-    } else {
-      attendanceRecords.push(newRecord)
-    }
-
-    await saveAttendanceRecords(attendanceRecords)
+    await saveAttendanceRecords([newRecord])
   }
 
   const handleMarkComplete = async (studentId: string) => {
@@ -232,40 +205,24 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       setEditMode((prev) => ({ ...prev, [studentId]: false }))
 
       const universityCode = getUniversityCode()
-      const evaluationResults = await loadEvaluationResults(universityCode)
-      if (!Array.isArray(evaluationResults)) {
-        console.error("[v0] loadEvaluationResults did not return an array:", evaluationResults)
-        return
+
+      // Save only this student's completed evaluation (upsert with onConflict handles duplicates)
+      const completedResult: EvaluationResult = {
+        studentId,
+        evaluatorType: "teacher" as const,
+        evaluatorId: teacherEmail,
+        testId,
+        roomNumber: teacherRoomNumber,
+        totalScore: calculateScore(studentId),
+        answers: studentAnswersData,
+        answeredCount,
+        isCompleted: true,
+        hasAlert: false,
+        timestamp: new Date().toISOString(),
+        universityCode,
       }
 
-      const existingResultIndex = evaluationResults.findIndex(
-        (r) => r.studentId === studentId && r.evaluatorType === "teacher" && r.evaluatorId === teacherEmail,
-      )
-
-      if (existingResultIndex >= 0) {
-        evaluationResults[existingResultIndex] = {
-          ...evaluationResults[existingResultIndex],
-          isCompleted: true,
-          universityCode,
-        }
-      } else {
-        const newResult = {
-          studentId,
-          evaluatorType: "teacher" as const,
-          evaluatorId: teacherEmail,
-          testId,
-          roomNumber: teacherRoomNumber,
-          totalScore: calculateScore(studentId),
-          answers: studentAnswersData,
-          isCompleted: true,
-          hasAlert: false,
-          timestamp: new Date().toISOString(),
-          universityCode,
-        }
-        evaluationResults.push(newResult)
-      }
-
-      await saveEvaluationResults(evaluationResults)
+      await saveEvaluationResults([completedResult])
       console.log("[v0] Evaluation marked as complete")
     } else {
       console.log("[v0] Cannot mark as complete - conditions not met")
