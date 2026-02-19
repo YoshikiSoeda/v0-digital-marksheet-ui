@@ -52,11 +52,12 @@ export function ExamResultsScreen() {
       const info = JSON.parse(loginInfo)
       const currentRoomNumber = info.assignedRoomNumber
       const universityCode = info.universityCode || ""
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
       const [students, evaluations, attendanceRecords] = await Promise.all([
-        loadStudents(universityCode),
-        loadEvaluationResults(universityCode),
-        loadAttendanceRecords(universityCode),
+        loadStudents(universityCode, undefined, testSessionId),
+        loadEvaluationResults(universityCode, testSessionId),
+        loadAttendanceRecords(universityCode, testSessionId),
       ])
 
       const roomStudents = students.filter((s) => s.roomNumber === currentRoomNumber)

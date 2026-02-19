@@ -61,7 +61,8 @@ export default function TeachersListPage() {
       }
 
       console.log("[v0] TeachersListPage: Loading teachers, rooms, and subjects...")
-      const [fetchedTeachers, fetchedRooms, fetchedSubjects] = await Promise.all([loadTeachers(), loadRooms(), loadSubjects()])
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      const [fetchedTeachers, fetchedRooms, fetchedSubjects] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
 
       console.log("[v0] TeachersListPage: Loaded teachers:", fetchedTeachers?.length || 0)
       console.log("[v0] TeachersListPage: Loaded rooms:", fetchedRooms?.length || 0)

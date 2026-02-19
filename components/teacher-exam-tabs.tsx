@@ -184,8 +184,8 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
 
     const universityCode = getUniversityCode()
+    const testSessionId = getTestSessionId()
 
-    // Save only this student's attendance record (upsert with onConflict handles duplicates)
     const newRecord: AttendanceRecord = {
       studentId,
       status,
@@ -194,6 +194,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       roomNumber: teacherRoomNumber,
       timestamp: new Date().toISOString(),
       universityCode,
+      testSessionId,
     }
 
     await saveAttendanceRecords([newRecord])
@@ -211,8 +212,8 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       setEditMode((prev) => ({ ...prev, [studentId]: false }))
 
       const universityCode = getUniversityCode()
+      const testSessionId = getTestSessionId()
 
-      // Save only this student's completed evaluation (upsert with onConflict handles duplicates)
       const completedResult: EvaluationResult = {
         studentId,
         evaluatorType: "teacher" as const,
@@ -226,6 +227,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         hasAlert: false,
         timestamp: new Date().toISOString(),
         universityCode,
+        testSessionId,
       }
 
       await saveEvaluationResults([completedResult])

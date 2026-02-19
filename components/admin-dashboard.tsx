@@ -232,12 +232,13 @@ const AdminDashboard = () => {
         const evaluationsData: any[] = []
         console.log("[v0] Evaluation results loading disabled (avoiding fetch errors)")
 
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
         const [studentsData, teachersData, patientsData, roomsData, attendanceData] = await Promise.all([
-          loadStudents(universityCode),
-          loadTeachers(universityCode),
-          loadPatients(universityCode),
-          loadRooms(universityCode),
-          loadAttendanceRecords(universityCode),
+          loadStudents(universityCode, undefined, testSessionId),
+          loadTeachers(universityCode, undefined, testSessionId),
+          loadPatients(universityCode, undefined, testSessionId),
+          loadRooms(universityCode, undefined, testSessionId),
+          loadAttendanceRecords(universityCode, testSessionId),
         ])
 
         console.log("[v0] Login info:", parsedLoginInfo)
@@ -414,21 +415,21 @@ const AdminDashboard = () => {
       const isMasterAdmin = universityCodes.includes("ALL")
       const universityCode = isMasterAdmin ? undefined : universityCodes[0]
 
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
       let fetchedEvaluations = []
       try {
-        fetchedEvaluations = await loadEvaluationResults(universityCode)
+        fetchedEvaluations = await loadEvaluationResults(universityCode, testSessionId)
       } catch (error) {
         console.error("[v0] Error loading evaluation results:", error)
-        // Continue without evaluation data
       }
 
       const [fetchedStudents, fetchedTeachers, fetchedPatients, fetchedRooms, fetchedAttendance, fetchedTests] =
         await Promise.all([
-          loadStudents(universityCode),
-          loadTeachers(universityCode),
-          loadPatients(universityCode),
-          loadRooms(universityCode),
-          loadAttendanceRecords(universityCode),
+          loadStudents(universityCode, undefined, testSessionId),
+          loadTeachers(universityCode, undefined, testSessionId),
+          loadPatients(universityCode, undefined, testSessionId),
+          loadRooms(universityCode, undefined, testSessionId),
+          loadAttendanceRecords(universityCode, testSessionId),
           loadTests(universityCode),
         ])
 

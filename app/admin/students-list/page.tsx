@@ -67,7 +67,8 @@ export default function StudentsListPage() {
         }
       }
 
-      const [fetchedStudents, fetchedRooms, fetchedSubjects] = await Promise.all([loadStudents(), loadRooms(), loadSubjects()])
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      const [fetchedStudents, fetchedRooms, fetchedSubjects] = await Promise.all([loadStudents(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
       setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
       setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
       setSubjects(Array.isArray(fetchedSubjects) ? fetchedSubjects : [])
