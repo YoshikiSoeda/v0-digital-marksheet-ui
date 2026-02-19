@@ -55,16 +55,11 @@ export default function PatientExamTabs({
   const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
   const [alertTriggers, setAlertTriggers] = useState<Record<string, boolean>>({})
 
-  // Get universityCode from session
   const getUniversityCode = (): string => {
     try {
       const loginInfo = sessionStorage.getItem("loginInfo")
-      if (loginInfo) {
-        const info = JSON.parse(loginInfo)
-        return info.universityCode || ""
-      }
-    } catch {}
-    return ""
+      return loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
+    } catch { return "" }
   }
 
   useEffect(() => {
@@ -192,8 +187,7 @@ export default function PatientExamTabs({
     // 教員側の出席変更をポーリングで反映（10秒ごと）
     const pollAttendance = setInterval(async () => {
       try {
-        const uniCode = getUniversityCode()
-        const attendanceData = await loadAttendanceRecords(uniCode)
+        const attendanceData = await loadAttendanceRecords(getUniversityCode())
         if (Array.isArray(attendanceData)) {
           setAttendanceStatus((prev) => {
             const updated = { ...prev }
@@ -230,9 +224,8 @@ export default function PatientExamTabs({
     const totalScore = Object.values(updatedAnswers).reduce((sum, val) => sum + val, 0)
     const hasAlert = alertTriggers[student.id] || false
 
-    const universityCode = getUniversityCode()
     const evaluationResult: EvaluationResult = {
-      studentId: student.studentId,
+      studentId: student.id,
       evaluatorId: patientEmail,
       evaluatorType: "patient",
       roomNumber: patientRoomNumber,
@@ -243,7 +236,7 @@ export default function PatientExamTabs({
       hasAlert,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      universityCode,
+      universityCode: getUniversityCode(),
     }
 
     try {
@@ -274,9 +267,8 @@ export default function PatientExamTabs({
     const totalScore = calculateScore(studentId)
     const hasAlert = alertTriggers[studentId] || false
 
-    const universityCode = getUniversityCode()
     const evaluationResult: EvaluationResult = {
-      studentId: student.studentId,
+      studentId: student.id,
       evaluatorId: patientEmail,
       evaluatorType: "patient",
       roomNumber: patientRoomNumber,
@@ -287,7 +279,7 @@ export default function PatientExamTabs({
       hasAlert,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      universityCode,
+      universityCode: getUniversityCode(),
     }
 
     try {

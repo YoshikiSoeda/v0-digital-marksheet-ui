@@ -35,22 +35,11 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [teacherName, setTeacherName] = useState("")
   const [elapsedTime, setElapsedTime] = useState<number>(0)
 
-  // Get universityCode from session
-  const getUniversityCode = (): string => {
-    try {
-      const loginInfo = sessionStorage.getItem("loginInfo")
-      if (loginInfo) {
-        const info = JSON.parse(loginInfo)
-        return info.universityCode || ""
-      }
-    } catch {}
-    return ""
-  }
-
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const universityCode = getUniversityCode()
+        const loginInfo = sessionStorage.getItem("loginInfo")
+        const universityCode = loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
 
         const fetchedTeachers = await loadTeachers(universityCode)
         if (Array.isArray(fetchedTeachers)) {
@@ -135,6 +124,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     fetchData()
   }, [teacherEmail, teacherRoomNumber, testId])
 
+  const getUniversityCode = (): string => {
+    try {
+      const loginInfo = sessionStorage.getItem("loginInfo")
+      return loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
+    } catch { return "" }
+  }
+
   const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
@@ -159,7 +155,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       return
     }
 
-    const studentAnswersData = studentAnswers[activeStudent.id] || {}
+    const studentAnswersData = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
     const question = questions.find((q) => q.number === questionNumber)
@@ -250,6 +246,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         evaluationResults[existingResultIndex] = {
           ...evaluationResults[existingResultIndex],
           isCompleted: true,
+          universityCode,
         }
       } else {
         const newResult = {
