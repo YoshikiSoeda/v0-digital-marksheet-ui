@@ -96,17 +96,28 @@ export function AdminLoginForm() {
     }
   }, [])
 
+  // Helper: check if two subject codes match, handling university prefix format
+  // e.g. "dentshowa_GENERAL" should match "GENERAL" and vice versa
+  const subjectCodeMatches = (code1: string, code2: string): boolean => {
+    if (!code1 || !code2) return false
+    if (code1 === code2) return true
+    // Strip university prefix (e.g. "dentshowa_GENERAL" -> "GENERAL")
+    const base1 = code1.includes("_") ? code1.split("_").slice(1).join("_") : code1
+    const base2 = code2.includes("_") ? code2.split("_").slice(1).join("_") : code2
+    return base1 === base2 || code1 === base2 || base1 === code2
+  }
+
   // Filtered sessions
   const filteredSessions = allSessions.filter((s) => {
     // non-master: restrict to their own university
     if (authRole !== "master_admin" && authUniversityCode && s.university_code !== authUniversityCode) return false
     // subject_admin: show ALL sessions linked to their assigned subject (no other filters)
     if (authRole === "subject_admin" && authSubjectCode) {
-      return s.subject_code === authSubjectCode
+      return s.subject_code ? subjectCodeMatches(s.subject_code, authSubjectCode) : false
     }
     // master_admin / university_admin: apply dropdown filters
     if (filterUniversity !== "all" && s.university_code !== filterUniversity) return false
-    if (filterSubject !== "all" && s.subject_code !== filterSubject) return false
+    if (filterSubject !== "all" && s.subject_code ? !subjectCodeMatches(s.subject_code, filterSubject) : filterSubject !== "all") return false
     return true
   })
 
