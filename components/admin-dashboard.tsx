@@ -300,7 +300,8 @@ const AdminDashboard = () => {
             let completedCount = 0
 
             roomStudents.forEach((student) => {
-              const statusInfo = studentStatusMap.get(student.studentId)
+              // attendance records use student UUID (student.id), not student_id (student number)
+              const statusInfo = studentStatusMap.get(student.id)
               if (statusInfo) {
                 if (statusInfo.status === "present") {
                   presentCount++
@@ -340,9 +341,9 @@ const AdminDashboard = () => {
               : undefined
 
             const studentsWithStatus = roomStudents.map((student) => {
-              const statusInfo = studentStatusMap.get(student.studentId)
+              const statusInfo = studentStatusMap.get(student.id)
               const studentEvaluation = evaluationsData.find(
-                (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
+                (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
               )
               const totalScore = studentEvaluation?.totalScore || 0
               return {
@@ -485,7 +486,8 @@ const AdminDashboard = () => {
           let completedCount = 0
 
           roomStudents.forEach((student) => {
-            const statusInfo = studentStatusMap.get(student.studentId)
+            // attendance records use student UUID (student.id), not student_id (student number)
+            const statusInfo = studentStatusMap.get(student.id)
             if (statusInfo) {
               if (statusInfo.status === "present") {
                 presentCount++
@@ -525,9 +527,9 @@ const AdminDashboard = () => {
             : undefined
 
           const studentsWithStatus = roomStudents.map((student) => {
-            const statusInfo = studentStatusMap.get(student.studentId)
+            const statusInfo = studentStatusMap.get(student.id)
             const studentEvaluation = fetchedEvaluations.find(
-              (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
+              (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
             )
             const totalScore = studentEvaluation?.totalScore || 0
             return {
