@@ -98,12 +98,15 @@ export function AdminLoginForm() {
 
   // Filtered sessions
   const filteredSessions = allSessions.filter((s) => {
+    // non-master: restrict to their own university
+    if (authRole !== "master_admin" && authUniversityCode && s.university_code !== authUniversityCode) return false
+    // subject_admin: show ALL sessions linked to their assigned subject (no other filters)
+    if (authRole === "subject_admin" && authSubjectCode) {
+      return s.subject_code === authSubjectCode
+    }
+    // master_admin / university_admin: apply dropdown filters
     if (filterUniversity !== "all" && s.university_code !== filterUniversity) return false
     if (filterSubject !== "all" && s.subject_code !== filterSubject) return false
-    // subject_admin: only show sessions matching their subject
-    if (authRole === "subject_admin" && authSubjectCode && s.subject_code !== authSubjectCode) return false
-    // non-master: only show sessions matching their university
-    if (authRole !== "master_admin" && authUniversityCode && s.university_code !== authUniversityCode) return false
     return true
   })
 
