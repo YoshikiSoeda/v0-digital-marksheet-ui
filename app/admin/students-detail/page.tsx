@@ -37,10 +37,11 @@ export default function StudentsDetailPage() {
 
     const fetchData = async () => {
       try {
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
         const [studentsData, evaluationsData, attendanceData, testsData, testSessionsData] = await Promise.all([
-          loadStudents(university || undefined),
-          loadEvaluationResults(university || undefined),
-          loadAttendanceRecords(university || undefined),
+          loadStudents(university || undefined, undefined, testSessionId),
+          loadEvaluationResults(university || undefined, testSessionId),
+          loadAttendanceRecords(university || undefined, testSessionId),
           loadTests(university || undefined),
           fetch("/api/test-sessions")
             .then((res) => res.json())

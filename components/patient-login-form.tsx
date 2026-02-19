@@ -8,9 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { GraduationCap } from "lucide-react"
+import { GraduationCap, ArrowLeft, Calendar } from "lucide-react"
 import Link from "next/link"
-import { loadPatients } from "@/lib/data-storage"
+import { loadPatients, loadTestSessions, type Patient, type TestSession } from "@/lib/data-storage"
 
 export function PatientLoginForm() {
   const router = useRouter()
@@ -18,8 +18,11 @@ export function PatientLoginForm() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [step, setStep] = useState<"credentials" | "session">("credentials")
+  const [matchedPatients, setMatchedPatients] = useState<Patient[]>([])
+  const [sessions, setSessions] = useState<TestSession[]>([])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
@@ -33,50 +36,111 @@ export function PatientLoginForm() {
     try {
       const patients = await loadPatients()
 
-      // Check if patients is an array
       if (!Array.isArray(patients)) {
-        console.error("[v0] loadPatients() did not return an array:", patients)
         setError("データの読み込みに失敗しました")
         setIsLoading(false)
         return
       }
 
-      const patient = patients.find((p) => p.email === patientId && p.password === password)
+      const matched = patients.filter((p) => p.email === patientId && p.password === password)
 
-      if (!patient) {
+      if (matched.length === 0) {
         setError("患者担当者IDまたはパスワードが正しくありません")
         setIsLoading(false)
         return
       }
 
-      sessionStorage.setItem(
-        "loginInfo",
-        JSON.stringify({
-          id: patient.id,
-          name: patient.name,
-          email: patient.email,
-          assignedRoomNumber: patient.assignedRoomNumber || "",
-          role: patient.role,
-          universityCode: patient.universityCode || "dentshowa",
-          subjectCode: patient.subjectCode || "",
-        }),
-      )
+      const universityCode = matched[0].universityCode || "dentshowa"
+      const allSessions = await loadTestSessions(universityCode)
+      const patientSessionIds = new Set(matched.map((p) => p.testSessionId).filter(Boolean))
+      const availableSessions = allSessions.filter((s) => patientSessionIds.has(s.id))
 
-      // Keep individual keys for backward compatibility
-      sessionStorage.setItem("patientId", patient.id)
-      sessionStorage.setItem("patientName", patient.name)
-      sessionStorage.setItem("patientEmail", patient.email)
-      sessionStorage.setItem("patientRoom", patient.assignedRoomNumber || "")
-      sessionStorage.setItem("userRole", patient.role)
-      sessionStorage.setItem("universityCode", patient.universityCode || "dentshowa")
-      sessionStorage.setItem("subjectCode", patient.subjectCode || "")
-
-      window.location.href = "/patient/exam-info"
+      if (availableSessions.length === 1) {
+        const patient = matched.find((p) => p.testSessionId === availableSessions[0].id) || matched[0]
+        completeLogin(patient, availableSessions[0].id)
+      } else if (availableSessions.length > 1) {
+        setMatchedPatients(matched)
+        setSessions(availableSessions)
+        setStep("session")
+        setIsLoading(false)
+      } else {
+        completeLogin(matched[0], matched[0].testSessionId || "")
+      }
     } catch (error) {
       console.error("[v0] Error during patient login:", error)
       setError("ログイン処理中にエラーが発生しました")
       setIsLoading(false)
     }
+  }
+
+  const handleSessionSelect = (sessionId: string) => {
+    const patient = matchedPatients.find((p) => p.testSessionId === sessionId) || matchedPatients[0]
+    completeLogin(patient, sessionId)
+  }
+
+  const completeLogin = (patient: Patient, testSessionId: string) => {
+    sessionStorage.setItem(
+      "loginInfo",
+      JSON.stringify({
+        id: patient.id,
+        loginType: "patient",
+        name: patient.name,
+        email: patient.email,
+        assignedRoomNumber: patient.assignedRoomNumber || "",
+        role: patient.role,
+        universityCode: patient.universityCode || "dentshowa",
+        subjectCode: patient.subjectCode || "",
+        testSessionId,
+      }),
+    )
+
+    sessionStorage.setItem("patientId", patient.id)
+    sessionStorage.setItem("patientName", patient.name)
+    sessionStorage.setItem("patientEmail", patient.email)
+    sessionStorage.setItem("patientRoom", patient.assignedRoomNumber || "")
+    sessionStorage.setItem("userRole", patient.role)
+    sessionStorage.setItem("universityCode", patient.universityCode || "dentshowa")
+    sessionStorage.setItem("subjectCode", patient.subjectCode || "")
+    sessionStorage.setItem("testSessionId", testSessionId)
+
+    window.location.href = "/patient/exam-info"
+  }
+
+  if (step === "session") {
+    return (
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-4">
+          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
+            <Calendar className="w-6 h-6 text-primary" />
+          </div>
+          <CardTitle className="text-2xl text-center">試験セッション選択</CardTitle>
+          <CardDescription className="text-center">参加する試験セッションを選択してください</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {sessions.map((session) => (
+            <Button
+              key={session.id}
+              variant="outline"
+              className="w-full justify-start h-auto py-3 px-4"
+              onClick={() => handleSessionSelect(session.id)}
+            >
+              <div className="text-left">
+                <div className="font-medium">{session.description || session.testCode}</div>
+                <div className="text-sm text-muted-foreground">{session.testDate}</div>
+              </div>
+            </Button>
+          ))}
+          <Button
+            variant="ghost"
+            className="w-full mt-2"
+            onClick={() => { setStep("credentials"); setError("") }}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            戻る
+          </Button>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -89,7 +153,7 @@ export function PatientLoginForm() {
         <CardDescription className="text-center">患者担当者IDとパスワードを入力してください</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleCredentialsSubmit} className="space-y-4">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>

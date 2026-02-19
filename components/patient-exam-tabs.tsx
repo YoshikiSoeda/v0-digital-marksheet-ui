@@ -55,14 +55,27 @@ export default function PatientExamTabs({
   const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
   const [alertTriggers, setAlertTriggers] = useState<Record<string, boolean>>({})
 
+  const getUniversityCode = (): string => {
+    try {
+      const loginInfo = sessionStorage.getItem("loginInfo")
+      return loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
+    } catch { return "" }
+  }
+
+  const getTestSessionId = (): string => {
+    return sessionStorage.getItem("testSessionId") || ""
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const universityCode = getUniversityCode()
+        const testSessionId = getTestSessionId()
         const [testsData, roomsData, attendanceData, resultsData] = await Promise.all([
           loadTests(),
-          loadRooms(),
-          loadAttendanceRecords(),
-          loadEvaluationResults(),
+          loadRooms(universityCode, undefined, testSessionId),
+          loadAttendanceRecords(universityCode, testSessionId),
+          loadEvaluationResults(universityCode, testSessionId),
         ])
 
         if (!Array.isArray(testsData)) {
@@ -114,7 +127,7 @@ export default function PatientExamTabs({
         try {
           // loadStudentsの引数はuniversityCode, subjectCodeなので、部屋番号では渡さない
           // 全学生を取得した後、部屋番号でフィルタする
-          const loadedStudents = await loadStudents()
+          const loadedStudents = await loadStudents(universityCode, undefined, testSessionId)
 
           if (!Array.isArray(loadedStudents)) {
             console.error("[v0] Students is not an array:", loadedStudents)
@@ -179,7 +192,7 @@ export default function PatientExamTabs({
     // 教員側の出席変更をポーリングで反映（10秒ごと）
     const pollAttendance = setInterval(async () => {
       try {
-        const attendanceData = await loadAttendanceRecords()
+        const attendanceData = await loadAttendanceRecords(getUniversityCode(), getTestSessionId())
         if (Array.isArray(attendanceData)) {
           setAttendanceStatus((prev) => {
             const updated = { ...prev }
@@ -217,7 +230,7 @@ export default function PatientExamTabs({
     const hasAlert = alertTriggers[student.id] || false
 
     const evaluationResult: EvaluationResult = {
-      studentId: student.studentId,
+      studentId: student.id,
       evaluatorId: patientEmail,
       evaluatorType: "patient",
       roomNumber: patientRoomNumber,
@@ -228,6 +241,8 @@ export default function PatientExamTabs({
       hasAlert,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      universityCode: getUniversityCode(),
+      testSessionId: getTestSessionId(),
     }
 
     try {
@@ -259,7 +274,7 @@ export default function PatientExamTabs({
     const hasAlert = alertTriggers[studentId] || false
 
     const evaluationResult: EvaluationResult = {
-      studentId: student.studentId,
+      studentId: student.id,
       evaluatorId: patientEmail,
       evaluatorType: "patient",
       roomNumber: patientRoomNumber,
@@ -270,6 +285,8 @@ export default function PatientExamTabs({
       hasAlert,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      universityCode: getUniversityCode(),
+      testSessionId: getTestSessionId(),
     }
 
     try {

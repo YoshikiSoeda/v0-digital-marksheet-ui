@@ -54,7 +54,8 @@ export function RoomManagement() {
     }
 
     const fetchRooms = async () => {
-      const loadedRooms = await loadRooms()
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      const loadedRooms = await loadRooms(undefined, undefined, testSessionId)
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
     }
     fetchRooms()
@@ -85,12 +86,14 @@ export function RoomManagement() {
 
     const universityCode = isSpecialMaster ? newUniversityCode : sessionStorage.getItem("universityCode") || ""
 
+    const testSessionId = sessionStorage.getItem("testSessionId") || ""
     const newRoom: Room = {
       id: crypto.randomUUID(),
       roomNumber: newRoomNumber,
       roomName: newRoomName,
       universityCode: universityCode,
       subjectCode: newSubjectCode || undefined,
+      testSessionId,
       createdAt: new Date().toISOString(),
     }
 
@@ -153,6 +156,7 @@ export function RoomManagement() {
       const importedRooms: Room[] = []
 
       const defaultUniversityCode = isSpecialMaster ? "" : sessionStorage.getItem("universityCode") || ""
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
       for (let i = 1; i < lines.length; i++) {
         const columns = lines[i].split(",").map((s) => s.trim())
@@ -171,6 +175,7 @@ export function RoomManagement() {
             roomNumber,
             roomName,
             university_code: universityCode,
+            testSessionId,
             createdAt: new Date().toISOString(),
           })
         }

@@ -207,6 +207,7 @@ const AdminDashboard = () => {
                   testCode: session.test_code,
                   universityCode: session.university_code,
                   testDate: session.test_date,
+                  description: session.description || "",
                 }))
               : []
 
@@ -229,15 +230,21 @@ const AdminDashboard = () => {
         console.log("[v0] Fetched tests:", testsData)
         setTests(Array.isArray(testsData) ? testsData : [])
 
-        const evaluationsData: any[] = []
-        console.log("[v0] Evaluation results loading disabled (avoiding fetch errors)")
+        const testSessionId = sessionStorage.getItem("testSessionId") || ""
+
+        let evaluationsData: any[] = []
+        try {
+          evaluationsData = await loadEvaluationResults(universityCode, testSessionId)
+        } catch (error) {
+          console.error("[v0] Error loading evaluation results:", error)
+        }
 
         const [studentsData, teachersData, patientsData, roomsData, attendanceData] = await Promise.all([
-          loadStudents(universityCode),
-          loadTeachers(universityCode),
-          loadPatients(universityCode),
-          loadRooms(universityCode),
-          loadAttendanceRecords(universityCode),
+          loadStudents(universityCode, undefined, testSessionId),
+          loadTeachers(universityCode, undefined, testSessionId),
+          loadPatients(universityCode, undefined, testSessionId),
+          loadRooms(universityCode, undefined, testSessionId),
+          loadAttendanceRecords(universityCode, testSessionId),
         ])
 
         console.log("[v0] Login info:", parsedLoginInfo)
@@ -300,7 +307,8 @@ const AdminDashboard = () => {
             let completedCount = 0
 
             roomStudents.forEach((student) => {
-              const statusInfo = studentStatusMap.get(student.studentId)
+              // attendance records use student UUID (student.id), not student_id (student number)
+              const statusInfo = studentStatusMap.get(student.id)
               if (statusInfo) {
                 if (statusInfo.status === "present") {
                   presentCount++
@@ -340,9 +348,9 @@ const AdminDashboard = () => {
               : undefined
 
             const studentsWithStatus = roomStudents.map((student) => {
-              const statusInfo = studentStatusMap.get(student.studentId)
+              const statusInfo = studentStatusMap.get(student.id)
               const studentEvaluation = evaluationsData.find(
-                (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
+                (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
               )
               const totalScore = studentEvaluation?.totalScore || 0
               return {
@@ -413,21 +421,21 @@ const AdminDashboard = () => {
       const isMasterAdmin = universityCodes.includes("ALL")
       const universityCode = isMasterAdmin ? undefined : universityCodes[0]
 
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
       let fetchedEvaluations = []
       try {
-        fetchedEvaluations = await loadEvaluationResults(universityCode)
+        fetchedEvaluations = await loadEvaluationResults(universityCode, testSessionId)
       } catch (error) {
         console.error("[v0] Error loading evaluation results:", error)
-        // Continue without evaluation data
       }
 
       const [fetchedStudents, fetchedTeachers, fetchedPatients, fetchedRooms, fetchedAttendance, fetchedTests] =
         await Promise.all([
-          loadStudents(universityCode),
-          loadTeachers(universityCode),
-          loadPatients(universityCode),
-          loadRooms(universityCode),
-          loadAttendanceRecords(universityCode),
+          loadStudents(universityCode, undefined, testSessionId),
+          loadTeachers(universityCode, undefined, testSessionId),
+          loadPatients(universityCode, undefined, testSessionId),
+          loadRooms(universityCode, undefined, testSessionId),
+          loadAttendanceRecords(universityCode, testSessionId),
           loadTests(universityCode),
         ])
 
@@ -485,7 +493,8 @@ const AdminDashboard = () => {
           let completedCount = 0
 
           roomStudents.forEach((student) => {
-            const statusInfo = studentStatusMap.get(student.studentId)
+            // attendance records use student UUID (student.id), not student_id (student number)
+            const statusInfo = studentStatusMap.get(student.id)
             if (statusInfo) {
               if (statusInfo.status === "present") {
                 presentCount++
@@ -525,9 +534,9 @@ const AdminDashboard = () => {
             : undefined
 
           const studentsWithStatus = roomStudents.map((student) => {
-            const statusInfo = studentStatusMap.get(student.studentId)
+            const statusInfo = studentStatusMap.get(student.id)
             const studentEvaluation = fetchedEvaluations.find(
-              (e) => e.studentId === student.studentId && e.roomNumber === room.roomNumber,
+              (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
             )
             const totalScore = studentEvaluation?.totalScore || 0
             return {
@@ -755,12 +764,28 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        {assignedSubjectName && (
-          <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
-            <p className="text-sm text-blue-600 font-medium">担当教科</p>
-            <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
-          </div>
-        )}
+  {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
+  <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 space-y-2">
+  {assignedSubjectName && (
+    <div>
+      <p className="text-sm text-blue-600 font-medium">担当教科</p>
+      <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
+    </div>
+  )}
+  {(() => {
+    const currentSessionId = sessionStorage.getItem("testSessionId") || ""
+    const currentSession = testSessions.find((s) => s.id === currentSessionId)
+    if (!currentSession) return null
+    return (
+      <div>
+        <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
+        <p className="text-lg font-bold text-blue-900">{currentSession.description || currentSession.testCode}</p>
+        <p className="text-xs text-blue-700">テストコード: {currentSession.testCode} / 実施日: {currentSession.testDate}</p>
+      </div>
+    )
+  })()}
+  </div>
+  )}
 
         <Card>
           <CardHeader>
@@ -773,7 +798,7 @@ const AdminDashboard = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                 {filteredRooms.map((room) => (
-                  <Card key={room.roomNumber} className="bg-accent/30 hover:bg-accent/50 transition-colors">
+                  <Card key={room.roomNumber} className={`transition-colors ${room.alertCount > 0 ? "bg-red-50 border-red-200 hover:bg-red-100" : "bg-accent/30 hover:bg-accent/50"}`}>
                     <CardContent className="p-4">
                       <div className="space-y-2">
                         <div className="text-center border-b pb-2">

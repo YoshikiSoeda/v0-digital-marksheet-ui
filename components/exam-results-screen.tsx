@@ -30,7 +30,8 @@ export function ExamResultsScreen() {
     if (loginInfo) {
       const info = JSON.parse(loginInfo)
       setRoomNumber(info.assignedRoomNumber || "")
-      setEvaluatorType(info.role === "teacher" ? "teacher" : "patient")
+      const isTeacherRole = info.loginType === "teacher" || info.role === "teacher" || info.role === "subject_admin" || info.role === "university_admin"
+      setEvaluatorType(isTeacherRole ? "teacher" : "patient")
     }
 
     if (startTime) {
@@ -50,47 +51,90 @@ export function ExamResultsScreen() {
 
       const info = JSON.parse(loginInfo)
       const currentRoomNumber = info.assignedRoomNumber
+      const universityCode = info.universityCode || ""
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
       const [students, evaluations, attendanceRecords] = await Promise.all([
-        loadStudents(),
-        loadEvaluationResults(),
-        loadAttendanceRecords(),
+        loadStudents(universityCode, undefined, testSessionId),
+        loadEvaluationResults(universityCode, testSessionId),
+        loadAttendanceRecords(universityCode, testSessionId),
       ])
 
       const roomStudents = students.filter((s) => s.roomNumber === currentRoomNumber)
+      // loginType is "teacher" or "patient", role can be "teacher", "subject_admin", "university_admin", etc.
+      const isTeacher = info.loginType === "teacher" || info.role === "teacher" || info.role === "subject_admin" || info.role === "university_admin"
+      const expectedEvaluatorType = isTeacher ? "teacher" : "patient"
       const roomEvaluations = evaluations.filter(
         (e) =>
-          e.roomNumber === currentRoomNumber && e.evaluatorType === (info.role === "teacher" ? "teacher" : "patient"),
+          e.roomNumber === currentRoomNumber && e.evaluatorType === expectedEvaluatorType,
       )
       const roomAttendance = attendanceRecords.filter((a) => a.roomNumber === currentRoomNumber)
 
-      const presentCount = roomAttendance.filter((a) => a.status === "present").length
-      const absentCount = roomAttendance.filter((a) => a.status === "absent").length
 
-      const completedEvaluations = roomEvaluations.filter((e) => e.isCompleted)
-      const alertEvaluations = roomEvaluations.filter((e) => e.hasAlert)
 
-      const totalScore = completedEvaluations.reduce((sum, e) => sum + (e.totalScore || 0), 0)
-      const avgScore = completedEvaluations.length > 0 ? Math.round(totalScore / completedEvaluations.length) : 0
+      // Build a map keyed by studentId (UUID) to deduplicate attendance records
+      const studentStatusMap = new Map<string, string>()
+      roomAttendance.forEach((a) => {
+        // Only use UUID-format student IDs, or overwrite with latest
+        studentStatusMap.set(a.studentId, a.status)
+      })
+
+      // Count attendance by matching against actual students in the room
+      let presentCount = 0
+      let absentCount = 0
+      roomStudents.forEach((student) => {
+        const status = studentStatusMap.get(student.id)
+        if (status === "present") presentCount++
+        else if (status === "absent") absentCount++
+      })
+
+      // Build evaluation map keyed by student UUID to deduplicate and get latest
+      const evaluationMap = new Map<string, typeof roomEvaluations[0]>()
+      roomEvaluations.forEach((e) => {
+        const existing = evaluationMap.get(e.studentId)
+        // Keep the most recent or the completed one
+        if (!existing || e.isCompleted || (!existing.isCompleted && (e.updatedAt || "") >= (existing.updatedAt || ""))) {
+          evaluationMap.set(e.studentId, e)
+        }
+      })
+
+      // Count completed/alert only for present students
+      let completedCount = 0
+      let alertCount = 0
+      let totalScore = 0
+      roomStudents.forEach((student) => {
+        const attendance = studentStatusMap.get(student.id)
+        // Only count evaluations for students who are present
+        if (attendance !== "present") return
+        const evaluation = evaluationMap.get(student.id)
+        if (evaluation?.isCompleted) {
+          completedCount++
+          totalScore += evaluation.totalScore || 0
+        }
+        if (evaluation?.hasAlert) alertCount++
+      })
+      const avgScore = completedCount > 0 ? Math.round(totalScore / completedCount) : 0
 
       setRoomStats({
         totalStudents: roomStudents.length,
         presentCount,
         absentCount,
-        completedCount: completedEvaluations.length,
-        alertCount: alertEvaluations.length,
+        completedCount,
+        alertCount,
         averageScore: avgScore,
       })
 
       const details = roomStudents.map((student) => {
-        const attendance = roomAttendance.find((a) => a.studentId === student.id)
-        const evaluation = roomEvaluations.find((e) => e.studentId === student.id)
+        const status = studentStatusMap.get(student.id)
+        const evaluation = evaluationMap.get(student.id)
+        // Absent students should not show completion or scores regardless of evaluation data
+        const isPresent = status === "present"
         return {
           name: student.name,
           studentId: student.studentId,
-          status: attendance?.status || "未記録",
-          isCompleted: evaluation?.isCompleted || false,
-          score: evaluation?.totalScore || 0,
+          status: status || "未記録",
+          isCompleted: isPresent ? (evaluation?.isCompleted || false) : false,
+          score: isPresent ? (evaluation?.totalScore || 0) : 0,
         }
       })
       setStudentDetails(details)

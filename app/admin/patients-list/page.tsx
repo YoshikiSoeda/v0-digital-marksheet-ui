@@ -60,7 +60,8 @@ export default function PatientsListPage() {
         }
       }
 
-      const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([loadPatients(), loadRooms(), loadSubjects()])
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([loadPatients(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
       setPatients(Array.isArray(loadedPatients) ? loadedPatients : [])
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
       setSubjects(Array.isArray(loadedSubjects) ? loadedSubjects : [])
