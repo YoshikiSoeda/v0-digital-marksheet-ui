@@ -207,6 +207,7 @@ const AdminDashboard = () => {
                   testCode: session.test_code,
                   universityCode: session.university_code,
                   testDate: session.test_date,
+                  description: session.description || "",
                 }))
               : []
 
@@ -758,12 +759,28 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        {assignedSubjectName && (
-          <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
-            <p className="text-sm text-blue-600 font-medium">担当教科</p>
-            <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
-          </div>
-        )}
+  {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
+  <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 space-y-2">
+  {assignedSubjectName && (
+    <div>
+      <p className="text-sm text-blue-600 font-medium">担当教科</p>
+      <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
+    </div>
+  )}
+  {(() => {
+    const currentSessionId = sessionStorage.getItem("testSessionId") || ""
+    const currentSession = testSessions.find((s) => s.id === currentSessionId)
+    if (!currentSession) return null
+    return (
+      <div>
+        <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
+        <p className="text-lg font-bold text-blue-900">{currentSession.description || currentSession.testCode}</p>
+        <p className="text-xs text-blue-700">テストコード: {currentSession.testCode} / 実施日: {currentSession.testDate}</p>
+      </div>
+    )
+  })()}
+  </div>
+  )}
 
         <Card>
           <CardHeader>
