@@ -115,6 +115,7 @@ const AdminDashboard = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
+  const selectedRoomData = selectedRoom ? rooms.find((r) => r.roomNumber === selectedRoom) : null
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [updateCounter, setUpdateCounter] = useState(0)
   const [accountType, setAccountType] = useState<string | null>(null)
@@ -827,18 +828,17 @@ const AdminDashboard = () => {
       <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
     </div>
   )}
-  {(() => {
-    const currentSessionId = sessionStorage.getItem("testSessionId") || ""
-    const currentSession = testSessions.find((s) => s.id === currentSessionId)
-    if (!currentSession) return null
-    return (
-      <div>
-        <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
-<p className="text-lg font-bold text-blue-900">{currentSession.description}</p>
-  <p className="text-xs text-blue-700">実施日: {currentSession.testDate}</p>
-      </div>
-    )
-  })()}
+  {testSessions.find((s) => s.id === (typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") : "")) && (
+    <div>
+      <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
+      <p className="text-lg font-bold text-blue-900">
+        {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.description}
+      </p>
+      <p className="text-xs text-blue-700">
+        実施日: {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.testDate}
+      </p>
+    </div>
+  )}
   </div>
   )}
 
@@ -947,29 +947,27 @@ const AdminDashboard = () => {
           <DialogHeader>
             <DialogTitle>部屋 {selectedRoom} の詳細</DialogTitle>
           </DialogHeader>
-          {selectedRoom &&
-            (() => {
-              const room = rooms.find((r) => r.roomNumber === selectedRoom)
-              if (!room) return <p className="text-muted-foreground">部屋情報が見つかりません</p>
-
-              return (
+          {selectedRoom && !selectedRoomData && (
+            <p className="text-muted-foreground">部屋情報が見つかりません</p>
+          )}
+          {selectedRoomData && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">部屋名</p>
-                      <p className="text-base">{room.roomName}</p>
+                      <p className="text-base">{selectedRoomData.roomName}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">部屋番号</p>
-                      <p className="text-base">{room.roomNumber}</p>
+                      <p className="text-base">{selectedRoomData.roomNumber}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">担当教員</p>
-                      <p className="text-base">{room.teacherName}</p>
+                      <p className="text-base">{selectedRoomData.teacherName}</p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">患者担当</p>
-                      <p className="text-base">{room.patientName}</p>
+                      <p className="text-base">{selectedRoomData.patientName}</p>
                     </div>
                   </div>
 
@@ -977,11 +975,11 @@ const AdminDashboard = () => {
                     <h4 className="font-medium mb-2">進捗状況</h4>
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div>
-                        <p className="text-2xl font-bold text-green-600">{room.presentCount}</p>
+                        <p className="text-2xl font-bold text-green-600">{selectedRoomData.presentCount}</p>
                         <p className="text-xs text-muted-foreground">出席</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-red-600">{room.absentCount}</p>
+                        <p className="text-2xl font-bold text-red-600">{selectedRoomData.absentCount}</p>
                         <p className="text-xs text-muted-foreground">欠席</p>
                       </div>
                     </div>
@@ -997,25 +995,25 @@ const AdminDashboard = () => {
                         <tbody>
                           <tr className="border-b">
                             <td className="py-1.5 text-muted-foreground">完了</td>
-                            <td className="text-center font-bold text-blue-600">{room.teacherStats.completedCount}</td>
-                            <td className="text-center font-bold text-pink-600">{room.patientStats.completedCount}</td>
+                            <td className="text-center font-bold text-blue-600">{selectedRoomData.teacherStats.completedCount}</td>
+                            <td className="text-center font-bold text-pink-600">{selectedRoomData.patientStats.completedCount}</td>
                           </tr>
                           <tr className="border-b">
                             <td className="py-1.5 text-muted-foreground">アラート</td>
-                            <td className="text-center font-bold text-red-600">{room.teacherStats.alertCount}</td>
-                            <td className="text-center font-bold text-red-600">{room.patientStats.alertCount}</td>
+                            <td className="text-center font-bold text-red-600">{selectedRoomData.teacherStats.alertCount}</td>
+                            <td className="text-center font-bold text-red-600">{selectedRoomData.patientStats.alertCount}</td>
                           </tr>
                           <tr>
                             <td className="py-1.5 text-muted-foreground">平均点</td>
-                            <td className="text-center font-bold text-blue-700">{room.teacherStats.averageScore}点</td>
-                            <td className="text-center font-bold text-pink-700">{room.patientStats.averageScore}点</td>
+                            <td className="text-center font-bold text-blue-700">{selectedRoomData.teacherStats.averageScore}点</td>
+                            <td className="text-center font-bold text-pink-700">{selectedRoomData.patientStats.averageScore}点</td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
                     <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
                       <span className="text-xs text-muted-foreground">合算平均: </span>
-                      <span className="font-bold text-primary">{room.averageScore}点</span>
+                      <span className="font-bold text-primary">{selectedRoomData.averageScore}点</span>
                       </div>
                     </div>
                   </div>
@@ -1023,7 +1021,7 @@ const AdminDashboard = () => {
                   <div className="border-t pt-4">
                     <h4 className="font-medium mb-2">学生一覧</h4>
                     <div className="space-y-2">
-                      {room.students && room.students.length > 0 ? (
+                      {selectedRoomData.students && selectedRoomData.students.length > 0 ? (
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b">
@@ -1036,7 +1034,7 @@ const AdminDashboard = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {room.students.map((student) => (
+                            {selectedRoomData.students.map((student) => (
                               <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
                                 <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
                                 <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
@@ -1082,8 +1080,7 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                 </div>
-              )
-            })()}
+          )}
         </DialogContent>
       </Dialog>
     </div>
