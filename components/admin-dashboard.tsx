@@ -29,19 +29,19 @@ interface RoomData {
   alertCount: number
   averageScore: number
   students: Array<{
-    studentId: string
+    id: string
     name: string
-    email?: string
-    status: "present" | "absent" | "pending"
-    progress: number
-    score: number
-    statusText: string
+    status: string
+    isCompleted: boolean
+    totalScore: number
+    alertCount: number
   }>
+  universityCode: string
 }
 
-interface Room {
+interface RoomData {
   roomNumber: string
-  roomName?: string
+  roomName: string
   teacherName: string
   patientName: string
   presentCount: number
@@ -49,7 +49,7 @@ interface Room {
   completedCount: number
   alertCount: number
   averageScore: number
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
   universityCode?: string
 }
 
@@ -269,7 +269,7 @@ const AdminDashboard = () => {
             completedCount: number
             alertCount: number
             averageScore: number
-            students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
+            students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
             universityCode?: string
           }
         >()
@@ -347,6 +347,14 @@ const AdminDashboard = () => {
               ? patientsData.find((p) => p.assignedRoomNumber === room.roomNumber)
               : undefined
 
+            // Count alerts per student
+            const studentAlertCountMap = new Map<string, number>()
+            roomEvaluations.forEach((evaluation) => {
+              if (evaluation.hasAlert === true) {
+                studentAlertCountMap.set(evaluation.studentId, (studentAlertCountMap.get(evaluation.studentId) || 0) + 1)
+              }
+            })
+
             const studentsWithStatus = roomStudents.map((student) => {
               const statusInfo = studentStatusMap.get(student.id)
               const studentEvaluation = evaluationsData.find(
@@ -359,6 +367,7 @@ const AdminDashboard = () => {
                 status: statusInfo?.status || "unknown",
                 isCompleted: statusInfo?.isCompleted || false,
                 totalScore: totalScore,
+                alertCount: studentAlertCountMap.get(student.id) || 0,
               }
             })
 
@@ -455,7 +464,7 @@ const AdminDashboard = () => {
           completedCount: number
           alertCount: number
           averageScore: number
-          students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number }>
+          students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
           universityCode?: string
         }
       >()
@@ -533,6 +542,14 @@ const AdminDashboard = () => {
             ? fetchedPatients.find((p) => p.assignedRoomNumber === room.roomNumber)
             : undefined
 
+          // Count alerts per student
+          const studentAlertCountMap = new Map<string, number>()
+          roomEvaluations.forEach((evaluation) => {
+            if (evaluation.hasAlert === true) {
+              studentAlertCountMap.set(evaluation.studentId, (studentAlertCountMap.get(evaluation.studentId) || 0) + 1)
+            }
+          })
+
           const studentsWithStatus = roomStudents.map((student) => {
             const statusInfo = studentStatusMap.get(student.id)
             const studentEvaluation = fetchedEvaluations.find(
@@ -545,6 +562,7 @@ const AdminDashboard = () => {
               status: statusInfo?.status || "unknown",
               isCompleted: statusInfo?.isCompleted || false,
               totalScore: totalScore,
+              alertCount: studentAlertCountMap.get(student.id) || 0,
             }
           })
 
@@ -937,14 +955,15 @@ const AdminDashboard = () => {
                               <th className="text-left py-2">氏名</th>
                               <th className="text-center py-2">出欠</th>
                               <th className="text-center py-2">合計点</th>
+                              <th className="text-center py-2">アラート</th>
                               <th className="text-center py-2">完了</th>
                             </tr>
                           </thead>
                           <tbody>
                             {room.students.map((student) => (
-                              <tr key={student.id} className="border-b">
-                                <td className="py-2">{student.id}</td>
-                                <td className="py-2">{student.name}</td>
+                              <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
+                                <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
+                                <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
                                 <td className="text-center py-2">
                                   <span
                                     className={`px-2 py-1 rounded text-xs ${
@@ -962,7 +981,14 @@ const AdminDashboard = () => {
                                         : "未確認"}
                                   </span>
                                 </td>
-                                <td className="text-center py-2 font-medium">{student.totalScore}点</td>
+                                <td className={`text-center py-2 font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.totalScore}点</td>
+                                <td className="text-center py-2">
+                                  {student.alertCount > 0 ? (
+                                    <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
                                 <td className="text-center py-2">
                                   {student.isCompleted ? (
                                     <span className="text-blue-600">✓</span>
