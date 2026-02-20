@@ -122,11 +122,14 @@ export default function StudentsDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">受験者一覧</h1>
-            {(filterUniversity || filterTestCode) && (
+            {(filterUniversity || filterTestSessionId) && (
               <p className="text-sm text-muted-foreground mt-1">
                 {filterUniversity && `大学: ${filterUniversity}`}
-                {filterUniversity && filterTestCode && " / "}
-                {filterTestCode && `テストコード: ${filterTestCode}`}
+                {filterUniversity && filterTestSessionId && " / "}
+                {filterTestSessionId && (() => {
+                  const session = testSessions.find((s: any) => s.id === filterTestSessionId)
+                  return `試験: ${session?.description || filterTestSessionId}`
+                })()}
               </p>
             )}
           </div>

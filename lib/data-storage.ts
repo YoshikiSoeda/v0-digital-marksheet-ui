@@ -134,7 +134,6 @@ export interface Test {
 // 試験セッションデータの型定義
 export interface TestSession {
   id: string
-  testCode: string
   testDate: string
   description: string
   universityCode: string

@@ -1000,7 +1000,7 @@ export function QuestionCreate() {
                   or 1),アラート選択肢("1,3,5"のように指定)
                 </p>
                 <p className="text-sm text-gray-500 font-bold">
-                  ※同じテスト名で複数行を登録すると、1つのテストコードに複数のテストを紐づけることができます
+                  ※同じテスト名で複数行を登録すると、1つの試験セッションに複数のテストを紐づけることができます
                 </p>
               </CardContent>
             </Card>

@@ -201,12 +201,11 @@ const AdminDashboard = () => {
 
             // Transform snake_case to camelCase
             const transformedSessions = Array.isArray(sessionsData)
-  ? sessionsData.map((session: any) => ({
-  id: session.id,
-  description: session.description || "(名称未設定)",
-  universityCode: session.university_code,
-  testDate: session.test_date,
-                  description: session.description || "",
+              ? sessionsData.map((session: any) => ({
+                  id: session.id,
+                  description: session.description || "(名称未設定)",
+                  universityCode: session.university_code,
+                  testDate: session.test_date,
                 }))
               : []
 
@@ -609,8 +608,8 @@ const AdminDashboard = () => {
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
       const matchesUniversity = !selectedUniversity || room.universityCode === selectedUniversity
-      // テストコードが選択されている場合は、全部屋を表示（テストコードはtest_sessionsに紐づく）
-      // 実際のフィルタリングはevaluationsデータではなく、選択されたテストコードで行う
+    // 試験セッションが選択されている場合は、全部屋を表示
+    // 実際のフィルタリングはevaluationsデータではなく、選択された試験セッションIDで行う
       return matchesUniversity
     })
   }, [rooms, selectedUniversity])
