@@ -48,7 +48,10 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
         const universityCode = sessionStorage.getItem("universityCode") || undefined
         const fetchedTests = await loadTests(universityCode, teacherSubjectCode || undefined)
         if (Array.isArray(fetchedTests)) {
-          setTests(fetchedTests)
+          // roleTypeでフィルタ: 教員はteacher, 患者役はpatientのテストのみ表示
+          const expectedRoleType = userType === "patient" ? "patient" : "teacher"
+          const filtered = fetchedTests.filter((t) => (t.roleType || "teacher") === expectedRoleType)
+          setTests(filtered)
         } else {
           console.error("[v0] loadTests did not return an array:", fetchedTests)
           setTests([])

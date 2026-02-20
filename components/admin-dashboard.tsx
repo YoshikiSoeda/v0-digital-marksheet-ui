@@ -39,6 +39,12 @@ interface RoomData {
   universityCode: string
 }
 
+interface RoleStats {
+  completedCount: number
+  alertCount: number
+  averageScore: number
+}
+
 interface RoomData {
   roomNumber: string
   roomName: string
@@ -49,6 +55,8 @@ interface RoomData {
   completedCount: number
   alertCount: number
   averageScore: number
+  teacherStats: RoleStats
+  patientStats: RoleStats
   students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
   universityCode?: string
 }
@@ -338,6 +346,27 @@ const AdminDashboard = () => {
             const avgScore =
               completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
 
+            // Split stats by evaluatorType (teacher/patient)
+            const teacherEvals = roomEvaluations.filter((e) => e.evaluatorType === "teacher")
+            const patientEvals = roomEvaluations.filter((e) => e.evaluatorType === "patient")
+
+            const calcRoleStats = (evals: typeof roomEvaluations): RoleStats => {
+              const completed = new Set<string>()
+              const alerts = new Set<string>()
+              const scoreMap = new Map<string, number>()
+              evals.forEach((e) => {
+                if (e.isCompleted) completed.add(e.studentId)
+                if (e.hasAlert) alerts.add(e.studentId)
+                if (e.isCompleted) scoreMap.set(e.studentId, e.totalScore || 0)
+              })
+              const scores = Array.from(scoreMap.values())
+              const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+              return { completedCount: completed.size, alertCount: alerts.size, averageScore: avg }
+            }
+
+            const teacherStats = calcRoleStats(teacherEvals)
+            const patientStats = calcRoleStats(patientEvals)
+
             const teacherForRoom = Array.isArray(teachersData)
               ? teachersData.find((t) => t.assignedRoomNumber === room.roomNumber)
               : undefined
@@ -383,6 +412,8 @@ const AdminDashboard = () => {
               completedCount,
               alertCount,
               averageScore: avgScore,
+              teacherStats,
+              patientStats,
               students: studentsWithStatus,
               universityCode: room.universityCode,
             })
@@ -450,22 +481,7 @@ const AdminDashboard = () => {
       console.log("[v0] Refreshed patients data:", fetchedPatients)
       console.log("[v0] Refreshed rooms data:", fetchedRooms)
 
-      const roomMap = new Map<
-        string,
-        {
-          roomNumber: string
-          roomName: string
-          teacherName: string
-          patientName: string
-          presentCount: number
-          absentCount: number
-          completedCount: number
-          alertCount: number
-          averageScore: number
-          students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
-          universityCode?: string
-        }
-      >()
+      const roomMap = new Map<string, RoomData>()
 
       if (
         Array.isArray(fetchedRooms) &&
@@ -533,6 +549,27 @@ const AdminDashboard = () => {
           const avgScore =
             completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
 
+          // Split stats by evaluatorType
+          const teacherEvalsP = roomEvaluations.filter((e) => e.evaluatorType === "teacher")
+          const patientEvalsP = roomEvaluations.filter((e) => e.evaluatorType === "patient")
+
+          const calcRoleStatsP = (evals: typeof roomEvaluations): RoleStats => {
+            const completed = new Set<string>()
+            const alerts = new Set<string>()
+            const scoreMap = new Map<string, number>()
+            evals.forEach((e) => {
+              if (e.isCompleted) completed.add(e.studentId)
+              if (e.hasAlert) alerts.add(e.studentId)
+              if (e.isCompleted) scoreMap.set(e.studentId, e.totalScore || 0)
+            })
+            const scores = Array.from(scoreMap.values())
+            const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+            return { completedCount: completed.size, alertCount: alerts.size, averageScore: avg }
+          }
+
+          const teacherStatsP = calcRoleStatsP(teacherEvalsP)
+          const patientStatsP = calcRoleStatsP(patientEvalsP)
+
           const teacherForRoom = Array.isArray(fetchedTeachers)
             ? fetchedTeachers.find((t) => t.assignedRoomNumber === room.roomNumber)
             : undefined
@@ -578,6 +615,8 @@ const AdminDashboard = () => {
             completedCount,
             alertCount,
             averageScore: avgScore,
+            teacherStats: teacherStatsP,
+            patientStats: patientStatsP,
             students: studentsWithStatus,
             universityCode: room.universityCode,
           })
@@ -841,18 +880,32 @@ const AdminDashboard = () => {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">完了:</span>
-                              <span className="font-semibold text-blue-600">{room.completedCount}</span>
+                              <span className="font-semibold text-xs">
+                                <span className="text-blue-600">教 {room.teacherStats.completedCount}</span>
+                                <span className="mx-1 text-muted-foreground">/</span>
+                                <span className="text-pink-600">患 {room.patientStats.completedCount}</span>
+                              </span>
                             </div>
-                            {room.alertCount > 0 && (
+                            {(room.teacherStats.alertCount > 0 || room.patientStats.alertCount > 0) && (
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">アラート:</span>
-                                <span className="font-semibold text-red-600">{room.alertCount}</span>
+                                <span className="font-semibold text-xs">
+                                  <span className="text-red-600">教 {room.teacherStats.alertCount}</span>
+                                  <span className="mx-1 text-muted-foreground">/</span>
+                                  <span className="text-red-600">患 {room.patientStats.alertCount}</span>
+                                </span>
                               </div>
                             )}
-                            {room.averageScore > 0 && (
-                              <div className="text-center pt-2 border-t mt-2">
-                                <span className="text-muted-foreground">平均: </span>
-                                <span className="font-bold text-primary">{room.averageScore}点</span>
+                            {(room.teacherStats.averageScore > 0 || room.patientStats.averageScore > 0) && (
+                              <div className="pt-2 border-t mt-2 space-y-0.5">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">平均(教員):</span>
+                                  <span className="font-bold text-blue-700">{room.teacherStats.averageScore}点</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">平均(患者):</span>
+                                  <span className="font-bold text-pink-700">{room.patientStats.averageScore}点</span>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -920,9 +973,9 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="border-t pt-4">
+                    <div className="border-t pt-4">
                     <h4 className="font-medium mb-2">進捗状況</h4>
-                    <div className="grid grid-cols-4 gap-4 text-center">
+                    <div className="grid grid-cols-2 gap-4 text-center">
                       <div>
                         <p className="text-2xl font-bold text-green-600">{room.presentCount}</p>
                         <p className="text-xs text-muted-foreground">出席</p>
@@ -931,13 +984,38 @@ const AdminDashboard = () => {
                         <p className="text-2xl font-bold text-red-600">{room.absentCount}</p>
                         <p className="text-xs text-muted-foreground">欠席</p>
                       </div>
-                      <div>
-                        <p className="text-2xl font-bold text-blue-600">{room.completedCount}</p>
-                        <p className="text-xs text-muted-foreground">完了</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-orange-600">{room.alertCount}</p>
-                        <p className="text-xs text-muted-foreground">アラート</p>
+                    </div>
+                    <div className="mt-4">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-1 text-muted-foreground font-medium"></th>
+                            <th className="text-center py-1 text-blue-700 font-medium">教員側</th>
+                            <th className="text-center py-1 text-pink-700 font-medium">患者役側</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="py-1.5 text-muted-foreground">完了</td>
+                            <td className="text-center font-bold text-blue-600">{room.teacherStats.completedCount}</td>
+                            <td className="text-center font-bold text-pink-600">{room.patientStats.completedCount}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 text-muted-foreground">アラート</td>
+                            <td className="text-center font-bold text-red-600">{room.teacherStats.alertCount}</td>
+                            <td className="text-center font-bold text-red-600">{room.patientStats.alertCount}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-1.5 text-muted-foreground">平均点</td>
+                            <td className="text-center font-bold text-blue-700">{room.teacherStats.averageScore}点</td>
+                            <td className="text-center font-bold text-pink-700">{room.patientStats.averageScore}点</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
+                      <span className="text-xs text-muted-foreground">合算平均: </span>
+                      <span className="font-bold text-primary">{room.averageScore}点</span>
                       </div>
                     </div>
                   </div>

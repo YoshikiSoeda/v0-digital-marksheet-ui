@@ -28,6 +28,7 @@ export function QuestionCreate() {
   const [selectedSubject, setSelectedSubject] = useState("")
   const [teacherSubjectCode, setTeacherSubjectCode] = useState<string>("")
   const [isTeacher, setIsTeacher] = useState(false)
+  const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
 
   const [tests, setTests] = useState<
     Array<{
@@ -451,6 +452,7 @@ export function QuestionCreate() {
         testSessionId: testSession.id,
         universityCode: selectedUniversity,
         subjectCode: selectedSubject || null,
+        roleType: roleType,
       } as Test
 
       newTests.push(newTest)
@@ -650,6 +652,19 @@ export function QuestionCreate() {
                     </div>
                   </div>
                 )}
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">対象ロール</Label>
+                  <Select value={roleType} onValueChange={(v) => setRoleType(v as "teacher" | "patient")}>
+                    <SelectTrigger className="h-9 w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="teacher">教員側</SelectItem>
+                      <SelectItem value="patient">患者役側</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="space-y-1 flex-1 min-w-48">
                   <Label className="text-xs text-muted-foreground">試験セッション</Label>

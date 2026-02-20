@@ -179,7 +179,14 @@ export function ExamResultsScreen() {
               <CheckCircle className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="text-3xl">評価サマリー</CardTitle>
-            <p className="text-muted-foreground">部屋{roomNumber}の評価結果</p>
+            <p className="text-muted-foreground">
+              部屋{roomNumber}の評価結果
+              <span className={`ml-2 inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                evaluatorType === "patient" ? "bg-pink-100 text-pink-800" : "bg-blue-100 text-blue-800"
+              }`}>
+                {evaluatorType === "patient" ? "患者役側" : "教員側"}
+              </span>
+            </p>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

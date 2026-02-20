@@ -12,6 +12,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         test_date: body.test_date,
         description: body.description,
         university_code: body.university_code,
+        passing_score: body.passing_score ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", params.id)

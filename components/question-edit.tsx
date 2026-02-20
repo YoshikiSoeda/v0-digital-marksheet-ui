@@ -28,6 +28,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   const [universities, setUniversities] = useState<any[]>([])
   const [selectedUniversity, setSelectedUniversity] = useState("")
   const [accountType, setAccountType] = useState<string>("")
+  const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
 
   useEffect(() => {
     const storedAccountType = sessionStorage.getItem("accountType") || ""
@@ -64,6 +65,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         setSheets(test.sheets)
         setSelectedUniversity(test.universityCode || "")
         setSelectedSubjectCode(test.subjectCode || "")
+        setRoleType(test.roleType || "teacher")
 
         if (test.testSessionId) {
           setSelectedTestSessionId(test.testSessionId)
@@ -276,6 +278,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
               testSessionId: testSession.id,
               universityCode: testSession.university_code,
               subjectCode: selectedSubjectCode || null,
+              roleType: roleType,
               updatedAt: new Date().toISOString(),
             }
           : t,
@@ -319,6 +322,18 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         <Card className="mb-6">
           <CardContent className="pt-4 pb-3">
             <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[120px]">
+                <Label className="text-xs">対象ロール</Label>
+                <Select value={roleType} onValueChange={(v) => setRoleType(v as "teacher" | "patient")}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="teacher">教員側</SelectItem>
+                    <SelectItem value="patient">患者役側</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="min-w-[180px] flex-1">
                 <Label htmlFor="testSession" className="text-xs">試験セッション</Label>
                 <Select value={selectedTestSessionId} onValueChange={setSelectedTestSessionId}>

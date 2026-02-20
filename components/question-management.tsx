@@ -347,7 +347,16 @@ export function QuestionManagement() {
                               className="flex items-center justify-between rounded-lg border bg-white p-4 ml-4"
                             >
                               <div>
-                                <h5 className="font-semibold text-[#00417A]">{test.title}</h5>
+                                <div className="flex items-center gap-2">
+                                  <h5 className="font-semibold text-[#00417A]">{test.title}</h5>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    (test as any).roleType === "patient"
+                                      ? "bg-pink-100 text-pink-800"
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}>
+                                    {(test as any).roleType === "patient" ? "患者役側" : "教員側"}
+                                  </span>
+                                </div>
                                 <p className="text-sm text-gray-500">
                                   {(test as any).subjectCode && (
                                     <>
@@ -392,7 +401,16 @@ export function QuestionManagement() {
                   return (
                   <div key={test.id} className="flex items-center justify-between rounded-lg border bg-white p-4">
                     <div>
-                      <h4 className="font-semibold text-[#00417A]">{test.title}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-[#00417A]">{test.title}</h4>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          (test as any).roleType === "patient"
+                            ? "bg-pink-100 text-pink-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}>
+                          {(test as any).roleType === "patient" ? "患者役側" : "教員側"}
+                        </span>
+                      </div>
                       {testSession && (
                         <p className="text-sm text-[#00417A]/80 font-medium mt-0.5">
                           {testSession.description || "(名称未設定)"}

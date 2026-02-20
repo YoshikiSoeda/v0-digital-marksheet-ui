@@ -129,6 +129,7 @@ export interface Test {
   universityCode?: string // 大学コード
   testSessionId?: string // Add test_session_id
   subjectCode?: string // 教科コード
+  roleType?: "teacher" | "patient" // 教員側 or 患者役側
 }
 
 // 試験セッションデータの型定義
@@ -138,6 +139,7 @@ export interface TestSession {
   description: string
   universityCode: string
   subjectCode?: string
+  passingScore?: number | null // 合格ライン
   createdAt: string
   updatedAt: string
 }
@@ -164,6 +166,7 @@ export async function loadTestSessions(universityCode?: string): Promise<TestSes
     description: row.description || "",
     universityCode: row.university_code,
     subjectCode: row.subject_code,
+    passingScore: row.passing_score ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }))
@@ -605,7 +608,8 @@ export async function saveTests(tests: Test[]) {
           created_at: test.createdAt,
           updated_at: test.updatedAt,
           university_code: test.universityCode || null,
-          subject_code: test.subjectCode || null, // Add subject_code
+          subject_code: test.subjectCode || null,
+          role_type: test.roleType || "teacher",
         },
         { onConflict: "id" },
       )
@@ -721,8 +725,9 @@ export async function loadTests(universityCode?: string, subjectCode?: string): 
   return (tests || []).map((test) => ({
     id: test.id,
     title: test.title,
-    testSessionId: test.test_session_id, // Add test_session_id
-    subjectCode: test.subject_code, // Add subject_code
+    testSessionId: test.test_session_id,
+    subjectCode: test.subject_code,
+    roleType: test.role_type || "teacher",
     sheets: (test.sheets || []).map((sheet: any) => ({
       id: sheet.id,
       title: sheet.title,
