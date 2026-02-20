@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Edit, Trash2, ArrowLeft, Calendar } from "lucide-react"
+import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy } from "lucide-react"
 import Link from "next/link"
 import { loadTests, saveTests, type Test } from "@/lib/data-storage"
 import { useRouter } from "next/navigation"
@@ -158,6 +158,24 @@ export function QuestionManagement() {
         groupedByUniversityAndTestCode[uni.code][sessionLabel].push(test)
       })
     })
+  }
+
+  const handleDuplicate = async (testId: string) => {
+    const original = tests.find((t) => t.id === testId)
+    if (!original) return
+
+    const duplicated: Test = {
+      ...original,
+      id: crypto.randomUUID(),
+      title: `${original.title}（コピー）`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      sheets: JSON.parse(JSON.stringify(original.sheets)),
+    }
+
+    const updatedTests = [...tests, duplicated]
+    setTests(updatedTests)
+    await saveTests(updatedTests)
   }
 
   const handleDelete = async (testId: string) => {
@@ -371,6 +389,10 @@ export function QuestionManagement() {
                                 </p>
                               </div>
                               <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleDuplicate(test.id)}>
+                                  <Copy className="mr-1 h-4 w-4" />
+                                  複製
+                                </Button>
                                 <Button variant="outline" size="sm" onClick={() => handleEdit(test.id)}>
                                   <Edit className="mr-1 h-4 w-4" />
                                   編集
@@ -427,6 +449,10 @@ export function QuestionManagement() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleDuplicate(test.id)}>
+                        <Copy className="mr-1 h-4 w-4" />
+                        複製
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => handleEdit(test.id)}>
                         <Edit className="mr-1 h-4 w-4" />
                         編集
