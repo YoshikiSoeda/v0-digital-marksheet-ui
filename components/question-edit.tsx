@@ -343,7 +343,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   <SelectContent>
                     {testSessions.map((ts) => (
                       <SelectItem key={ts.id} value={ts.id}>
-                        {ts.description || "(名称未設定)"} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                        {ts.description || "(名称未設定)"}
                       </SelectItem>
                     ))}
                   </SelectContent>

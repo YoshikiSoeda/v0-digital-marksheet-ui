@@ -108,9 +108,28 @@ export function QuestionCreate() {
       .catch((err) => console.error("[v0] Failed to fetch test sessions:", err))
   }
 
+  // YYYYMMDD形式の日付文字列を生成
+  const formatDateForDescription = (dateStr: string) => {
+    return dateStr.replace(/-/g, "")
+  }
+
+  // description自動生成プレビュー
+  const generatedDescription = newTestDate && newTestName.trim()
+    ? `${formatDateForDescription(newTestDate)}_${newTestName.trim()}`
+    : ""
+
   const handleCreateTestSession = async () => {
     if (!newTestName.trim() || !newTestDate || !selectedUniversity) {
       alert("テスト名、実施日、大学を入力してください")
+      return
+    }
+
+    const description = `${formatDateForDescription(newTestDate)}_${newTestName.trim()}`
+
+    // 同一名称チェック
+    const isDuplicate = testSessions.some((ts) => ts.description === description)
+    if (isDuplicate) {
+      alert(`「${description}」は既に登録されています。テスト名を変更してください。`)
       return
     }
 
@@ -119,13 +138,21 @@ export function QuestionCreate() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          description: newTestName,
+          description,
           test_date: newTestDate,
           university_code: selectedUniversity,
+          subject_code: selectedSubject || null,
         }),
       })
 
-      if (!res.ok) throw new Error("Failed to create test session")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        if (errData?.error?.includes("unique") || errData?.error?.includes("duplicate")) {
+          alert(`「${description}」は既に登録されています。テスト名を変更してください。`)
+          return
+        }
+        throw new Error("Failed to create test session")
+      }
 
       const newSession = await res.json()
       setTestSessions([...testSessions, newSession])
@@ -676,7 +703,7 @@ export function QuestionCreate() {
                       <SelectContent>
                         {filteredTestSessions.map((ts) => (
                           <SelectItem key={ts.id} value={ts.id}>
-                            {ts.description || "(名称未設定)"} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                            {ts.description || "(名称未設定)"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -699,15 +726,6 @@ export function QuestionCreate() {
                   <CardContent className="p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-xs">テスト名</Label>
-                        <Input
-                          className="h-8 text-sm"
-                          value={newTestName}
-                          onChange={(e) => setNewTestName(e.target.value)}
-                          placeholder="例: 202512 全身の医療面接評価"
-                        />
-                      </div>
-                      <div>
                         <Label className="text-xs">実施日</Label>
                         <Input
                           type="date"
@@ -716,12 +734,28 @@ export function QuestionCreate() {
                           onChange={(e) => setNewTestDate(e.target.value)}
                         />
                       </div>
+                      <div>
+                        <Label className="text-xs">テスト名</Label>
+                        <Input
+                          className="h-8 text-sm"
+                          value={newTestName}
+                          onChange={(e) => setNewTestName(e.target.value)}
+                          placeholder="例: 全身の医療面接評価"
+                        />
+                      </div>
                     </div>
+                    {generatedDescription && (
+                      <div className="px-2 py-1.5 bg-blue-50 rounded border border-blue-200">
+                        <p className="text-xs text-muted-foreground">登録名称:</p>
+                        <p className="text-sm font-medium text-blue-900">{generatedDescription}</p>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Button
                         onClick={handleCreateTestSession}
                         size="sm"
                         className="h-7 bg-[#00417A] hover:bg-[#00417A]/90"
+                        disabled={!generatedDescription}
                       >
                         登録
                       </Button>
