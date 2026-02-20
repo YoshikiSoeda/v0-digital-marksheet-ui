@@ -320,15 +320,12 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         </div>
 
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>テスト情報</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="testCode">テストコード</Label>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[180px] flex-1">
+                <Label htmlFor="testCode" className="text-xs">テストコード</Label>
                 <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue placeholder="テストコードを選択" />
                   </SelectTrigger>
                   <SelectContent>
@@ -340,19 +337,20 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>テスト名</Label>
+              <div className="min-w-[200px] flex-[2]">
+                <Label className="text-xs">テスト名</Label>
                 <Input
+                  className="h-9"
                   value={testTitle}
                   onChange={(e) => setTestTitle(e.target.value)}
                   placeholder="例: 全身の医療面接評価シート"
                 />
               </div>
               {accountType === "special_master" ? (
-                <div>
-                  <Label htmlFor="university">大学</Label>
+                <div className="min-w-[160px] flex-1">
+                  <Label htmlFor="university" className="text-xs">大学</Label>
                   <Select value={selectedUniversity} onValueChange={setSelectedUniversity}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="大学を選択" />
                     </SelectTrigger>
                     <SelectContent>
@@ -365,18 +363,18 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   </Select>
                 </div>
               ) : (
-                <div>
-                  <Label htmlFor="university">大学</Label>
-                  <p className="mt-1 text-sm px-3 py-2 border rounded-md bg-muted">
+                <div className="min-w-[160px] flex-1">
+                  <Label htmlFor="university" className="text-xs">大学</Label>
+                  <p className="text-sm px-3 py-1.5 border rounded-md bg-muted h-9 flex items-center">
                     {universities.find((u) => u.university_code === selectedUniversity)?.university_name || selectedUniversity}
                   </p>
                 </div>
               )}
-              <div>
-                <Label htmlFor="subject">教科（任意）</Label>
+              <div className="min-w-[160px] flex-1">
+                <Label htmlFor="subject" className="text-xs">教科</Label>
                 <Select value={selectedSubjectCode || "default"} onValueChange={setSelectedSubjectCode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="教科を選択（未設定も可）" />
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="教科を選択" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">未設定</SelectItem>
