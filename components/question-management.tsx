@@ -164,18 +164,36 @@ export function QuestionManagement() {
     const original = tests.find((t) => t.id === testId)
     if (!original) return
 
+    // Deep copy with all new UUIDs for sheets, categories, and questions
+    const newSheets = original.sheets.map((sheet) => ({
+      ...sheet,
+      id: crypto.randomUUID(),
+      categories: sheet.categories.map((cat) => ({
+        ...cat,
+        id: crypto.randomUUID(),
+        questions: cat.questions.map((q) => ({
+          ...q,
+          id: crypto.randomUUID(),
+        })),
+      })),
+    }))
+
     const duplicated: Test = {
       ...original,
       id: crypto.randomUUID(),
       title: `${original.title}（コピー）`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      sheets: JSON.parse(JSON.stringify(original.sheets)),
+      sheets: newSheets,
     }
 
-    const updatedTests = [...tests, duplicated]
-    setTests(updatedTests)
-    await saveTests(updatedTests)
+    try {
+      await saveTests([duplicated])
+      setTests([...tests, duplicated])
+    } catch (err) {
+      console.error("[v0] Error duplicating test:", err)
+      alert("テストの複製に失敗しました")
+    }
   }
 
   const handleDelete = async (testId: string) => {
