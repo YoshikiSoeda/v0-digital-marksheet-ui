@@ -951,135 +951,134 @@ const AdminDashboard = () => {
             <p className="text-muted-foreground">部屋情報が見つかりません</p>
           )}
           {selectedRoomData && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">部屋名</p>
-                      <p className="text-base">{selectedRoomData.roomName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">部屋番号</p>
-                      <p className="text-base">{selectedRoomData.roomNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">担当教員</p>
-                      <p className="text-base">{selectedRoomData.teacherName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">患者担当</p>
-                      <p className="text-base">{selectedRoomData.patientName}</p>
-                    </div>
-                  </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">部屋名</p>
+                  <p className="text-base">{selectedRoomData.roomName}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">部屋番号</p>
+                  <p className="text-base">{selectedRoomData.roomNumber}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">担当教員</p>
+                  <p className="text-base">{selectedRoomData.teacherName}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">患者担当</p>
+                  <p className="text-base">{selectedRoomData.patientName}</p>
+                </div>
+              </div>
 
-                    <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">進捗状況</h4>
-                    <div className="grid grid-cols-2 gap-4 text-center">
-                      <div>
-                        <p className="text-2xl font-bold text-green-600">{selectedRoomData.presentCount}</p>
-                        <p className="text-xs text-muted-foreground">出席</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-red-600">{selectedRoomData.absentCount}</p>
-                        <p className="text-xs text-muted-foreground">欠席</p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-1 text-muted-foreground font-medium"></th>
-                            <th className="text-center py-1 text-blue-700 font-medium">教員側</th>
-                            <th className="text-center py-1 text-pink-700 font-medium">患者役側</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="border-b">
-                            <td className="py-1.5 text-muted-foreground">完了</td>
-                            <td className="text-center font-bold text-blue-600">{selectedRoomData.teacherStats.completedCount}</td>
-                            <td className="text-center font-bold text-pink-600">{selectedRoomData.patientStats.completedCount}</td>
-                          </tr>
-                          <tr className="border-b">
-                            <td className="py-1.5 text-muted-foreground">アラート</td>
-                            <td className="text-center font-bold text-red-600">{selectedRoomData.teacherStats.alertCount}</td>
-                            <td className="text-center font-bold text-red-600">{selectedRoomData.patientStats.alertCount}</td>
-                          </tr>
-                          <tr>
-                            <td className="py-1.5 text-muted-foreground">平均点</td>
-                            <td className="text-center font-bold text-blue-700">{selectedRoomData.teacherStats.averageScore}点</td>
-                            <td className="text-center font-bold text-pink-700">{selectedRoomData.patientStats.averageScore}点</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
-                      <span className="text-xs text-muted-foreground">合算平均: </span>
-                      <span className="font-bold text-primary">{selectedRoomData.averageScore}点</span>
-                      </div>
-                    </div>
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">進捗状況</h4>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-green-600">{selectedRoomData.presentCount}</p>
+                    <p className="text-xs text-muted-foreground">出席</p>
                   </div>
-
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">学生一覧</h4>
-                    <div className="space-y-2">
-                      {selectedRoomData.students && selectedRoomData.students.length > 0 ? (
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left py-2">学籍番号</th>
-                              <th className="text-left py-2">氏名</th>
-                              <th className="text-center py-2">出欠</th>
-                              <th className="text-center py-2">合計点</th>
-                              <th className="text-center py-2">アラート</th>
-                              <th className="text-center py-2">完了</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedRoomData.students.map((student) => (
-                              <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
-                                <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
-                                <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
-                                <td className="text-center py-2">
-                                  <span
-                                    className={`px-2 py-1 rounded text-xs ${
-                                      student.status === "present"
-                                        ? "bg-green-100 text-green-800"
-                                        : student.status === "absent"
-                                          ? "bg-red-100 text-red-800"
-                                          : "bg-gray-100 text-gray-800"
-                                    }`}
-                                  >
-                                    {student.status === "present"
-                                      ? "出席"
-                                      : student.status === "absent"
-                                        ? "欠席"
-                                        : "未確認"}
-                                  </span>
-                                </td>
-                                <td className={`text-center py-2 font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.totalScore}点</td>
-                                <td className="text-center py-2">
-                                  {student.alertCount > 0 ? (
-                                    <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                                <td className="text-center py-2">
-                                  {student.isCompleted ? (
-                                    <span className="text-blue-600">✓</span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">学生データがありません</p>
-                      )}
-                    </div>
+                  <div>
+                    <p className="text-2xl font-bold text-red-600">{selectedRoomData.absentCount}</p>
+                    <p className="text-xs text-muted-foreground">欠席</p>
                   </div>
                 </div>
+                <div className="mt-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-1 text-muted-foreground font-medium"></th>
+                        <th className="text-center py-1 text-blue-700 font-medium">教員側</th>
+                        <th className="text-center py-1 text-pink-700 font-medium">患者役側</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="py-1.5 text-muted-foreground">完了</td>
+                        <td className="text-center font-bold text-blue-600">{selectedRoomData.teacherStats.completedCount}</td>
+                        <td className="text-center font-bold text-pink-600">{selectedRoomData.patientStats.completedCount}</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-1.5 text-muted-foreground">アラート</td>
+                        <td className="text-center font-bold text-red-600">{selectedRoomData.teacherStats.alertCount}</td>
+                        <td className="text-center font-bold text-red-600">{selectedRoomData.patientStats.alertCount}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 text-muted-foreground">平均点</td>
+                        <td className="text-center font-bold text-blue-700">{selectedRoomData.teacherStats.averageScore}点</td>
+                        <td className="text-center font-bold text-pink-700">{selectedRoomData.patientStats.averageScore}点</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
+                  <span className="text-xs text-muted-foreground">合算平均: </span>
+                  <span className="font-bold text-primary">{selectedRoomData.averageScore}点</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">学生一覧</h4>
+                <div className="space-y-2">
+                  {selectedRoomData.students && selectedRoomData.students.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2">学籍番号</th>
+                          <th className="text-left py-2">氏名</th>
+                          <th className="text-center py-2">出欠</th>
+                          <th className="text-center py-2">合計点</th>
+                          <th className="text-center py-2">アラート</th>
+                          <th className="text-center py-2">完了</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedRoomData.students.map((student) => (
+                          <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
+                            <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
+                            <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
+                            <td className="text-center py-2">
+                              <span
+                                className={`px-2 py-1 rounded text-xs ${
+                                  student.status === "present"
+                                    ? "bg-green-100 text-green-800"
+                                    : student.status === "absent"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {student.status === "present"
+                                  ? "出席"
+                                  : student.status === "absent"
+                                    ? "欠席"
+                                    : "未確認"}
+                              </span>
+                            </td>
+                            <td className={`text-center py-2 font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.totalScore}点</td>
+                            <td className="text-center py-2">
+                              {student.alertCount > 0 ? (
+                                <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="text-center py-2">
+                              {student.isCompleted ? (
+                                <span className="text-blue-600">✓</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">学生データがありません</p>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
