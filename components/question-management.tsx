@@ -386,17 +386,23 @@ export function QuestionManagement() {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredTests.map((test) => (
+                {filteredTests.map((test) => {
+                  const testSession = testSessions.find((ts) => ts.id === (test as any).testSessionId)
+                  const subjectName = subjects.find((s) => s.code === (test as any).subjectCode)?.name || (test as any).subjectCode
+                  return (
                   <div key={test.id} className="flex items-center justify-between rounded-lg border bg-white p-4">
                     <div>
                       <h4 className="font-semibold text-[#00417A]">{test.title}</h4>
-                      <p className="text-sm text-gray-500">
+                      {testSession && (
+                        <p className="text-sm text-[#00417A]/80 font-medium mt-0.5">
+                          {testSession.description || testSession.test_code}
+                          <span className="ml-2 font-mono text-xs text-muted-foreground">{testSession.test_code}</span>
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-500 mt-0.5">
                         {(test as any).subjectCode && (
                           <>
-                            教科:{" "}
-                            {subjects.find((s) => s.code === (test as any).subjectCode)?.name ||
-                              (test as any).subjectCode}{" "}
-                            |{" "}
+                            教科: {subjectName} |{" "}
                           </>
                         )}
                         シート数: {test.sheets.length} | 作成日: {new Date(test.createdAt).toLocaleDateString("ja-JP")}
@@ -418,7 +424,8 @@ export function QuestionManagement() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>
