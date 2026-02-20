@@ -161,7 +161,6 @@ export async function loadTestSessions(universityCode?: string): Promise<TestSes
 
   return (data || []).map((row) => ({
     id: row.id,
-    testCode: row.test_code,
     testDate: row.test_date,
     description: row.description || "",
     universityCode: row.university_code,

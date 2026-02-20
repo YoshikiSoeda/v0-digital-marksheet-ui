@@ -83,7 +83,6 @@ interface Evaluation {
   testId: string
   hasAlert: boolean
   isCompleted: boolean
-  testCode: string
 }
 
 interface University {
@@ -93,7 +92,7 @@ interface University {
 
 interface TestSession {
   id: string
-  testCode: string
+  description: string
   universityCode: string
   testDate: string
 }
@@ -202,11 +201,11 @@ const AdminDashboard = () => {
 
             // Transform snake_case to camelCase
             const transformedSessions = Array.isArray(sessionsData)
-              ? sessionsData.map((session: any) => ({
-                  id: session.id,
-                  testCode: session.test_code,
-                  universityCode: session.university_code,
-                  testDate: session.test_date,
+  ? sessionsData.map((session: any) => ({
+  id: session.id,
+  description: session.description || "(名称未設定)",
+  universityCode: session.university_code,
+  testDate: session.test_date,
                   description: session.description || "",
                 }))
               : []
@@ -674,14 +673,14 @@ const AdminDashboard = () => {
                 </Select>
 
                 <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
-                  <SelectTrigger className="h-9 w-[200px]">
-                    <SelectValue placeholder="テストコードを選択" />
+                  <SelectTrigger className="h-9 w-[250px]">
+                    <SelectValue placeholder="試験セッションを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">すべてのテストコード</SelectItem>
+                    <SelectItem value="all">すべての試験セッション</SelectItem>
                     {filteredTestSessions.map((session) => (
-                      <SelectItem key={session.id} value={session.testCode}>
-                        {session.testCode}
+                      <SelectItem key={session.id} value={session.id}>
+                        {session.description}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -797,8 +796,8 @@ const AdminDashboard = () => {
     return (
       <div>
         <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
-        <p className="text-lg font-bold text-blue-900">{currentSession.description || currentSession.testCode}</p>
-        <p className="text-xs text-blue-700">テストコード: {currentSession.testCode} / 実施日: {currentSession.testDate}</p>
+<p className="text-lg font-bold text-blue-900">{currentSession.description}</p>
+  <p className="text-xs text-blue-700">実施日: {currentSession.testDate}</p>
       </div>
     )
   })()}
@@ -880,7 +879,7 @@ const AdminDashboard = () => {
               onClick={() => {
                 const params = new URLSearchParams()
                 if (selectedUniversity) params.set("university", selectedUniversity)
-                if (selectedTestCode && selectedTestCode !== "all") params.set("testCode", selectedTestCode)
+                if (selectedTestCode && selectedTestCode !== "all") params.set("testSessionId", selectedTestCode)
                 window.location.href = `/admin/students-detail?${params.toString()}`
               }}
               className="w-full"

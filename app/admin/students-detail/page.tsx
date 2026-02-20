@@ -24,16 +24,16 @@ export default function StudentsDetailPage() {
   const [testSessions, setTestSessions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filterUniversity, setFilterUniversity] = useState<string>("")
-  const [filterTestCode, setFilterTestCode] = useState<string>("")
+  const [filterTestSessionId, setFilterTestSessionId] = useState<string>("")
 
   useEffect(() => {
     // URLパラメータを取得
     const params = new URLSearchParams(window.location.search)
     const university = params.get("university") || ""
-    const testCode = params.get("testCode") || ""
+    const testSessionId = params.get("testSessionId") || ""
 
     setFilterUniversity(university)
-    setFilterTestCode(testCode)
+    setFilterTestSessionId(testSessionId)
 
     const fetchData = async () => {
       try {
@@ -63,11 +63,8 @@ export default function StudentsDetailPage() {
     fetchData()
   }, [])
 
-  const filteredTests = filterTestCode
-    ? tests.filter((test) => {
-        const session = testSessions.find((s) => s.id === test.testSessionId)
-        return session?.test_code === filterTestCode
-      })
+  const filteredTests = filterTestSessionId
+    ? tests.filter((test) => test.testSessionId === filterTestSessionId)
     : tests
 
   const getStudentData = (student: Student) => {
@@ -75,14 +72,13 @@ export default function StudentsDetailPage() {
 
     const studentEvaluations = evaluations.filter((e) => {
       if (e.studentId !== student.studentId) return false
-      if (!filterTestCode) return true
+      if (!filterTestSessionId) return true
 
-      // テストコードでフィルタ
+      // 試験セッションIDでフィルタ
       const test = tests.find((t) => t.id === e.testId)
       if (!test) return false
 
-      const session = testSessions.find((s) => s.id === test.testSessionId)
-      return session?.test_code === filterTestCode
+      return test.testSessionId === filterTestSessionId
     })
 
     const completedEvaluations = studentEvaluations.filter((e) => e.isCompleted)

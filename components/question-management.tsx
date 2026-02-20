@@ -26,7 +26,7 @@ export function QuestionManagement() {
   const [isTeacher, setIsTeacher] = useState(false)
 
   const [showSessionDialog, setShowSessionDialog] = useState(false)
-  const [newTestCode, setNewTestCode] = useState("")
+  const [newTestName, setNewTestName] = useState("")
   const [newTestDate, setNewTestDate] = useState("")
   const [newUniversityCode, setNewUniversityCode] = useState("")
   const [newSubjectCode, setNewSubjectCode] = useState("")
@@ -79,7 +79,7 @@ export function QuestionManagement() {
   }
 
   const handleAddTestSession = async () => {
-    if (!newTestCode.trim() || !newTestDate || !newUniversityCode) {
+    if (!newTestName.trim() || !newTestDate || !newUniversityCode) {
       alert("すべての項目を入力してください")
       return
     }
@@ -89,7 +89,7 @@ export function QuestionManagement() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          test_code: newTestCode,
+          description: newTestName,
           test_date: newTestDate,
           university_code: newUniversityCode,
           subject_code: newSubjectCode || null,
@@ -97,15 +97,15 @@ export function QuestionManagement() {
       })
 
       if (res.ok) {
-        alert("テストコードを登録しました")
+        alert("試験セッションを登録しました")
         setShowSessionDialog(false)
-        setNewTestCode("")
+        setNewTestName("")
         setNewTestDate("")
         setNewUniversityCode("")
         setNewSubjectCode("")
         fetchTestSessions()
       } else {
-        alert("テストコードの登録に失敗しました")
+        alert("試験セッションの登録に失敗しました")
       }
     } catch (err) {
       console.error("[v0] Failed to create test session:", err)
@@ -150,12 +150,12 @@ export function QuestionManagement() {
 
       universityTests.forEach((test) => {
         const testSession = testSessions.find((ts) => ts.id === (test as any).testSessionId)
-        const testCode = testSession?.test_code || "未分類"
+        const sessionLabel = testSession?.description || "未分類"
 
-        if (!groupedByUniversityAndTestCode[uni.code][testCode]) {
-          groupedByUniversityAndTestCode[uni.code][testCode] = []
+        if (!groupedByUniversityAndTestCode[uni.code][sessionLabel]) {
+          groupedByUniversityAndTestCode[uni.code][sessionLabel] = []
         }
-        groupedByUniversityAndTestCode[uni.code][testCode].push(test)
+        groupedByUniversityAndTestCode[uni.code][sessionLabel].push(test)
       })
     })
   }
@@ -195,20 +195,20 @@ export function QuestionManagement() {
                 <DialogTrigger asChild>
                   <Button variant="outline" className="border-[#00417A] text-[#00417A] bg-transparent">
                     <Calendar className="mr-2 h-4 w-4" />
-                    テストコード管理
+                    試験セッション管理
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>新しいテストコードを登録</DialogTitle>
+                    <DialogTitle>新しい試験セッションを登録</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label>テストコード</Label>
+                      <Label>テスト名</Label>
                       <Input
-                        value={newTestCode}
-                        onChange={(e) => setNewTestCode(e.target.value)}
-                        placeholder="例: 20251201-OSCE"
+                        value={newTestName}
+                        onChange={(e) => setNewTestName(e.target.value)}
+                        placeholder="例: 202512 全身の医療面接評価"
                       />
                     </div>
                     <div>
@@ -335,10 +335,10 @@ export function QuestionManagement() {
                     <div key={uni.code} className="space-y-4 border rounded-lg p-4 bg-gray-50">
                       <h3 className="text-xl font-bold text-[#00417A]">{uni.name}</h3>
 
-                      {Object.entries(universityGroups).map(([testCode, testsInCode]) => (
-                        <div key={testCode} className="space-y-3 ml-4">
+                      {Object.entries(universityGroups).map(([sessionLabel, testsInCode]) => (
+                        <div key={sessionLabel} className="space-y-3 ml-4">
                           <h4 className="text-lg font-semibold text-[#00417A] border-b pb-2">
-                            テストコード: {testCode}
+                            {sessionLabel}
                           </h4>
 
                           {testsInCode.map((test) => (
@@ -395,8 +395,8 @@ export function QuestionManagement() {
                       <h4 className="font-semibold text-[#00417A]">{test.title}</h4>
                       {testSession && (
                         <p className="text-sm text-[#00417A]/80 font-medium mt-0.5">
-                          {testSession.description || testSession.test_code}
-                          <span className="ml-2 font-mono text-xs text-muted-foreground">{testSession.test_code}</span>
+                          {testSession.description || "(名称未設定)"}
+                          <span className="ml-2 text-xs text-muted-foreground">({new Date(testSession.test_date).toLocaleDateString("ja-JP")})</span>
                         </p>
                       )}
                       <p className="text-sm text-gray-500 mt-0.5">

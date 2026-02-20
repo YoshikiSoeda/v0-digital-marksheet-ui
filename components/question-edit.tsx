@@ -18,7 +18,7 @@ interface QuestionEditProps {
 
 export function QuestionEdit({ testId }: QuestionEditProps) {
   const router = useRouter()
-  const [selectedTestCode, setSelectedTestCode] = useState("")
+  const [selectedTestSessionId, setSelectedTestSessionId] = useState("")
   const [testSessions, setTestSessions] = useState<any[]>([])
   const [testTitle, setTestTitle] = useState("")
   const [sheets, setSheets] = useState<Sheet[]>([])
@@ -66,10 +66,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         setSelectedSubjectCode(test.subjectCode || "")
 
         if (test.testSessionId) {
-          const session = sessionsData.find((s: any) => s.id === test.testSessionId)
-          if (session) {
-            setSelectedTestCode(session.test_code)
-          }
+          setSelectedTestSessionId(test.testSessionId)
         }
       } catch (error) {
         console.error("[v0] Error loading test:", error)
@@ -251,8 +248,8 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   }
 
   const handleSave = async () => {
-    if (!selectedTestCode) {
-      alert("テストコードを選択してください")
+    if (!selectedTestSessionId) {
+      alert("試験セッションを選択してください")
       return
     }
 
@@ -262,9 +259,9 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
     }
 
     try {
-      const testSession = testSessions.find((ts) => ts.test_code === selectedTestCode)
+      const testSession = testSessions.find((ts) => ts.id === selectedTestSessionId)
       if (!testSession) {
-        alert("選択されたテストコードが見つかりません")
+        alert("選択された試験セッションが見つかりません")
         return
       }
 
@@ -323,15 +320,15 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           <CardContent className="pt-4 pb-3">
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-[180px] flex-1">
-                <Label htmlFor="testCode" className="text-xs">テストコード</Label>
-                <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
+                <Label htmlFor="testSession" className="text-xs">試験セッション</Label>
+                <Select value={selectedTestSessionId} onValueChange={setSelectedTestSessionId}>
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="テストコードを選択" />
+                    <SelectValue placeholder="試験セッションを選択" />
                   </SelectTrigger>
                   <SelectContent>
                     {testSessions.map((ts) => (
-                      <SelectItem key={ts.id} value={ts.test_code}>
-                        {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                      <SelectItem key={ts.id} value={ts.id}>
+                        {ts.description || "(名称未設定)"} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
                       </SelectItem>
                     ))}
                   </SelectContent>

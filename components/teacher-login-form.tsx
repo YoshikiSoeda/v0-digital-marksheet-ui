@@ -141,7 +141,7 @@ export function TeacherLoginForm() {
               onClick={() => handleSessionSelect(session.id)}
             >
               <div className="text-left">
-                <div className="font-medium">{session.description || session.testCode}</div>
+                <div className="font-medium">{session.description || "(名称未設定)"}</div>
                 <div className="text-sm text-muted-foreground">{session.testDate}</div>
               </div>
             </Button>

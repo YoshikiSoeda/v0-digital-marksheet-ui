@@ -9,7 +9,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { data, error } = await supabase
       .from("test_sessions")
       .update({
-        test_code: body.test_code,
         test_date: body.test_date,
         description: body.description,
         university_code: body.university_code,
