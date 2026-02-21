@@ -821,24 +821,21 @@ const AdminDashboard = () => {
         </div>
 
   {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
-  <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 space-y-2">
-  {assignedSubjectName && (
-    <div>
-      <p className="text-sm text-blue-600 font-medium">担当教科</p>
-      <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
-    </div>
-  )}
-  {testSessions.find((s) => s.id === (typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") : "")) && (
-    <div>
-      <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
-      <p className="text-lg font-bold text-blue-900">
-        {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.description}
-      </p>
-      <p className="text-xs text-blue-700">
-        実施日: {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.testDate}
-      </p>
-    </div>
-  )}
+  <div className="mb-4 flex gap-4">
+    {assignedSubjectName && (
+      <div className="px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 shrink-0">
+        <p className="text-xs text-blue-600 font-medium">担当教科</p>
+        <p className="text-base font-bold text-blue-900">{assignedSubjectName}</p>
+      </div>
+    )}
+    {testSessions.find((s) => s.id === (typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") : "")) && (
+      <div className="px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 flex-1 min-w-0">
+        <p className="text-xs text-blue-600 font-medium">テスト名</p>
+        <p className="text-base font-bold text-blue-900 truncate">
+          {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.description}
+        </p>
+      </div>
+    )}
   </div>
   )}
 
