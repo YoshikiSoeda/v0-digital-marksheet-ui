@@ -669,7 +669,7 @@ export function QuestionCreate() {
                   </div>
                 )}
 
-                {!isTeacher && subjects.length > 0 && (
+                {!isTeacher && !teacherSubjectCode && subjects.length > 0 && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">教科</Label>
                     <Select value={selectedSubject || "none"} onValueChange={setSelectedSubject}>
@@ -688,7 +688,7 @@ export function QuestionCreate() {
                   </div>
                 )}
 
-                {isTeacher && teacherSubjectCode && (
+                {teacherSubjectCode && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">担当教科</Label>
                     <div className="flex items-center h-9 px-3 bg-blue-50 rounded-md">

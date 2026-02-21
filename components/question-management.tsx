@@ -425,7 +425,7 @@ export function QuestionManagement() {
             </div>
           )}
 
-          {!isTeacher && (
+          {!isTeacher && !teacherSubjectCode && (
             <div className="flex items-center gap-3 h-9">
               <label className="text-sm font-medium">教科:</label>
               <Select value={selectedSubject} onValueChange={setSelectedSubject}>
@@ -444,7 +444,7 @@ export function QuestionManagement() {
             </div>
           )}
 
-          {isTeacher && teacherSubjectCode && (
+          {teacherSubjectCode && (
             <div className="flex items-center gap-3 h-9 bg-blue-50 px-3 py-2 rounded-md">
               <label className="text-sm font-medium">担当教科:</label>
               <span className="text-sm text-[#00417A] font-semibold">
