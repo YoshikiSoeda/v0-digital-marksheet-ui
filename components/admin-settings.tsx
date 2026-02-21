@@ -18,6 +18,9 @@ export function AdminSettings() {
   const [selectedUniversity, setSelectedUniversity] = useState<string>("")
   const [testDuration, setTestDuration] = useState<Record<string, string>>({})
   const [maxUsers, setMaxUsers] = useState<Record<string, string>>({})
+  const [testSessions, setTestSessions] = useState<any[]>([])
+  const [passingScores, setPassingScores] = useState<Record<string, string>>({})
+  const [savingPassingScore, setSavingPassingScore] = useState<string | null>(null)
 
   useEffect(() => {
     const accountType = sessionStorage.getItem("accountType")
@@ -41,7 +44,46 @@ export function AdminSettings() {
       const universityCode = sessionStorage.getItem("universityCode") || ""
       setSelectedUniversity(universityCode)
     }
+
+    // 試験セッション取得
+    fetch("/api/test-sessions")
+      .then((res) => res.json())
+      .then((data) => {
+        setTestSessions(data || [])
+        const scores: Record<string, string> = {}
+        ;(data || []).forEach((s: any) => {
+          if (s.passing_score != null) {
+            scores[s.id] = String(s.passing_score)
+          }
+        })
+        setPassingScores(scores)
+      })
+      .catch((err) => console.error("[v0] Failed to fetch test sessions:", err))
   }, [])
+
+  const handleSavePassingScore = async (sessionId: string) => {
+    setSavingPassingScore(sessionId)
+    try {
+      const score = passingScores[sessionId]
+      const res = await fetch(`/api/test-sessions/${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passing_score: score ? parseInt(score, 10) : null,
+        }),
+      })
+      if (res.ok) {
+        alert("合格ラインを保存しました")
+      } else {
+        alert("保存に失敗しました")
+      }
+    } catch (err) {
+      console.error("[v0] Error saving passing score:", err)
+      alert("エラーが発生しました")
+    } finally {
+      setSavingPassingScore(null)
+    }
+  }
 
   const currentTestDuration = testDuration[selectedUniversity] || "90"
   const currentMaxUsers = maxUsers[selectedUniversity] || "1000"
@@ -124,6 +166,46 @@ export function AdminSettings() {
               />
               <p className="text-sm text-muted-foreground">同時に受験可能な人数の上限</p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>合格ライン設定</CardTitle>
+            <CardDescription>試験セッションごとに合格ライン（教員側＋患者役側の合計点）を設定します</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {testSessions
+              .filter((s) => !selectedUniversity || s.university_code === selectedUniversity)
+              .map((session) => (
+                <div key={session.id} className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{session.description || "(名称未設定)"}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(session.test_date).toLocaleDateString("ja-JP")}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Input
+                      type="number"
+                      className="w-24 h-8 text-sm"
+                      placeholder="未設定"
+                      value={passingScores[session.id] || ""}
+                      onChange={(e) => setPassingScores({ ...passingScores, [session.id]: e.target.value })}
+                    />
+                    <span className="text-xs text-muted-foreground">点</span>
+                    <Button
+                      size="sm"
+                      className="h-8 bg-[#00417A] hover:bg-[#00417A]/90"
+                      onClick={() => handleSavePassingScore(session.id)}
+                      disabled={savingPassingScore === session.id}
+                    >
+                      {savingPassingScore === session.id ? "..." : "保存"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            {testSessions.filter((s) => !selectedUniversity || s.university_code === selectedUniversity).length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">試験セッションが登録されていません</p>
+            )}
           </CardContent>
         </Card>
 

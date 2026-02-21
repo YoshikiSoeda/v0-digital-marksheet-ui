@@ -16,10 +16,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export function QuestionCreate() {
   const router = useRouter()
-  const [selectedTestCode, setSelectedTestCode] = useState("")
-  const [newTestCode, setNewTestCode] = useState("")
+  const [selectedTestSessionId, setSelectedTestSessionId] = useState("")
+  const [newTestName, setNewTestName] = useState("")
   const [newTestDate, setNewTestDate] = useState("")
-  const [showNewTestCodeForm, setShowNewTestCodeForm] = useState(false)
+  const [showNewTestForm, setShowNewTestForm] = useState(false)
   const [testSessions, setTestSessions] = useState<any[]>([])
   const [universities, setUniversities] = useState<Array<{ code: string; name: string }>>([])
   const [selectedUniversity, setSelectedUniversity] = useState("")
@@ -28,6 +28,8 @@ export function QuestionCreate() {
   const [selectedSubject, setSelectedSubject] = useState("")
   const [teacherSubjectCode, setTeacherSubjectCode] = useState<string>("")
   const [isTeacher, setIsTeacher] = useState(false)
+  const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
+  const [passingScore, setPassingScore] = useState<string>("")
 
   const [tests, setTests] = useState<
     Array<{
@@ -107,9 +109,28 @@ export function QuestionCreate() {
       .catch((err) => console.error("[v0] Failed to fetch test sessions:", err))
   }
 
-  const handleCreateTestCode = async () => {
-    if (!newTestCode.trim() || !newTestDate || !selectedUniversity) {
-      alert("テストコード、実施日、大学を入力してください")
+  // YYYYMMDD形式の日付文字列を生成
+  const formatDateForDescription = (dateStr: string) => {
+    return dateStr.replace(/-/g, "")
+  }
+
+  // description自動生成プレビュー
+  const generatedDescription = newTestDate && newTestName.trim()
+    ? `${formatDateForDescription(newTestDate)}_${newTestName.trim()}`
+    : ""
+
+  const handleCreateTestSession = async () => {
+    if (!newTestName.trim() || !newTestDate || !selectedUniversity) {
+      alert("テスト名、実施日、大学を入力してください")
+      return
+    }
+
+    const description = `${formatDateForDescription(newTestDate)}_${newTestName.trim()}`
+
+    // 同一名称チェック
+    const isDuplicate = testSessions.some((ts) => ts.description === description)
+    if (isDuplicate) {
+      alert(`「${description}」は既に登録されています。テスト名を変更してください。`)
       return
     }
 
@@ -118,24 +139,32 @@ export function QuestionCreate() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          test_code: newTestCode,
+          description,
           test_date: newTestDate,
           university_code: selectedUniversity,
+          subject_code: selectedSubject || null,
         }),
       })
 
-      if (!res.ok) throw new Error("Failed to create test session")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        if (errData?.error?.includes("unique") || errData?.error?.includes("duplicate")) {
+          alert(`「${description}」は既に登録されています。テスト名を変更してください。`)
+          return
+        }
+        throw new Error("Failed to create test session")
+      }
 
       const newSession = await res.json()
       setTestSessions([...testSessions, newSession])
-      setSelectedTestCode(newTestCode)
-      setNewTestCode("")
+      setSelectedTestSessionId(newSession.id)
+      setNewTestName("")
       setNewTestDate("")
-      setShowNewTestCodeForm(false)
-      alert("テストコードを登録しました")
+      setShowNewTestForm(false)
+      alert("試験セッションを登録しました")
     } catch (error) {
       console.error("[v0] Error creating test session:", error)
-      alert("テストコードの登録に失敗しました")
+      alert("試験セッションの登録に失敗しました")
     }
   }
 
@@ -407,8 +436,8 @@ export function QuestionCreate() {
   }
 
   const handleSave = async () => {
-    if (!selectedTestCode) {
-      alert("テストコードを選択してください")
+    if (!selectedTestSessionId) {
+      alert("試験セッションを選択してください")
       return
     }
 
@@ -422,11 +451,9 @@ export function QuestionCreate() {
       return
     }
 
-    const testSession = testSessions.find(
-      (ts) => ts.test_code === selectedTestCode && ts.university_code === selectedUniversity,
-    )
+    const testSession = testSessions.find((ts) => ts.id === selectedTestSessionId)
     if (!testSession) {
-      alert("選択されたテストコードが見つかりません")
+      alert("選択された試験セッションが見つかりません")
       return
     }
 
@@ -453,12 +480,31 @@ export function QuestionCreate() {
         testSessionId: testSession.id,
         universityCode: selectedUniversity,
         subjectCode: selectedSubject || null,
+        roleType: roleType,
       } as Test
 
       newTests.push(newTest)
     }
 
     await saveTests([...existingTests, ...newTests])
+
+    // 合格基準点をセッションに保存
+    if (passingScore !== "") {
+      try {
+        await fetch(`/api/test-sessions/${testSession.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            test_date: testSession.test_date,
+            description: testSession.description,
+            university_code: testSession.university_code,
+            passing_score: parseInt(passingScore, 10),
+          }),
+        })
+      } catch (e) {
+        console.error("[v0] Error saving passing score:", e)
+      }
+    }
 
     alert(`${newTests.length}件のテストを保存しました`)
     router.push("/admin/question-management")
@@ -653,17 +699,46 @@ export function QuestionCreate() {
                   </div>
                 )}
 
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">対象ロール</Label>
+                  <Select value={roleType} onValueChange={(v) => setRoleType(v as "teacher" | "patient")}>
+                    <SelectTrigger className="h-9 w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="teacher">教員側</SelectItem>
+                      <SelectItem value="patient">患者役側</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">合格基準点</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    className="h-9 w-24"
+                    value={passingScore}
+                    onChange={(e) => setPassingScore(e.target.value)}
+                    placeholder="点"
+                  />
+                </div>
+
                 <div className="space-y-1 flex-1 min-w-48">
-                  <Label className="text-xs text-muted-foreground">既存テストコード</Label>
+                  <Label className="text-xs text-muted-foreground">既存テスト名</Label>
                   <div className="flex items-center gap-2">
-                    <Select value={selectedTestCode || "none"} onValueChange={setSelectedTestCode}>
+                    <Select value={selectedTestSessionId || "none"} onValueChange={(val) => {
+                      setSelectedTestSessionId(val)
+                      const session = testSessions.find((ts: any) => ts.id === val)
+                      setPassingScore(session?.passing_score != null ? String(session.passing_score) : "")
+                    }}>
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="テストコードを選択" />
+                        <SelectValue placeholder="既存テスト名を選択" />
                       </SelectTrigger>
                       <SelectContent>
                         {filteredTestSessions.map((ts) => (
-                          <SelectItem key={ts.id} value={ts.test_code}>
-                            {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
+                          <SelectItem key={ts.id} value={ts.id}>
+                            {ts.description || "(名称未設定)"}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -672,28 +747,19 @@ export function QuestionCreate() {
                       variant="outline"
                       size="sm"
                       className="h-9 text-xs bg-transparent shrink-0 whitespace-nowrap"
-                      onClick={() => setShowNewTestCodeForm(!showNewTestCodeForm)}
+                      onClick={() => setShowNewTestForm(!showNewTestForm)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
-                      テストコード新規登録
+                      新規テスト作成
                     </Button>
                   </div>
                 </div>
               </div>
 
-              {showNewTestCodeForm && (
+              {showNewTestForm && (
                 <Card className="mt-2 border-2 border-[#00417A]/20 bg-secondary/30">
                   <CardContent className="p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs">テストコード</Label>
-                        <Input
-                          className="h-8 text-sm"
-                          value={newTestCode}
-                          onChange={(e) => setNewTestCode(e.target.value)}
-                          placeholder="例: 20251201-OSCE"
-                        />
-                      </div>
                       <div>
                         <Label className="text-xs">実施日</Label>
                         <Input
@@ -703,12 +769,28 @@ export function QuestionCreate() {
                           onChange={(e) => setNewTestDate(e.target.value)}
                         />
                       </div>
+                      <div>
+                        <Label className="text-xs">テスト名</Label>
+                        <Input
+                          className="h-8 text-sm"
+                          value={newTestName}
+                          onChange={(e) => setNewTestName(e.target.value)}
+                          placeholder="例: 全身の医療面接評価"
+                        />
+                      </div>
                     </div>
+                    {generatedDescription && (
+                      <div className="px-2 py-1.5 bg-blue-50 rounded border border-blue-200">
+                        <p className="text-xs text-muted-foreground">登録名称:</p>
+                        <p className="text-sm font-medium text-blue-900">{generatedDescription}</p>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Button
-                        onClick={handleCreateTestCode}
+                        onClick={handleCreateTestSession}
                         size="sm"
                         className="h-7 bg-[#00417A] hover:bg-[#00417A]/90"
+                        disabled={!generatedDescription}
                       >
                         登録
                       </Button>
@@ -716,7 +798,7 @@ export function QuestionCreate() {
                         variant="outline"
                         size="sm"
                         className="h-7 bg-transparent"
-                        onClick={() => setShowNewTestCodeForm(false)}
+                        onClick={() => setShowNewTestForm(false)}
                       >
                         キャンセル
                       </Button>
@@ -1002,7 +1084,7 @@ export function QuestionCreate() {
                   or 1),アラート選択肢("1,3,5"のように指定)
                 </p>
                 <p className="text-sm text-gray-500 font-bold">
-                  ※同じテスト名で複数行を登録すると、1つのテストコードに複数のテストを紐づけることができます
+                  ※同じテスト名で複数行を登録すると、1つの試験セッションに複数のテストを紐づけることができます
                 </p>
               </CardContent>
             </Card>

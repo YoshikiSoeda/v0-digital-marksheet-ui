@@ -77,11 +77,11 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from("test_sessions")
       .insert({
-        test_code: body.test_code,
         test_date: body.test_date,
         description: body.description,
         university_code: body.university_code,
         subject_code: body.subject_code || null,
+        passing_score: body.passing_score ?? null,
       })
       .select()
       .single()

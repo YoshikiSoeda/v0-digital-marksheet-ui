@@ -129,16 +129,17 @@ export interface Test {
   universityCode?: string // 大学コード
   testSessionId?: string // Add test_session_id
   subjectCode?: string // 教科コード
+  roleType?: "teacher" | "patient" // 教員側 or 患者役側
 }
 
 // 試験セッションデータの型定義
 export interface TestSession {
   id: string
-  testCode: string
   testDate: string
   description: string
   universityCode: string
   subjectCode?: string
+  passingScore?: number | null // 合格ライン
   createdAt: string
   updatedAt: string
 }
@@ -161,11 +162,11 @@ export async function loadTestSessions(universityCode?: string): Promise<TestSes
 
   return (data || []).map((row) => ({
     id: row.id,
-    testCode: row.test_code,
     testDate: row.test_date,
     description: row.description || "",
     universityCode: row.university_code,
     subjectCode: row.subject_code,
+    passingScore: row.passing_score ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }))
@@ -592,7 +593,33 @@ export async function loadRooms(universityCode?: string, subjectCode?: string, t
   }))
 }
 
-// テストデータの保存
+// テストデータの削除（カスケードで sheets/categories/questions も削除）
+export async function deleteTest(testId: string) {
+  const supabase = createClient()
+
+  // sheets -> categories -> questions をカスケード削除
+  const { data: sheets } = await supabase.from("sheets").select("id").eq("test_id", testId)
+  if (sheets) {
+    for (const sheet of sheets) {
+      const { data: categories } = await supabase.from("categories").select("id").eq("sheet_id", sheet.id)
+      if (categories) {
+        for (const cat of categories) {
+          await supabase.from("questions").delete().eq("category_id", cat.id)
+        }
+        await supabase.from("categories").delete().eq("sheet_id", sheet.id)
+      }
+    }
+    await supabase.from("sheets").delete().eq("test_id", testId)
+  }
+
+  const { error } = await supabase.from("tests").delete().eq("id", testId)
+  if (error) {
+    console.error("[v0] Error deleting test:", error.message)
+    throw error
+  }
+}
+
+// テストデータの保存（削除された問題・カテゴリ・シートもDB上から削除）
 export async function saveTests(tests: Test[]) {
   const supabase = createClient()
 
@@ -607,7 +634,8 @@ export async function saveTests(tests: Test[]) {
           created_at: test.createdAt,
           updated_at: test.updatedAt,
           university_code: test.universityCode || null,
-          subject_code: test.subjectCode || null, // Add subject_code
+          subject_code: test.subjectCode || null,
+          role_type: test.roleType || "teacher",
         },
         { onConflict: "id" },
       )
@@ -618,6 +646,56 @@ export async function saveTests(tests: Test[]) {
       throw testError
     }
 
+    // 現在のローカルのIDセットを収集
+    const localSheetIds = test.sheets.map((s) => s.id)
+    const localCategoryIds = test.sheets.flatMap((s) => s.categories.map((c) => c.id))
+    const localQuestionIds = test.sheets.flatMap((s) =>
+      s.categories.flatMap((c) => c.questions.map((q) => q.id))
+    )
+
+    // DB上の既存データを取得
+    const { data: dbSheets } = await supabase.from("sheets").select("id").eq("test_id", test.id)
+    const dbSheetIds = (dbSheets || []).map((s: any) => s.id)
+
+    if (dbSheetIds.length > 0) {
+      const { data: dbCategories } = await supabase.from("categories").select("id, sheet_id").in("sheet_id", dbSheetIds)
+      const dbCategoryIds = (dbCategories || []).map((c: any) => c.id)
+
+      if (dbCategoryIds.length > 0) {
+        const { data: dbQuestions } = await supabase.from("questions").select("id, category_id").in("category_id", dbCategoryIds)
+        const dbQuestionIds = (dbQuestions || []).map((q: any) => q.id)
+
+        // ローカルにないquestionsをDBから削除
+        const questionsToDelete = dbQuestionIds.filter((id: string) => !localQuestionIds.includes(id))
+        if (questionsToDelete.length > 0) {
+          await supabase.from("questions").delete().in("id", questionsToDelete)
+        }
+      }
+
+      // ローカルにないcategoriesをDBから削除（子のquestionsもカスケード）
+      const categoriesToDelete = dbCategoryIds.filter((id: string) => !localCategoryIds.includes(id))
+      if (categoriesToDelete.length > 0) {
+        // まずカテゴリに属するquestionsを削除
+        await supabase.from("questions").delete().in("category_id", categoriesToDelete)
+        await supabase.from("categories").delete().in("id", categoriesToDelete)
+      }
+    }
+
+    // ローカルにないsheetsをDBから削除（子のcategories/questionsもカスケード）
+    const sheetsToDelete = dbSheetIds.filter((id: string) => !localSheetIds.includes(id))
+    if (sheetsToDelete.length > 0) {
+      for (const sheetId of sheetsToDelete) {
+        const { data: cats } = await supabase.from("categories").select("id").eq("sheet_id", sheetId)
+        if (cats && cats.length > 0) {
+          const catIds = cats.map((c: any) => c.id)
+          await supabase.from("questions").delete().in("category_id", catIds)
+          await supabase.from("categories").delete().in("id", catIds)
+        }
+      }
+      await supabase.from("sheets").delete().in("id", sheetsToDelete)
+    }
+
+    // Upsertで残りのデータを保存
     for (const sheet of test.sheets) {
       const { data: sheetData, error: sheetError } = await supabase
         .from("sheets")
@@ -723,8 +801,9 @@ export async function loadTests(universityCode?: string, subjectCode?: string): 
   return (tests || []).map((test) => ({
     id: test.id,
     title: test.title,
-    testSessionId: test.test_session_id, // Add test_session_id
-    subjectCode: test.subject_code, // Add subject_code
+    testSessionId: test.test_session_id,
+    subjectCode: test.subject_code,
+    roleType: test.role_type || "teacher",
     sheets: (test.sheets || []).map((sheet: any) => ({
       id: sheet.id,
       title: sheet.title,

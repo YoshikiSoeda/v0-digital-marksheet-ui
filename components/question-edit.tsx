@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Hourglass } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { loadTests, saveTests, type Sheet, type Question } from "@/lib/data-storage"
@@ -18,16 +18,19 @@ interface QuestionEditProps {
 
 export function QuestionEdit({ testId }: QuestionEditProps) {
   const router = useRouter()
-  const [selectedTestCode, setSelectedTestCode] = useState("")
+  const [selectedTestSessionId, setSelectedTestSessionId] = useState("")
   const [testSessions, setTestSessions] = useState<any[]>([])
   const [testTitle, setTestTitle] = useState("")
   const [sheets, setSheets] = useState<Sheet[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [subjects, setSubjects] = useState<any[]>([])
   const [selectedSubjectCode, setSelectedSubjectCode] = useState("")
   const [universities, setUniversities] = useState<any[]>([])
   const [selectedUniversity, setSelectedUniversity] = useState("")
   const [accountType, setAccountType] = useState<string>("")
+  const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
+  const [passingScore, setPassingScore] = useState<string>("")
 
   useEffect(() => {
     const storedAccountType = sessionStorage.getItem("accountType") || ""
@@ -64,11 +67,13 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         setSheets(test.sheets)
         setSelectedUniversity(test.universityCode || "")
         setSelectedSubjectCode(test.subjectCode || "")
+        setRoleType(test.roleType || "teacher")
 
         if (test.testSessionId) {
+          setSelectedTestSessionId(test.testSessionId)
           const session = sessionsData.find((s: any) => s.id === test.testSessionId)
-          if (session) {
-            setSelectedTestCode(session.test_code)
+          if (session?.passing_score != null) {
+            setPassingScore(String(session.passing_score))
           }
         }
       } catch (error) {
@@ -187,7 +192,14 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           ? {
               ...s,
               categories: s.categories.map((c) =>
-                c.id === categoryId ? { ...c, questions: c.questions.filter((q) => q.id !== questionId) } : c,
+                c.id === categoryId
+                  ? {
+                      ...c,
+                      questions: c.questions
+                        .filter((q) => q.id !== questionId)
+                        .map((q, idx) => ({ ...q, number: idx + 1 })),
+                    }
+                  : c,
               ),
             }
           : s,
@@ -251,8 +263,10 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   }
 
   const handleSave = async () => {
-    if (!selectedTestCode) {
-      alert("テストコードを選択してください")
+    if (isSaving) return
+
+    if (!selectedTestSessionId) {
+      alert("試験セッションを選択してください")
       return
     }
 
@@ -261,10 +275,13 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
       return
     }
 
+    setIsSaving(true)
+
     try {
-      const testSession = testSessions.find((ts) => ts.test_code === selectedTestCode)
+      const testSession = testSessions.find((ts) => ts.id === selectedTestSessionId)
       if (!testSession) {
-        alert("選択されたテストコードが見つかりません")
+        alert("選択された試験セッションが見つかりません")
+        setIsSaving(false)
         return
       }
 
@@ -279,16 +296,37 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
               testSessionId: testSession.id,
               universityCode: testSession.university_code,
               subjectCode: selectedSubjectCode || null,
+              roleType: roleType,
               updatedAt: new Date().toISOString(),
             }
           : t,
       )
 
       await saveTests(updatedTests)
+
+      // 合格基準点をセッションに保存
+      if (passingScore !== "") {
+        try {
+          await fetch(`/api/test-sessions/${testSession.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              test_date: testSession.test_date,
+              description: testSession.description,
+              university_code: testSession.university_code,
+              passing_score: parseInt(passingScore, 10),
+            }),
+          })
+        } catch (e) {
+          console.error("[v0] Error saving passing score:", e)
+        }
+      }
+
       alert("テストを更新しました")
       router.push("/admin/question-management")
     } catch (error) {
       console.error("[v0] Error saving test:", error)
+      setIsSaving(false)
       alert("テストの更新に失敗しました")
     }
   }
@@ -314,29 +352,34 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
             </Link>
             <h1 className="text-2xl font-bold text-[#00417A]">問題編集</h1>
           </div>
-          <Button onClick={handleSave} className="bg-[#00417A] hover:bg-[#00417A]/90">
-            更新
+          <Button onClick={handleSave} className="bg-[#00417A] hover:bg-[#00417A]/90" disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Hourglass className="mr-2 h-4 w-4 animate-pulse" />
+                処理中...
+              </>
+            ) : (
+              "更新"
+            )}
           </Button>
         </div>
 
         <Card className="mb-6">
           <CardContent className="pt-4 pb-3">
             <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-[180px] flex-1">
-                <Label htmlFor="testCode" className="text-xs">テストコード</Label>
-                <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
+              <div className="min-w-[120px]">
+                <Label className="text-xs">対象ロール</Label>
+                <Select value={roleType} onValueChange={(v) => setRoleType(v as "teacher" | "patient")}>
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="テストコードを選択" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {testSessions.map((ts) => (
-                      <SelectItem key={ts.id} value={ts.test_code}>
-                        {ts.test_code} ({new Date(ts.test_date).toLocaleDateString("ja-JP")})
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="teacher">教員側</SelectItem>
+                    <SelectItem value="patient">患者役側</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {/* 試験セッションは編集時に変更不可（テスト作成時に指定済み） */}
               <div className="min-w-[200px] flex-[2]">
                 <Label className="text-xs">テスト名</Label>
                 <Input
@@ -385,6 +428,17 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="min-w-[100px]">
+                <Label className="text-xs">合格基準点</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  className="h-9 w-24"
+                  value={passingScore}
+                  onChange={(e) => setPassingScore(e.target.value)}
+                  placeholder="点"
+                />
               </div>
             </div>
           </CardContent>

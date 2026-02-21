@@ -17,18 +17,41 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const router = useRouter()
   const [tests, setTests] = useState<Test[]>([])
   const [teacherRole, setTeacherRole] = useState<string>("")
+  const [subjectName, setSubjectName] = useState<string>("")
 
   useEffect(() => {
+    let teacherSubjectCode = ""
+
     if (userType === "teacher") {
       const role = sessionStorage.getItem("teacherRole") || "general"
       setTeacherRole(role)
+      teacherSubjectCode = sessionStorage.getItem("subjectCode") || ""
     }
 
-    const fetchTests = async () => {
+    const fetchData = async () => {
       try {
-        const fetchedTests = await loadTests()
+        // 教科名を取得
+        if (teacherSubjectCode) {
+          try {
+            const subjectsRes = await fetch("/api/subjects")
+            if (subjectsRes.ok) {
+              const subjects = await subjectsRes.json()
+              const matched = subjects.find((s: any) => s.subject_code === teacherSubjectCode)
+              if (matched) setSubjectName(matched.subject_name)
+            }
+          } catch (err) {
+            console.error("[v0] Error loading subjects:", err)
+          }
+        }
+
+        // テストを教科コードでフィルタして取得
+        const universityCode = sessionStorage.getItem("universityCode") || undefined
+        const fetchedTests = await loadTests(universityCode, teacherSubjectCode || undefined)
         if (Array.isArray(fetchedTests)) {
-          setTests(fetchedTests)
+          // roleTypeでフィルタ: 教員はteacher, 患者役はpatientのテストのみ表示
+          const expectedRoleType = userType === "patient" ? "patient" : "teacher"
+          const filtered = fetchedTests.filter((t) => (t.roleType || "teacher") === expectedRoleType)
+          setTests(filtered)
         } else {
           console.error("[v0] loadTests did not return an array:", fetchedTests)
           setTests([])
@@ -38,7 +61,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
         setTests([])
       }
     }
-    fetchTests()
+    fetchData()
   }, [])
 
   const handleSelectTest = (testId: string) => {
@@ -73,7 +96,12 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-primary">評価テスト選択</h1>
+            <h1 className="text-3xl font-bold text-primary">
+              評価テスト選択
+              {subjectName && (
+                <span className="ml-3 text-lg font-semibold text-muted-foreground">({subjectName})</span>
+              )}
+            </h1>
             <p className="text-muted-foreground mt-2">実施するテストを選択してください</p>
           </div>
           {userType === "teacher" && teacherRole !== "general" && teacherRole !== "" && (

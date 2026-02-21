@@ -124,6 +124,14 @@ export function ExamResultsScreen() {
         averageScore: avgScore,
       })
 
+      // Count alerts per student
+      const studentAlertCountMap = new Map<string, number>()
+      roomEvaluations.forEach((evaluation) => {
+        if (evaluation.hasAlert === true) {
+          studentAlertCountMap.set(evaluation.studentId, (studentAlertCountMap.get(evaluation.studentId) || 0) + 1)
+        }
+      })
+
       const details = roomStudents.map((student) => {
         const status = studentStatusMap.get(student.id)
         const evaluation = evaluationMap.get(student.id)
@@ -135,6 +143,7 @@ export function ExamResultsScreen() {
           status: status || "未記録",
           isCompleted: isPresent ? (evaluation?.isCompleted || false) : false,
           score: isPresent ? (evaluation?.totalScore || 0) : 0,
+          alertCount: studentAlertCountMap.get(student.id) || 0,
         }
       })
       setStudentDetails(details)
@@ -170,7 +179,14 @@ export function ExamResultsScreen() {
               <CheckCircle className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="text-3xl">評価サマリー</CardTitle>
-            <p className="text-muted-foreground">部屋{roomNumber}の評価結果</p>
+            <p className="text-muted-foreground">
+              部屋{roomNumber}の評価結果
+              <span className={`ml-2 inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                evaluatorType === "patient" ? "bg-pink-100 text-pink-800" : "bg-blue-100 text-blue-800"
+              }`}>
+                {evaluatorType === "patient" ? "患者役側" : "教員側"}
+              </span>
+            </p>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -235,13 +251,14 @@ export function ExamResultsScreen() {
                         <th className="text-center p-3 text-sm font-medium">出欠</th>
                         <th className="text-center p-3 text-sm font-medium">状態</th>
                         <th className="text-right p-3 text-sm font-medium">得点</th>
+                        <th className="text-center p-3 text-sm font-medium">アラート</th>
                       </tr>
                     </thead>
                     <tbody>
                       {studentDetails.map((student, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="p-3 text-sm">{student.studentId}</td>
-                          <td className="p-3 text-sm">{student.name}</td>
+                        <tr key={index} className={`border-t ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
+                          <td className={`p-3 text-sm ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.studentId}</td>
+                          <td className={`p-3 text-sm ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
                           <td className="p-3 text-sm text-center">
                             <span
                               className={`inline-block px-2 py-1 rounded text-xs ${
@@ -264,7 +281,14 @@ export function ExamResultsScreen() {
                               {student.isCompleted ? "完了" : "未完了"}
                             </span>
                           </td>
-                          <td className="p-3 text-sm text-right font-medium">{student.score}点</td>
+                          <td className={`p-3 text-sm text-right font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.score}点</td>
+                          <td className="p-3 text-sm text-center">
+                            {student.alertCount > 0 ? (
+                              <span className="inline-block px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

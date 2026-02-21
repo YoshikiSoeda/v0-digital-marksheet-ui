@@ -39,6 +39,12 @@ interface RoomData {
   universityCode: string
 }
 
+interface RoleStats {
+  completedCount: number
+  alertCount: number
+  averageScore: number
+}
+
 interface RoomData {
   roomNumber: string
   roomName: string
@@ -49,6 +55,8 @@ interface RoomData {
   completedCount: number
   alertCount: number
   averageScore: number
+  teacherStats: RoleStats
+  patientStats: RoleStats
   students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
   universityCode?: string
 }
@@ -83,7 +91,6 @@ interface Evaluation {
   testId: string
   hasAlert: boolean
   isCompleted: boolean
-  testCode: string
 }
 
 interface University {
@@ -93,7 +100,7 @@ interface University {
 
 interface TestSession {
   id: string
-  testCode: string
+  description: string
   universityCode: string
   testDate: string
 }
@@ -108,6 +115,7 @@ const AdminDashboard = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
+  const selectedRoomData = selectedRoom ? rooms.find((r) => r.roomNumber === selectedRoom) : null
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [updateCounter, setUpdateCounter] = useState(0)
   const [accountType, setAccountType] = useState<string | null>(null)
@@ -204,10 +212,9 @@ const AdminDashboard = () => {
             const transformedSessions = Array.isArray(sessionsData)
               ? sessionsData.map((session: any) => ({
                   id: session.id,
-                  testCode: session.test_code,
+                  description: session.description || "(名称未設定)",
                   universityCode: session.university_code,
                   testDate: session.test_date,
-                  description: session.description || "",
                 }))
               : []
 
@@ -220,6 +227,25 @@ const AdminDashboard = () => {
         } catch (error) {
           console.error("[v0] Test sessions fetch error:", error)
           setTestSessions([])
+        }
+      } else {
+        // special_master以外でもテストセッションを取得
+        try {
+          const response = await fetch("/api/test-sessions")
+          if (response.ok) {
+            const sessionsData = await response.json()
+            const transformedSessions = Array.isArray(sessionsData)
+              ? sessionsData.map((session: any) => ({
+                  id: session.id,
+                  description: session.description || "(名称未設定)",
+                  universityCode: session.university_code,
+                  testDate: session.test_date,
+                }))
+              : []
+            setTestSessions(transformedSessions)
+          }
+        } catch (error) {
+          console.error("[v0] Test sessions fetch error:", error)
         }
       }
 
@@ -340,6 +366,27 @@ const AdminDashboard = () => {
             const avgScore =
               completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
 
+            // Split stats by evaluatorType (teacher/patient)
+            const teacherEvals = roomEvaluations.filter((e) => e.evaluatorType === "teacher")
+            const patientEvals = roomEvaluations.filter((e) => e.evaluatorType === "patient")
+
+            const calcRoleStats = (evals: typeof roomEvaluations): RoleStats => {
+              const completed = new Set<string>()
+              const alerts = new Set<string>()
+              const scoreMap = new Map<string, number>()
+              evals.forEach((e) => {
+                if (e.isCompleted) completed.add(e.studentId)
+                if (e.hasAlert) alerts.add(e.studentId)
+                if (e.isCompleted) scoreMap.set(e.studentId, e.totalScore || 0)
+              })
+              const scores = Array.from(scoreMap.values())
+              const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+              return { completedCount: completed.size, alertCount: alerts.size, averageScore: avg }
+            }
+
+            const teacherStats = calcRoleStats(teacherEvals)
+            const patientStats = calcRoleStats(patientEvals)
+
             const teacherForRoom = Array.isArray(teachersData)
               ? teachersData.find((t) => t.assignedRoomNumber === room.roomNumber)
               : undefined
@@ -385,6 +432,8 @@ const AdminDashboard = () => {
               completedCount,
               alertCount,
               averageScore: avgScore,
+              teacherStats,
+              patientStats,
               students: studentsWithStatus,
               universityCode: room.universityCode,
             })
@@ -452,22 +501,7 @@ const AdminDashboard = () => {
       console.log("[v0] Refreshed patients data:", fetchedPatients)
       console.log("[v0] Refreshed rooms data:", fetchedRooms)
 
-      const roomMap = new Map<
-        string,
-        {
-          roomNumber: string
-          roomName: string
-          teacherName: string
-          patientName: string
-          presentCount: number
-          absentCount: number
-          completedCount: number
-          alertCount: number
-          averageScore: number
-          students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
-          universityCode?: string
-        }
-      >()
+      const roomMap = new Map<string, RoomData>()
 
       if (
         Array.isArray(fetchedRooms) &&
@@ -535,6 +569,27 @@ const AdminDashboard = () => {
           const avgScore =
             completedEvaluationsByStudent.size > 0 ? Math.round(totalScore / completedEvaluationsByStudent.size) : 0
 
+          // Split stats by evaluatorType
+          const teacherEvalsP = roomEvaluations.filter((e) => e.evaluatorType === "teacher")
+          const patientEvalsP = roomEvaluations.filter((e) => e.evaluatorType === "patient")
+
+          const calcRoleStatsP = (evals: typeof roomEvaluations): RoleStats => {
+            const completed = new Set<string>()
+            const alerts = new Set<string>()
+            const scoreMap = new Map<string, number>()
+            evals.forEach((e) => {
+              if (e.isCompleted) completed.add(e.studentId)
+              if (e.hasAlert) alerts.add(e.studentId)
+              if (e.isCompleted) scoreMap.set(e.studentId, e.totalScore || 0)
+            })
+            const scores = Array.from(scoreMap.values())
+            const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+            return { completedCount: completed.size, alertCount: alerts.size, averageScore: avg }
+          }
+
+          const teacherStatsP = calcRoleStatsP(teacherEvalsP)
+          const patientStatsP = calcRoleStatsP(patientEvalsP)
+
           const teacherForRoom = Array.isArray(fetchedTeachers)
             ? fetchedTeachers.find((t) => t.assignedRoomNumber === room.roomNumber)
             : undefined
@@ -580,6 +635,8 @@ const AdminDashboard = () => {
             completedCount,
             alertCount,
             averageScore: avgScore,
+            teacherStats: teacherStatsP,
+            patientStats: patientStatsP,
             students: studentsWithStatus,
             universityCode: room.universityCode,
           })
@@ -610,8 +667,8 @@ const AdminDashboard = () => {
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
       const matchesUniversity = !selectedUniversity || room.universityCode === selectedUniversity
-      // テストコードが選択されている場合は、全部屋を表示（テストコードはtest_sessionsに紐づく）
-      // 実際のフィルタリングはevaluationsデータではなく、選択されたテストコードで行う
+    // 試験セッションが選択されている場合は、全部屋を表示
+    // 実際のフィルタリングはevaluationsデータではなく、選択された試験セッションIDで行う
       return matchesUniversity
     })
   }, [rooms, selectedUniversity])
@@ -674,14 +731,14 @@ const AdminDashboard = () => {
                 </Select>
 
                 <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
-                  <SelectTrigger className="h-9 w-[200px]">
-                    <SelectValue placeholder="テストコードを選択" />
+                  <SelectTrigger className="h-9 w-[250px]">
+                    <SelectValue placeholder="試験セッションを選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">すべてのテストコード</SelectItem>
+                    <SelectItem value="all">すべての試験セッション</SelectItem>
                     {filteredTestSessions.map((session) => (
-                      <SelectItem key={session.id} value={session.testCode}>
-                        {session.testCode}
+                      <SelectItem key={session.id} value={session.id}>
+                        {session.description}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -724,6 +781,25 @@ const AdminDashboard = () => {
             </Button>
           )}
         </div>
+
+  {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
+  <div className="mb-4 flex gap-4">
+    {assignedSubjectName && (
+      <div className="px-4 py-3 rounded-lg border bg-card shadow-sm shrink-0">
+        <p className="text-xs text-muted-foreground font-medium">担当教科</p>
+        <p className="text-base font-bold text-foreground">{assignedSubjectName}</p>
+      </div>
+    )}
+    {testSessions.find((s) => s.id === (typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") : "")) && (
+      <div className="px-4 py-3 rounded-lg border bg-card shadow-sm flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground font-medium">テスト名</p>
+        <p className="text-base font-bold text-foreground truncate">
+          {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.description}
+        </p>
+      </div>
+    )}
+  </div>
+  )}
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <Card>
@@ -782,29 +858,6 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-  {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
-  <div className="mb-4 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 space-y-2">
-  {assignedSubjectName && (
-    <div>
-      <p className="text-sm text-blue-600 font-medium">担当教科</p>
-      <p className="text-lg font-bold text-blue-900">{assignedSubjectName}</p>
-    </div>
-  )}
-  {(() => {
-    const currentSessionId = sessionStorage.getItem("testSessionId") || ""
-    const currentSession = testSessions.find((s) => s.id === currentSessionId)
-    if (!currentSession) return null
-    return (
-      <div>
-        <p className="text-sm text-blue-600 font-medium">選択中の試験セッション</p>
-        <p className="text-lg font-bold text-blue-900">{currentSession.description || currentSession.testCode}</p>
-        <p className="text-xs text-blue-700">テストコード: {currentSession.testCode} / 実施日: {currentSession.testDate}</p>
-      </div>
-    )
-  })()}
-  </div>
-  )}
-
         <Card>
           <CardHeader>
             <CardTitle>部屋別進捗状況</CardTitle>
@@ -843,18 +896,32 @@ const AdminDashboard = () => {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">完了:</span>
-                              <span className="font-semibold text-blue-600">{room.completedCount}</span>
+                              <span className="font-semibold text-xs">
+                                <span className="text-blue-600">教 {room.teacherStats.completedCount}</span>
+                                <span className="mx-1 text-muted-foreground">/</span>
+                                <span className="text-pink-600">患 {room.patientStats.completedCount}</span>
+                              </span>
                             </div>
-                            {room.alertCount > 0 && (
+                            {(room.teacherStats.alertCount > 0 || room.patientStats.alertCount > 0) && (
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">アラート:</span>
-                                <span className="font-semibold text-red-600">{room.alertCount}</span>
+                                <span className="font-semibold text-xs">
+                                  <span className="text-red-600">教 {room.teacherStats.alertCount}</span>
+                                  <span className="mx-1 text-muted-foreground">/</span>
+                                  <span className="text-red-600">患 {room.patientStats.alertCount}</span>
+                                </span>
                               </div>
                             )}
-                            {room.averageScore > 0 && (
-                              <div className="text-center pt-2 border-t mt-2">
-                                <span className="text-muted-foreground">平均: </span>
-                                <span className="font-bold text-primary">{room.averageScore}点</span>
+                            {(room.teacherStats.averageScore > 0 || room.patientStats.averageScore > 0) && (
+                              <div className="pt-2 border-t mt-2 space-y-0.5">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">平均(教員):</span>
+                                  <span className="font-bold text-blue-700">{room.teacherStats.averageScore}点</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground">平均(患者):</span>
+                                  <span className="font-bold text-pink-700">{room.patientStats.averageScore}点</span>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -880,7 +947,7 @@ const AdminDashboard = () => {
               onClick={() => {
                 const params = new URLSearchParams()
                 if (selectedUniversity) params.set("university", selectedUniversity)
-                if (selectedTestCode && selectedTestCode !== "all") params.set("testCode", selectedTestCode)
+                if (selectedTestCode && selectedTestCode !== "all") params.set("testSessionId", selectedTestCode)
                 window.location.href = `/admin/students-detail?${params.toString()}`
               }}
               className="w-full"
@@ -896,118 +963,139 @@ const AdminDashboard = () => {
           <DialogHeader>
             <DialogTitle>部屋 {selectedRoom} の詳細</DialogTitle>
           </DialogHeader>
-          {selectedRoom &&
-            (() => {
-              const room = rooms.find((r) => r.roomNumber === selectedRoom)
-              if (!room) return <p className="text-muted-foreground">部屋情報が見つかりません</p>
+          {selectedRoom && !selectedRoomData && (
+            <p className="text-muted-foreground">部屋情報が見つかりません</p>
+          )}
+          {selectedRoomData && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">部屋名</p>
+                  <p className="text-base">{selectedRoomData.roomName}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">部屋番号</p>
+                  <p className="text-base">{selectedRoomData.roomNumber}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">担当教員</p>
+                  <p className="text-base">{selectedRoomData.teacherName}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">患者担当</p>
+                  <p className="text-base">{selectedRoomData.patientName}</p>
+                </div>
+              </div>
 
-              return (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">部屋名</p>
-                      <p className="text-base">{room.roomName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">部屋番号</p>
-                      <p className="text-base">{room.roomNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">担当教員</p>
-                      <p className="text-base">{room.teacherName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">患者担当</p>
-                      <p className="text-base">{room.patientName}</p>
-                    </div>
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">進捗状況</h4>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-green-600">{selectedRoomData.presentCount}</p>
+                    <p className="text-xs text-muted-foreground">出席</p>
                   </div>
-
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">進捗状況</h4>
-                    <div className="grid grid-cols-4 gap-4 text-center">
-                      <div>
-                        <p className="text-2xl font-bold text-green-600">{room.presentCount}</p>
-                        <p className="text-xs text-muted-foreground">出席</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-red-600">{room.absentCount}</p>
-                        <p className="text-xs text-muted-foreground">欠席</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-blue-600">{room.completedCount}</p>
-                        <p className="text-xs text-muted-foreground">完了</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-orange-600">{room.alertCount}</p>
-                        <p className="text-xs text-muted-foreground">アラート</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">学生一覧</h4>
-                    <div className="space-y-2">
-                      {room.students && room.students.length > 0 ? (
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left py-2">学籍番号</th>
-                              <th className="text-left py-2">氏名</th>
-                              <th className="text-center py-2">出欠</th>
-                              <th className="text-center py-2">合計点</th>
-                              <th className="text-center py-2">アラート</th>
-                              <th className="text-center py-2">完了</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {room.students.map((student) => (
-                              <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
-                                <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
-                                <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
-                                <td className="text-center py-2">
-                                  <span
-                                    className={`px-2 py-1 rounded text-xs ${
-                                      student.status === "present"
-                                        ? "bg-green-100 text-green-800"
-                                        : student.status === "absent"
-                                          ? "bg-red-100 text-red-800"
-                                          : "bg-gray-100 text-gray-800"
-                                    }`}
-                                  >
-                                    {student.status === "present"
-                                      ? "出席"
-                                      : student.status === "absent"
-                                        ? "欠席"
-                                        : "未確認"}
-                                  </span>
-                                </td>
-                                <td className={`text-center py-2 font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.totalScore}点</td>
-                                <td className="text-center py-2">
-                                  {student.alertCount > 0 ? (
-                                    <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                                <td className="text-center py-2">
-                                  {student.isCompleted ? (
-                                    <span className="text-blue-600">✓</span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">学生データがありません</p>
-                      )}
-                    </div>
+                  <div>
+                    <p className="text-2xl font-bold text-red-600">{selectedRoomData.absentCount}</p>
+                    <p className="text-xs text-muted-foreground">欠席</p>
                   </div>
                 </div>
-              )
-            })()}
+                <div className="mt-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-1 text-muted-foreground font-medium"></th>
+                        <th className="text-center py-1 text-blue-700 font-medium">教員側</th>
+                        <th className="text-center py-1 text-pink-700 font-medium">患者役側</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="py-1.5 text-muted-foreground">完了</td>
+                        <td className="text-center font-bold text-blue-600">{selectedRoomData.teacherStats.completedCount}</td>
+                        <td className="text-center font-bold text-pink-600">{selectedRoomData.patientStats.completedCount}</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="py-1.5 text-muted-foreground">アラート</td>
+                        <td className="text-center font-bold text-red-600">{selectedRoomData.teacherStats.alertCount}</td>
+                        <td className="text-center font-bold text-red-600">{selectedRoomData.patientStats.alertCount}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 text-muted-foreground">平均点</td>
+                        <td className="text-center font-bold text-blue-700">{selectedRoomData.teacherStats.averageScore}点</td>
+                        <td className="text-center font-bold text-pink-700">{selectedRoomData.patientStats.averageScore}点</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
+                  <span className="text-xs text-muted-foreground">合算平均: </span>
+                  <span className="font-bold text-primary">{selectedRoomData.averageScore}点</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-2">学生一覧</h4>
+                <div className="space-y-2">
+                  {selectedRoomData.students && selectedRoomData.students.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2">学籍番号</th>
+                          <th className="text-left py-2">氏名</th>
+                          <th className="text-center py-2">出欠</th>
+                          <th className="text-center py-2">合計点</th>
+                          <th className="text-center py-2">アラート</th>
+                          <th className="text-center py-2">完了</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedRoomData.students.map((student) => (
+                          <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
+                            <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
+                            <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
+                            <td className="text-center py-2">
+                              <span
+                                className={`px-2 py-1 rounded text-xs ${
+                                  student.status === "present"
+                                    ? "bg-green-100 text-green-800"
+                                    : student.status === "absent"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {student.status === "present"
+                                  ? "出席"
+                                  : student.status === "absent"
+                                    ? "欠席"
+                                    : "未確認"}
+                              </span>
+                            </td>
+                            <td className={`text-center py-2 font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.totalScore}点</td>
+                            <td className="text-center py-2">
+                              {student.alertCount > 0 ? (
+                                <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="text-center py-2">
+                              {student.isCompleted ? (
+                                <span className="text-blue-600">✓</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">学生データがありません</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

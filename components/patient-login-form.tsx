@@ -113,8 +113,8 @@ export function PatientLoginForm() {
           <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
             <Calendar className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">試験セッション選択</CardTitle>
-          <CardDescription className="text-center">参加する試験セッションを選択してください</CardDescription>
+          <CardTitle className="text-2xl text-center">試験の選択</CardTitle>
+          <CardDescription className="text-center">参加する試験を選択してください</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {sessions.map((session) => (
@@ -125,7 +125,7 @@ export function PatientLoginForm() {
               onClick={() => handleSessionSelect(session.id)}
             >
               <div className="text-left">
-                <div className="font-medium">{session.description || session.testCode}</div>
+                <div className="font-medium">{session.description || "(名称未設定)"}</div>
                 <div className="text-sm text-muted-foreground">{session.testDate}</div>
               </div>
             </Button>

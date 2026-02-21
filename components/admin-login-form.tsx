@@ -17,7 +17,6 @@ import { loadTeachers, loadSubjects, type Subject } from "@/lib/data-storage"
 
 interface SessionData {
   id: string
-  test_code: string
   test_date: string
   description: string
   university_code: string
@@ -52,7 +51,7 @@ export function AdminLoginForm() {
   const [filterSubject, setFilterSubject] = useState<string>("all")
 
   // New test session creation state
-  const [newTestCode, setNewTestCode] = useState("")
+
   const [newTestDate, setNewTestDate] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [newUniversityCode, setNewUniversityCode] = useState("")
@@ -275,7 +274,7 @@ export function AdminLoginForm() {
 
   const handleCreateSession = async () => {
     setCreateError("")
-    if (!newTestCode || !newTestDate || !newDescription) {
+    if (!newTestDate || !newDescription) {
       setCreateError("全ての必須項目を入力してください")
       return
     }
@@ -292,7 +291,6 @@ export function AdminLoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          test_code: newTestCode,
           test_date: newTestDate,
           description: newDescription,
           university_code: universityCode,
@@ -311,7 +309,6 @@ export function AdminLoginForm() {
       // Refresh sessions
       setAllSessions((prev) => [created, ...prev])
       // Reset form
-      setNewTestCode("")
       setNewTestDate("")
       setNewDescription("")
       setNewUniversityCode("")
@@ -332,8 +329,8 @@ export function AdminLoginForm() {
           <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
             <Plus className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">新規テストコード作成</CardTitle>
-          <CardDescription className="text-center">新しい試験セッションを登録します</CardDescription>
+          <CardTitle className="text-2xl text-center">新規テスト作成</CardTitle>
+          <CardDescription className="text-center">新しいテストを登録します</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {createError && (
@@ -341,15 +338,6 @@ export function AdminLoginForm() {
               <AlertDescription>{createError}</AlertDescription>
             </Alert>
           )}
-
-          <div className="space-y-2">
-            <Label>テストコード <span className="text-destructive">*</span></Label>
-            <Input
-              placeholder="例: 2026-07-OSCE"
-              value={newTestCode}
-              onChange={(e) => setNewTestCode(e.target.value)}
-            />
-          </div>
 
           <div className="space-y-2">
             <Label>テスト名 <span className="text-destructive">*</span></Label>
@@ -439,7 +427,7 @@ export function AdminLoginForm() {
           <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
             <Calendar className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">試験セッション選択</CardTitle>
+          <CardTitle className="text-2xl text-center">試験の選択</CardTitle>
           <CardDescription className="text-center">
             {roleLabel}としてログイン中 - 管理する試験を選択してください
           </CardDescription>
@@ -502,7 +490,7 @@ export function AdminLoginForm() {
           <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
             {filteredSessions.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-6">
-                該当する試験セッションがありません
+                該当する試験がありません
               </p>
             ) : (
               filteredSessions.map((session) => {
@@ -516,10 +504,9 @@ export function AdminLoginForm() {
                     onClick={() => handleSessionSelect(session.id)}
                   >
                     <div className="text-left w-full">
-                      <div className="font-medium">{session.description || session.test_code}</div>
+                      <div className="font-medium">{session.description || "(名称未設定)"}</div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
                         <span>{session.test_date}</span>
-                        <span className="font-mono">{session.test_code}</span>
                         {uniName && <span>{uniName}</span>}
                         {subjectName && <span>{subjectName}</span>}
                       </div>
@@ -541,7 +528,7 @@ export function AdminLoginForm() {
               }}
             >
               <Plus className="w-4 h-4 mr-2" />
-              テストコード新規作成
+              新規テスト作成
             </Button>
           )}
 
