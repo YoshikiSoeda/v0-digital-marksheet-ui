@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy } from "lucide-react"
+import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy, Hourglass } from "lucide-react"
 import Link from "next/link"
 import { loadTests, saveTests, deleteTest, type Test } from "@/lib/data-storage"
 import { useRouter } from "next/navigation"
@@ -36,6 +36,7 @@ export function QuestionManagement() {
   const [duplicateTargetSessionId, setDuplicateTargetSessionId] = useState<string>("")
   const [duplicateRoleType, setDuplicateRoleType] = useState<"teacher" | "patient">("teacher")
   const [duplicateStep, setDuplicateStep] = useState<1 | 2 | 3>(1)
+  const [duplicateLoading, setDuplicateLoading] = useState(false)
   const [duplicateNewSessionMode, setDuplicateNewSessionMode] = useState<"existing" | "create">("existing")
   const [dupNewTestName, setDupNewTestName] = useState("")
   const [dupNewTestDate, setDupNewTestDate] = useState("")
@@ -207,9 +208,10 @@ export function QuestionManagement() {
     : ""
 
   const executeDuplicate = async () => {
-    if (!duplicateSourceId) return
+    if (!duplicateSourceId || duplicateLoading) return
+    setDuplicateLoading(true)
     const original = tests.find((t) => t.id === duplicateSourceId)
-    if (!original) return
+    if (!original) { setDuplicateLoading(false); return }
 
     let targetSessionId = ""
 
@@ -219,18 +221,21 @@ export function QuestionManagement() {
       targetSessionId = duplicateTargetSessionId
       if (!targetSessionId) {
         alert("複製先のテストを選択してください")
+        setDuplicateLoading(false)
         return
       }
     } else {
       // 新規テスト作成
       if (!dupNewTestName.trim() || !dupNewTestDate) {
         alert("テスト名と実施日を入力してください")
+        setDuplicateLoading(false)
         return
       }
       const description = dupGeneratedDescription
       const isDuplicate = testSessions.some((ts) => ts.description === description)
       if (isDuplicate) {
         alert(`「${description}」は既に登録されています。テスト名を変更してください。`)
+        setDuplicateLoading(false)
         return
       }
       try {
@@ -286,10 +291,12 @@ export function QuestionManagement() {
     try {
       await saveTests([duplicated])
       setTests([...tests, duplicated])
+      setDuplicateLoading(false)
       setShowDuplicateDialog(false)
       setDuplicateSourceId(null)
     } catch (err) {
       console.error("[v0] Error duplicating test:", err)
+      setDuplicateLoading(false)
       alert("テストの複製に失敗しました")
     }
   }
@@ -790,8 +797,16 @@ export function QuestionManagement() {
                     <Button
                       className="w-full bg-[#00417A] hover:bg-[#00417A]/90"
                       onClick={executeDuplicate}
+                      disabled={duplicateLoading}
                     >
-                      複製を実行
+                      {duplicateLoading ? (
+                        <>
+                          <Hourglass className="mr-2 h-4 w-4 animate-pulse" />
+                          処理中...
+                        </>
+                      ) : (
+                        "複製を実行"
+                      )}
                     </Button>
                   </div>
                 )}
