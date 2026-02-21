@@ -30,6 +30,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   const [selectedUniversity, setSelectedUniversity] = useState("")
   const [accountType, setAccountType] = useState<string>("")
   const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
+  const [passingScore, setPassingScore] = useState<string>("")
 
   useEffect(() => {
     const storedAccountType = sessionStorage.getItem("accountType") || ""
@@ -70,6 +71,10 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
 
         if (test.testSessionId) {
           setSelectedTestSessionId(test.testSessionId)
+          const session = sessionsData.find((s: any) => s.id === test.testSessionId)
+          if (session?.passing_score != null) {
+            setPassingScore(String(session.passing_score))
+          }
         }
       } catch (error) {
         console.error("[v0] Error loading test:", error)
@@ -298,6 +303,25 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
       )
 
       await saveTests(updatedTests)
+
+      // 合格基準点をセッションに保存
+      if (passingScore !== "") {
+        try {
+          await fetch(`/api/test-sessions/${testSession.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              test_date: testSession.test_date,
+              description: testSession.description,
+              university_code: testSession.university_code,
+              passing_score: parseInt(passingScore, 10),
+            }),
+          })
+        } catch (e) {
+          console.error("[v0] Error saving passing score:", e)
+        }
+      }
+
       alert("テストを更新しました")
       router.push("/admin/question-management")
     } catch (error) {
@@ -404,6 +428,17 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="min-w-[100px]">
+                <Label className="text-xs">合格基準点</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  className="h-9 w-24"
+                  value={passingScore}
+                  onChange={(e) => setPassingScore(e.target.value)}
+                  placeholder="点"
+                />
               </div>
             </div>
           </CardContent>

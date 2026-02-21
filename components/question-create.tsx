@@ -29,6 +29,7 @@ export function QuestionCreate() {
   const [teacherSubjectCode, setTeacherSubjectCode] = useState<string>("")
   const [isTeacher, setIsTeacher] = useState(false)
   const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
+  const [passingScore, setPassingScore] = useState<string>("")
 
   const [tests, setTests] = useState<
     Array<{
@@ -487,6 +488,24 @@ export function QuestionCreate() {
 
     await saveTests([...existingTests, ...newTests])
 
+    // 合格基準点をセッションに保存
+    if (passingScore !== "") {
+      try {
+        await fetch(`/api/test-sessions/${testSession.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            test_date: testSession.test_date,
+            description: testSession.description,
+            university_code: testSession.university_code,
+            passing_score: parseInt(passingScore, 10),
+          }),
+        })
+      } catch (e) {
+        console.error("[v0] Error saving passing score:", e)
+      }
+    }
+
     alert(`${newTests.length}件のテストを保存しました`)
     router.push("/admin/question-management")
   }
@@ -693,10 +712,26 @@ export function QuestionCreate() {
                   </Select>
                 </div>
 
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">合格基準点</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    className="h-9 w-24"
+                    value={passingScore}
+                    onChange={(e) => setPassingScore(e.target.value)}
+                    placeholder="点"
+                  />
+                </div>
+
                 <div className="space-y-1 flex-1 min-w-48">
                   <Label className="text-xs text-muted-foreground">既存テスト名</Label>
                   <div className="flex items-center gap-2">
-                    <Select value={selectedTestSessionId || "none"} onValueChange={setSelectedTestSessionId}>
+                    <Select value={selectedTestSessionId || "none"} onValueChange={(val) => {
+                      setSelectedTestSessionId(val)
+                      const session = testSessions.find((ts: any) => ts.id === val)
+                      setPassingScore(session?.passing_score != null ? String(session.passing_score) : "")
+                    }}>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="既存テスト名を選択" />
                       </SelectTrigger>
