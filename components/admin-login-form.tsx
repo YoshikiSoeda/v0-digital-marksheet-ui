@@ -329,8 +329,8 @@ export function AdminLoginForm() {
           <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
             <Plus className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">新規試験セッション作成</CardTitle>
-          <CardDescription className="text-center">新しい試験セッションを登録します</CardDescription>
+          <CardTitle className="text-2xl text-center">新規テスト作成</CardTitle>
+          <CardDescription className="text-center">新しいテストを登録します</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {createError && (
@@ -427,7 +427,7 @@ export function AdminLoginForm() {
           <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
             <Calendar className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">試験セッション選択</CardTitle>
+          <CardTitle className="text-2xl text-center">試験の選択</CardTitle>
           <CardDescription className="text-center">
             {roleLabel}としてログイン中 - 管理する試験を選択してください
           </CardDescription>
@@ -490,7 +490,7 @@ export function AdminLoginForm() {
           <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
             {filteredSessions.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-6">
-                該当する試験セッションがありません
+                該当する試験がありません
               </p>
             ) : (
               filteredSessions.map((session) => {
@@ -528,7 +528,7 @@ export function AdminLoginForm() {
               }}
             >
               <Plus className="w-4 h-4 mr-2" />
-              試験セッション新規作成
+              新規テスト作成
             </Button>
           )}
 
