@@ -782,6 +782,25 @@ const AdminDashboard = () => {
           )}
         </div>
 
+  {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
+  <div className="mb-4 flex gap-4">
+    {assignedSubjectName && (
+      <div className="px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 shrink-0">
+        <p className="text-xs text-blue-600 font-medium">担当教科</p>
+        <p className="text-base font-bold text-blue-900">{assignedSubjectName}</p>
+      </div>
+    )}
+    {testSessions.find((s) => s.id === (typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") : "")) && (
+      <div className="px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 flex-1 min-w-0">
+        <p className="text-xs text-blue-600 font-medium">テスト名</p>
+        <p className="text-base font-bold text-blue-900 truncate">
+          {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.description}
+        </p>
+      </div>
+    )}
+  </div>
+  )}
+
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -838,25 +857,6 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
         </div>
-
-  {(assignedSubjectName || sessionStorage.getItem("testSessionId")) && (
-  <div className="mb-4 flex gap-4">
-    {assignedSubjectName && (
-      <div className="px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 shrink-0">
-        <p className="text-xs text-blue-600 font-medium">担当教科</p>
-        <p className="text-base font-bold text-blue-900">{assignedSubjectName}</p>
-      </div>
-    )}
-    {testSessions.find((s) => s.id === (typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") : "")) && (
-      <div className="px-4 py-3 rounded-lg border border-blue-200 bg-blue-50 flex-1 min-w-0">
-        <p className="text-xs text-blue-600 font-medium">テスト名</p>
-        <p className="text-base font-bold text-blue-900 truncate">
-          {testSessions.find((s) => s.id === sessionStorage.getItem("testSessionId"))?.description}
-        </p>
-      </div>
-    )}
-  </div>
-  )}
 
         <Card>
           <CardHeader>
