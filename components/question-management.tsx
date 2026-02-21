@@ -141,6 +141,23 @@ export function QuestionManagement() {
     return matchesSearch && matchesUniversity && matchesSubject
   })
 
+  // testSessionIdでグルーピング（通常ユーザー向け）
+  const groupedBySession: Record<string, Test[]> = {}
+  filteredTests.forEach((test) => {
+    const sessionId = (test as any).testSessionId || "unassigned"
+    if (!groupedBySession[sessionId]) {
+      groupedBySession[sessionId] = []
+    }
+    groupedBySession[sessionId].push(test)
+  })
+  // 各グループ内で教員側を先、患者役側を後にソート
+  Object.values(groupedBySession).forEach((group) => {
+    group.sort((a, b) => {
+      const roleOrder = { teacher: 0, patient: 1 }
+      return (roleOrder[(a as any).roleType as keyof typeof roleOrder] ?? 2) - (roleOrder[(b as any).roleType as keyof typeof roleOrder] ?? 2)
+    })
+  })
+
   const groupedByUniversityAndTestCode: Record<string, Record<string, Test[]>> = {}
 
   if (isSpecialMaster && selectedUniversity === "all") {
@@ -438,58 +455,63 @@ export function QuestionManagement() {
                 })}
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredTests.map((test) => {
-                  const testSession = testSessions.find((ts) => ts.id === (test as any).testSessionId)
-                  const subjectName = subjects.find((s) => s.code === (test as any).subjectCode)?.name || (test as any).subjectCode
+              <div className="space-y-5">
+                {Object.entries(groupedBySession).map(([sessionId, testsInSession]) => {
+                  const testSession = testSessions.find((ts) => ts.id === sessionId)
+                  const sessionLabel = testSession?.description || "未分類"
+
                   return (
-                  <div key={test.id} className="flex items-center justify-between rounded-lg border bg-white p-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-[#00417A]">{test.title}</h4>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          (test as any).roleType === "patient"
-                            ? "bg-pink-100 text-pink-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}>
-                          {(test as any).roleType === "patient" ? "患者役側" : "教員側"}
-                        </span>
+                    <div key={sessionId} className="rounded-lg border bg-card overflow-hidden">
+                      <div className="px-4 py-3 bg-[#00417A]/5 border-b">
+                        <h4 className="text-base font-bold text-[#00417A]">{sessionLabel}</h4>
                       </div>
-                      {testSession && (
-                        <p className="text-sm text-[#00417A]/80 font-medium mt-0.5">
-                          {testSession.description || "(名称未設定)"}
-                          <span className="ml-2 text-xs text-muted-foreground">({new Date(testSession.test_date).toLocaleDateString("ja-JP")})</span>
-                        </p>
-                      )}
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {(test as any).subjectCode && (
-                          <>
-                            教科: {subjectName} |{" "}
-                          </>
-                        )}
-                        シート数: {test.sheets.length} | 作成日: {new Date(test.createdAt).toLocaleDateString("ja-JP")}
-                      </p>
+                      <div className="divide-y">
+                        {testsInSession.map((test) => {
+                          const subjectName = subjects.find((s) => s.code === (test as any).subjectCode)?.name || (test as any).subjectCode
+                          return (
+                            <div key={test.id} className="flex items-center justify-between px-4 py-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    (test as any).roleType === "patient"
+                                      ? "bg-pink-100 text-pink-800"
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}>
+                                    {(test as any).roleType === "patient" ? "患者役側" : "教員側"}
+                                  </span>
+                                  <h5 className="font-semibold text-[#00417A]">{test.title}</h5>
+                                </div>
+                                <p className="text-sm text-gray-500 mt-0.5">
+                                  {(test as any).subjectCode && (
+                                    <>教科: {subjectName} | </>
+                                  )}
+                                  シート数: {test.sheets.length} | 作成日: {new Date(test.createdAt).toLocaleDateString("ja-JP")}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleDuplicate(test.id)}>
+                                  <Copy className="mr-1 h-4 w-4" />
+                                  複製
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleEdit(test.id)}>
+                                  <Edit className="mr-1 h-4 w-4" />
+                                  編集
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDelete(test.id)}
+                                  className="text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="mr-1 h-4 w-4" />
+                                  削除
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleDuplicate(test.id)}>
-                        <Copy className="mr-1 h-4 w-4" />
-                        複製
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(test.id)}>
-                        <Edit className="mr-1 h-4 w-4" />
-                        編集
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(test.id)}
-                        className="text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 className="mr-1 h-4 w-4" />
-                        削除
-                      </Button>
-                    </div>
-                  </div>
                   )
                 })}
               </div>
