@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy } from "lucide-react"
 import Link from "next/link"
-import { loadTests, saveTests, type Test } from "@/lib/data-storage"
+import { loadTests, saveTests, deleteTest, type Test } from "@/lib/data-storage"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -199,9 +199,13 @@ export function QuestionManagement() {
   const handleDelete = async (testId: string) => {
     if (!confirm("このテストを削除してもよろしいですか？")) return
 
-    const updatedTests = tests.filter((t) => t.id !== testId)
-    setTests(updatedTests)
-    await saveTests(updatedTests)
+    try {
+      await deleteTest(testId)
+      setTests(tests.filter((t) => t.id !== testId))
+    } catch (err) {
+      console.error("[v0] Error deleting test:", err)
+      alert("テストの削除に失敗しました")
+    }
   }
 
   const handleCreateNew = () => {

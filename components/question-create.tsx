@@ -694,11 +694,11 @@ export function QuestionCreate() {
                 </div>
 
                 <div className="space-y-1 flex-1 min-w-48">
-                  <Label className="text-xs text-muted-foreground">試験セッション</Label>
+                  <Label className="text-xs text-muted-foreground">既存テスト名</Label>
                   <div className="flex items-center gap-2">
                     <Select value={selectedTestSessionId || "none"} onValueChange={setSelectedTestSessionId}>
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="試験セッションを選択" />
+                        <SelectValue placeholder="既存テスト名を選択" />
                       </SelectTrigger>
                       <SelectContent>
                         {filteredTestSessions.map((ts) => (
@@ -715,7 +715,7 @@ export function QuestionCreate() {
                       onClick={() => setShowNewTestForm(!showNewTestForm)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
-                      新規登録
+                      新規テスト作成
                     </Button>
                   </div>
                 </div>

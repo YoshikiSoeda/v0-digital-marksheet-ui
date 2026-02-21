@@ -593,6 +593,32 @@ export async function loadRooms(universityCode?: string, subjectCode?: string, t
   }))
 }
 
+// テストデータの削除（カスケードで sheets/categories/questions も削除）
+export async function deleteTest(testId: string) {
+  const supabase = createClient()
+
+  // sheets -> categories -> questions をカスケード削除
+  const { data: sheets } = await supabase.from("sheets").select("id").eq("test_id", testId)
+  if (sheets) {
+    for (const sheet of sheets) {
+      const { data: categories } = await supabase.from("categories").select("id").eq("sheet_id", sheet.id)
+      if (categories) {
+        for (const cat of categories) {
+          await supabase.from("questions").delete().eq("category_id", cat.id)
+        }
+        await supabase.from("categories").delete().eq("sheet_id", sheet.id)
+      }
+    }
+    await supabase.from("sheets").delete().eq("test_id", testId)
+  }
+
+  const { error } = await supabase.from("tests").delete().eq("id", testId)
+  if (error) {
+    console.error("[v0] Error deleting test:", error.message)
+    throw error
+  }
+}
+
 // テストデータの保存
 export async function saveTests(tests: Test[]) {
   const supabase = createClient()
