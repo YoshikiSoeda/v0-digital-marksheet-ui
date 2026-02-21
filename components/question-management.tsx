@@ -35,6 +35,7 @@ export function QuestionManagement() {
   const [duplicateMode, setDuplicateMode] = useState<"same" | "new">("same")
   const [duplicateTargetSessionId, setDuplicateTargetSessionId] = useState<string>("")
   const [duplicateRoleType, setDuplicateRoleType] = useState<"teacher" | "patient">("teacher")
+  const [duplicateStep, setDuplicateStep] = useState<1 | 2 | 3>(1)
   const [duplicateNewSessionMode, setDuplicateNewSessionMode] = useState<"existing" | "create">("existing")
   const [dupNewTestName, setDupNewTestName] = useState("")
   const [dupNewTestDate, setDupNewTestDate] = useState("")
@@ -197,6 +198,7 @@ export function QuestionManagement() {
     setDuplicateNewSessionMode("existing")
     setDupNewTestName("")
     setDupNewTestDate("")
+    setDuplicateStep(1)
     setShowDuplicateDialog(true)
   }
 
@@ -620,32 +622,40 @@ export function QuestionManagement() {
                   </p>
                 </div>
 
-                {/* ステップ1: テスト紐づけ先 */}
+                {/* ステップ1: 複製先のテスト */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">複製先のテスト</Label>
+                  <p className="text-sm font-medium text-foreground">複製先のテスト</p>
                   <div className="flex gap-2">
-                    <Button
-                      variant={duplicateMode === "same" ? "default" : "outline"}
-                      size="sm"
-                      className={duplicateMode === "same" ? "bg-[#00417A] hover:bg-[#00417A]/90 flex-1" : "flex-1"}
+                    <button
+                      type="button"
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
+                        duplicateMode === "same"
+                          ? "bg-[#00417A] text-white border-[#00417A]"
+                          : "bg-card text-foreground border-border hover:bg-secondary"
+                      }`}
                       onClick={() => {
                         setDuplicateMode("same")
                         setDuplicateTargetSessionId((source as any).testSessionId || "")
+                        setDuplicateStep(2)
                       }}
                     >
                       同一テストに追加
-                    </Button>
-                    <Button
-                      variant={duplicateMode === "new" ? "default" : "outline"}
-                      size="sm"
-                      className={duplicateMode === "new" ? "bg-[#00417A] hover:bg-[#00417A]/90 flex-1" : "flex-1"}
+                    </button>
+                    <button
+                      type="button"
+                      className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
+                        duplicateMode === "new"
+                          ? "bg-[#00417A] text-white border-[#00417A]"
+                          : "bg-card text-foreground border-border hover:bg-secondary"
+                      }`}
                       onClick={() => {
                         setDuplicateMode("new")
                         setDuplicateTargetSessionId("")
+                        setDuplicateStep(1)
                       }}
                     >
                       別のテストに複製
-                    </Button>
+                    </button>
                   </div>
                   {duplicateMode === "same" && sourceSession && (
                     <p className="text-xs text-muted-foreground px-1">
@@ -653,27 +663,36 @@ export function QuestionManagement() {
                     </p>
                   )}
                   {duplicateMode === "new" && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 pt-1">
                       <div className="flex gap-2">
-                        <Button
-                          variant={duplicateNewSessionMode === "existing" ? "default" : "outline"}
-                          size="sm"
-                          className={duplicateNewSessionMode === "existing" ? "bg-[#00417A]/80 hover:bg-[#00417A]/70 flex-1 text-xs" : "flex-1 text-xs"}
+                        <button
+                          type="button"
+                          className={`flex-1 py-1.5 px-2 rounded text-xs font-medium border transition-colors ${
+                            duplicateNewSessionMode === "existing"
+                              ? "bg-secondary text-foreground border-border"
+                              : "bg-card text-muted-foreground border-border hover:bg-secondary/50"
+                          }`}
                           onClick={() => setDuplicateNewSessionMode("existing")}
                         >
                           既存テストから選択
-                        </Button>
-                        <Button
-                          variant={duplicateNewSessionMode === "create" ? "default" : "outline"}
-                          size="sm"
-                          className={duplicateNewSessionMode === "create" ? "bg-[#00417A]/80 hover:bg-[#00417A]/70 flex-1 text-xs" : "flex-1 text-xs"}
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex-1 py-1.5 px-2 rounded text-xs font-medium border transition-colors ${
+                            duplicateNewSessionMode === "create"
+                              ? "bg-secondary text-foreground border-border"
+                              : "bg-card text-muted-foreground border-border hover:bg-secondary/50"
+                          }`}
                           onClick={() => setDuplicateNewSessionMode("create")}
                         >
                           新規テスト作成
-                        </Button>
+                        </button>
                       </div>
                       {duplicateNewSessionMode === "existing" && (
-                        <Select value={duplicateTargetSessionId} onValueChange={setDuplicateTargetSessionId}>
+                        <Select value={duplicateTargetSessionId} onValueChange={(val) => {
+                          setDuplicateTargetSessionId(val)
+                          setDuplicateStep(2)
+                        }}>
                           <SelectTrigger className="h-9">
                             <SelectValue placeholder="複製先のテストを選択" />
                           </SelectTrigger>
@@ -697,7 +716,10 @@ export function QuestionManagement() {
                                 type="date"
                                 className="h-8 text-sm"
                                 value={dupNewTestDate}
-                                onChange={(e) => setDupNewTestDate(e.target.value)}
+                                onChange={(e) => {
+                                  setDupNewTestDate(e.target.value)
+                                  if (e.target.value && dupNewTestName.trim()) setDuplicateStep(2)
+                                }}
                               />
                             </div>
                             <div>
@@ -705,7 +727,10 @@ export function QuestionManagement() {
                               <Input
                                 className="h-8 text-sm"
                                 value={dupNewTestName}
-                                onChange={(e) => setDupNewTestName(e.target.value)}
+                                onChange={(e) => {
+                                  setDupNewTestName(e.target.value)
+                                  if (dupNewTestDate && e.target.value.trim()) setDuplicateStep(2)
+                                }}
                                 placeholder="例: 全身OSCE"
                               />
                             </div>
@@ -722,52 +747,54 @@ export function QuestionManagement() {
                   )}
                 </div>
 
-                {/* ステップ2: ロールタイプ */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">ロールタイプ</Label>
-                  <div className="flex gap-2">
+                {/* ステップ2: ロールタイプ（複製先決定後に表示） */}
+                {duplicateStep >= 2 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">ロールタイプ</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border-2 transition-colors ${
+                          duplicateStep >= 3 && duplicateRoleType === "teacher"
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-card text-blue-700 border-blue-300 hover:bg-blue-50"
+                        }`}
+                        onClick={() => {
+                          setDuplicateRoleType("teacher")
+                          setDuplicateStep(3)
+                        }}
+                      >
+                        教員側
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border-2 transition-colors ${
+                          duplicateStep >= 3 && duplicateRoleType === "patient"
+                            ? "bg-pink-600 text-white border-pink-600"
+                            : "bg-card text-pink-700 border-pink-300 hover:bg-pink-50"
+                        }`}
+                        onClick={() => {
+                          setDuplicateRoleType("patient")
+                          setDuplicateStep(3)
+                        }}
+                      >
+                        患者役側
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ステップ3: 実行ボタン（ロール選択後に表示） */}
+                {duplicateStep >= 3 && (
+                  <div className="pt-2">
                     <Button
-                      variant={duplicateRoleType === "teacher" ? "default" : "outline"}
-                      size="sm"
-                      className={duplicateRoleType === "teacher" ? "bg-blue-600 hover:bg-blue-700 flex-1" : "flex-1"}
-                      onClick={() => setDuplicateRoleType("teacher")}
+                      className="w-full bg-[#00417A] hover:bg-[#00417A]/90"
+                      onClick={executeDuplicate}
                     >
-                      教員側
-                    </Button>
-                    <Button
-                      variant={duplicateRoleType === "patient" ? "default" : "outline"}
-                      size="sm"
-                      className={duplicateRoleType === "patient" ? "bg-pink-600 hover:bg-pink-700 flex-1" : "flex-1"}
-                      onClick={() => setDuplicateRoleType("patient")}
-                    >
-                      患者役側
+                      複製を実行
                     </Button>
                   </div>
-                </div>
-
-                {/* アクション */}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setShowDuplicateDialog(false)
-                      setDuplicateSourceId(null)
-                    }}
-                  >
-                    キャンセル
-                  </Button>
-                  <Button
-                    className="flex-1 bg-[#00417A] hover:bg-[#00417A]/90"
-                    onClick={executeDuplicate}
-                    disabled={duplicateMode === "new" && (
-                      (duplicateNewSessionMode === "existing" && !duplicateTargetSessionId) ||
-                      (duplicateNewSessionMode === "create" && !dupGeneratedDescription)
-                    )}
-                  >
-                    複製を実行
-                  </Button>
-                </div>
+                )}
               </div>
             )
           })()}
