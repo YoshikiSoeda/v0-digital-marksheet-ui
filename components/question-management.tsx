@@ -28,6 +28,13 @@ export function QuestionManagement() {
   const [showSessionDialog, setShowSessionDialog] = useState(false)
   const [newTestName, setNewTestName] = useState("")
   const [newTestDate, setNewTestDate] = useState("")
+
+  // 複製ダイアログ用state
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [duplicateSourceId, setDuplicateSourceId] = useState<string | null>(null)
+  const [duplicateMode, setDuplicateMode] = useState<"same" | "new">("same")
+  const [duplicateTargetSessionId, setDuplicateTargetSessionId] = useState<string>("")
+  const [duplicateRoleType, setDuplicateRoleType] = useState<"teacher" | "patient">("teacher")
   const [newUniversityCode, setNewUniversityCode] = useState("")
   const [newSubjectCode, setNewSubjectCode] = useState("")
 
@@ -177,9 +184,31 @@ export function QuestionManagement() {
     })
   }
 
-  const handleDuplicate = async (testId: string) => {
+  const openDuplicateDialog = (testId: string) => {
     const original = tests.find((t) => t.id === testId)
     if (!original) return
+    setDuplicateSourceId(testId)
+    setDuplicateMode("same")
+    setDuplicateTargetSessionId((original as any).testSessionId || "")
+    setDuplicateRoleType((original as any).roleType === "patient" ? "teacher" : "patient")
+    setShowDuplicateDialog(true)
+  }
+
+  const executeDuplicate = async () => {
+    if (!duplicateSourceId) return
+    const original = tests.find((t) => t.id === duplicateSourceId)
+    if (!original) return
+
+    const targetSessionId = duplicateMode === "same"
+      ? (original as any).testSessionId
+      : duplicateTargetSessionId
+
+    if (duplicateMode === "new" && !targetSessionId) {
+      alert("複製先のテストを選択してください")
+      return
+    }
+
+    const roleLabel = duplicateRoleType === "teacher" ? "教員側" : "患者役側"
 
     // Deep copy with all new UUIDs for sheets, categories, and questions
     const newSheets = original.sheets.map((sheet) => ({
@@ -198,15 +227,19 @@ export function QuestionManagement() {
     const duplicated: Test = {
       ...original,
       id: crypto.randomUUID(),
-      title: `${original.title}（コピー）`,
+      title: `${original.title}（${roleLabel}コピー）`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       sheets: newSheets,
     }
+    ;(duplicated as any).testSessionId = targetSessionId
+    ;(duplicated as any).roleType = duplicateRoleType
 
     try {
       await saveTests([duplicated])
       setTests([...tests, duplicated])
+      setShowDuplicateDialog(false)
+      setDuplicateSourceId(null)
     } catch (err) {
       console.error("[v0] Error duplicating test:", err)
       alert("テストの複製に失敗しました")
@@ -428,7 +461,7 @@ export function QuestionManagement() {
                                 </p>
                               </div>
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={() => handleDuplicate(test.id)}>
+                                <Button variant="outline" size="sm" onClick={() => openDuplicateDialog(test.id)}>
                                   <Copy className="mr-1 h-4 w-4" />
                                   複製
                                 </Button>
@@ -489,7 +522,7 @@ export function QuestionManagement() {
                                 </p>
                               </div>
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={() => handleDuplicate(test.id)}>
+                                <Button variant="outline" size="sm" onClick={() => openDuplicateDialog(test.id)}>
                                   <Copy className="mr-1 h-4 w-4" />
                                   複製
                                 </Button>
@@ -519,6 +552,126 @@ export function QuestionManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 複製ダイアログ */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>テストの複製</DialogTitle>
+          </DialogHeader>
+          {duplicateSourceId && (() => {
+            const source = tests.find((t) => t.id === duplicateSourceId)
+            if (!source) return null
+            const sourceSession = testSessions.find((ts) => ts.id === (source as any).testSessionId)
+            return (
+              <div className="space-y-5">
+                {/* 元テスト情報 */}
+                <div className="px-3 py-2 rounded-md bg-secondary/50 border">
+                  <p className="text-xs text-muted-foreground">複製元</p>
+                  <p className="text-sm font-medium">{source.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {sourceSession?.description || "未分類"} / {(source as any).roleType === "patient" ? "患者役側" : "教員側"}
+                  </p>
+                </div>
+
+                {/* ステップ1: テスト紐づけ先 */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">複製先のテスト</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={duplicateMode === "same" ? "default" : "outline"}
+                      size="sm"
+                      className={duplicateMode === "same" ? "bg-[#00417A] hover:bg-[#00417A]/90 flex-1" : "flex-1"}
+                      onClick={() => {
+                        setDuplicateMode("same")
+                        setDuplicateTargetSessionId((source as any).testSessionId || "")
+                      }}
+                    >
+                      同一テストに追加
+                    </Button>
+                    <Button
+                      variant={duplicateMode === "new" ? "default" : "outline"}
+                      size="sm"
+                      className={duplicateMode === "new" ? "bg-[#00417A] hover:bg-[#00417A]/90 flex-1" : "flex-1"}
+                      onClick={() => {
+                        setDuplicateMode("new")
+                        setDuplicateTargetSessionId("")
+                      }}
+                    >
+                      別のテストに複製
+                    </Button>
+                  </div>
+                  {duplicateMode === "same" && sourceSession && (
+                    <p className="text-xs text-muted-foreground px-1">
+                      {sourceSession.description} に追加されます
+                    </p>
+                  )}
+                  {duplicateMode === "new" && (
+                    <Select value={duplicateTargetSessionId} onValueChange={setDuplicateTargetSessionId}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="複製先のテストを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {testSessions
+                          .filter((ts) => ts.id !== (source as any).testSessionId)
+                          .map((ts) => (
+                            <SelectItem key={ts.id} value={ts.id}>
+                              {ts.description || "(名称未設定)"}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* ステップ2: ロールタイプ */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">ロールタイプ</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={duplicateRoleType === "teacher" ? "default" : "outline"}
+                      size="sm"
+                      className={duplicateRoleType === "teacher" ? "bg-blue-600 hover:bg-blue-700 flex-1" : "flex-1"}
+                      onClick={() => setDuplicateRoleType("teacher")}
+                    >
+                      教員側
+                    </Button>
+                    <Button
+                      variant={duplicateRoleType === "patient" ? "default" : "outline"}
+                      size="sm"
+                      className={duplicateRoleType === "patient" ? "bg-pink-600 hover:bg-pink-700 flex-1" : "flex-1"}
+                      onClick={() => setDuplicateRoleType("patient")}
+                    >
+                      患者役側
+                    </Button>
+                  </div>
+                </div>
+
+                {/* アクション */}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowDuplicateDialog(false)
+                      setDuplicateSourceId(null)
+                    }}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    className="flex-1 bg-[#00417A] hover:bg-[#00417A]/90"
+                    onClick={executeDuplicate}
+                    disabled={duplicateMode === "new" && !duplicateTargetSessionId}
+                  >
+                    複製を実行
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
