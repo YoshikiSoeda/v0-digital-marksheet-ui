@@ -228,6 +228,25 @@ const AdminDashboard = () => {
           console.error("[v0] Test sessions fetch error:", error)
           setTestSessions([])
         }
+      } else {
+        // special_master以外でもテストセッションを取得
+        try {
+          const response = await fetch("/api/test-sessions")
+          if (response.ok) {
+            const sessionsData = await response.json()
+            const transformedSessions = Array.isArray(sessionsData)
+              ? sessionsData.map((session: any) => ({
+                  id: session.id,
+                  description: session.description || "(名称未設定)",
+                  universityCode: session.university_code,
+                  testDate: session.test_date,
+                }))
+              : []
+            setTestSessions(transformedSessions)
+          }
+        } catch (error) {
+          console.error("[v0] Test sessions fetch error:", error)
+        }
       }
 
       try {
