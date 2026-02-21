@@ -334,21 +334,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="min-w-[180px] flex-1">
-                <Label htmlFor="testSession" className="text-xs">試験セッション</Label>
-                <Select value={selectedTestSessionId} onValueChange={setSelectedTestSessionId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="試験セッションを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {testSessions.map((ts) => (
-                      <SelectItem key={ts.id} value={ts.id}>
-                        {ts.description || "(名称未設定)"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* 試験セッションは編集時に変更不可（テスト作成時に指定済み） */}
               <div className="min-w-[200px] flex-[2]">
                 <Label className="text-xs">テスト名</Label>
                 <Input
