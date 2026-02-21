@@ -187,7 +187,14 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           ? {
               ...s,
               categories: s.categories.map((c) =>
-                c.id === categoryId ? { ...c, questions: c.questions.filter((q) => q.id !== questionId) } : c,
+                c.id === categoryId
+                  ? {
+                      ...c,
+                      questions: c.questions
+                        .filter((q) => q.id !== questionId)
+                        .map((q, idx) => ({ ...q, number: idx + 1 })),
+                    }
+                  : c,
               ),
             }
           : s,
