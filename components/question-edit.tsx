@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Hourglass } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { loadTests, saveTests, type Sheet, type Question } from "@/lib/data-storage"
@@ -23,6 +23,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   const [testTitle, setTestTitle] = useState("")
   const [sheets, setSheets] = useState<Sheet[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [subjects, setSubjects] = useState<any[]>([])
   const [selectedSubjectCode, setSelectedSubjectCode] = useState("")
   const [universities, setUniversities] = useState<any[]>([])
@@ -250,6 +251,8 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   }
 
   const handleSave = async () => {
+    if (isSaving) return
+
     if (!selectedTestSessionId) {
       alert("試験セッションを選択してください")
       return
@@ -260,10 +263,13 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
       return
     }
 
+    setIsSaving(true)
+
     try {
       const testSession = testSessions.find((ts) => ts.id === selectedTestSessionId)
       if (!testSession) {
         alert("選択された試験セッションが見つかりません")
+        setIsSaving(false)
         return
       }
 
@@ -289,6 +295,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
       router.push("/admin/question-management")
     } catch (error) {
       console.error("[v0] Error saving test:", error)
+      setIsSaving(false)
       alert("テストの更新に失敗しました")
     }
   }
@@ -314,8 +321,15 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
             </Link>
             <h1 className="text-2xl font-bold text-[#00417A]">問題編集</h1>
           </div>
-          <Button onClick={handleSave} className="bg-[#00417A] hover:bg-[#00417A]/90">
-            更新
+          <Button onClick={handleSave} className="bg-[#00417A] hover:bg-[#00417A]/90" disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Hourglass className="mr-2 h-4 w-4 animate-pulse" />
+                処理中...
+              </>
+            ) : (
+              "更新"
+            )}
           </Button>
         </div>
 
