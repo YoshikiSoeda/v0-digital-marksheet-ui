@@ -619,7 +619,7 @@ export async function deleteTest(testId: string) {
   }
 }
 
-// テストデータの保存
+// テストデータの保存（削除された問題・カテゴリ・シートもDB上から削除）
 export async function saveTests(tests: Test[]) {
   const supabase = createClient()
 
@@ -646,6 +646,56 @@ export async function saveTests(tests: Test[]) {
       throw testError
     }
 
+    // 現在のローカルのIDセットを収集
+    const localSheetIds = test.sheets.map((s) => s.id)
+    const localCategoryIds = test.sheets.flatMap((s) => s.categories.map((c) => c.id))
+    const localQuestionIds = test.sheets.flatMap((s) =>
+      s.categories.flatMap((c) => c.questions.map((q) => q.id))
+    )
+
+    // DB上の既存データを取得
+    const { data: dbSheets } = await supabase.from("sheets").select("id").eq("test_id", test.id)
+    const dbSheetIds = (dbSheets || []).map((s: any) => s.id)
+
+    if (dbSheetIds.length > 0) {
+      const { data: dbCategories } = await supabase.from("categories").select("id, sheet_id").in("sheet_id", dbSheetIds)
+      const dbCategoryIds = (dbCategories || []).map((c: any) => c.id)
+
+      if (dbCategoryIds.length > 0) {
+        const { data: dbQuestions } = await supabase.from("questions").select("id, category_id").in("category_id", dbCategoryIds)
+        const dbQuestionIds = (dbQuestions || []).map((q: any) => q.id)
+
+        // ローカルにないquestionsをDBから削除
+        const questionsToDelete = dbQuestionIds.filter((id: string) => !localQuestionIds.includes(id))
+        if (questionsToDelete.length > 0) {
+          await supabase.from("questions").delete().in("id", questionsToDelete)
+        }
+      }
+
+      // ローカルにないcategoriesをDBから削除（子のquestionsもカスケード）
+      const categoriesToDelete = dbCategoryIds.filter((id: string) => !localCategoryIds.includes(id))
+      if (categoriesToDelete.length > 0) {
+        // まずカテゴリに属するquestionsを削除
+        await supabase.from("questions").delete().in("category_id", categoriesToDelete)
+        await supabase.from("categories").delete().in("id", categoriesToDelete)
+      }
+    }
+
+    // ローカルにないsheetsをDBから削除（子のcategories/questionsもカスケード）
+    const sheetsToDelete = dbSheetIds.filter((id: string) => !localSheetIds.includes(id))
+    if (sheetsToDelete.length > 0) {
+      for (const sheetId of sheetsToDelete) {
+        const { data: cats } = await supabase.from("categories").select("id").eq("sheet_id", sheetId)
+        if (cats && cats.length > 0) {
+          const catIds = cats.map((c: any) => c.id)
+          await supabase.from("questions").delete().in("category_id", catIds)
+          await supabase.from("categories").delete().in("id", catIds)
+        }
+      }
+      await supabase.from("sheets").delete().in("id", sheetsToDelete)
+    }
+
+    // Upsertで残りのデータを保存
     for (const sheet of test.sheets) {
       const { data: sheetData, error: sheetError } = await supabase
         .from("sheets")
