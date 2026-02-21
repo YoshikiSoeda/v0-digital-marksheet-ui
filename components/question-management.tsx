@@ -35,6 +35,9 @@ export function QuestionManagement() {
   const [duplicateMode, setDuplicateMode] = useState<"same" | "new">("same")
   const [duplicateTargetSessionId, setDuplicateTargetSessionId] = useState<string>("")
   const [duplicateRoleType, setDuplicateRoleType] = useState<"teacher" | "patient">("teacher")
+  const [duplicateNewSessionMode, setDuplicateNewSessionMode] = useState<"existing" | "create">("existing")
+  const [dupNewTestName, setDupNewTestName] = useState("")
+  const [dupNewTestDate, setDupNewTestDate] = useState("")
   const [newUniversityCode, setNewUniversityCode] = useState("")
   const [newSubjectCode, setNewSubjectCode] = useState("")
 
@@ -191,21 +194,64 @@ export function QuestionManagement() {
     setDuplicateMode("same")
     setDuplicateTargetSessionId((original as any).testSessionId || "")
     setDuplicateRoleType((original as any).roleType === "patient" ? "teacher" : "patient")
+    setDuplicateNewSessionMode("existing")
+    setDupNewTestName("")
+    setDupNewTestDate("")
     setShowDuplicateDialog(true)
   }
+
+  const dupGeneratedDescription = dupNewTestDate && dupNewTestName.trim()
+    ? `${dupNewTestDate.replace(/-/g, "")}_${dupNewTestName.trim()}`
+    : ""
 
   const executeDuplicate = async () => {
     if (!duplicateSourceId) return
     const original = tests.find((t) => t.id === duplicateSourceId)
     if (!original) return
 
-    const targetSessionId = duplicateMode === "same"
-      ? (original as any).testSessionId
-      : duplicateTargetSessionId
+    let targetSessionId = ""
 
-    if (duplicateMode === "new" && !targetSessionId) {
-      alert("複製先のテストを選択してください")
-      return
+    if (duplicateMode === "same") {
+      targetSessionId = (original as any).testSessionId
+    } else if (duplicateNewSessionMode === "existing") {
+      targetSessionId = duplicateTargetSessionId
+      if (!targetSessionId) {
+        alert("複製先のテストを選択してください")
+        return
+      }
+    } else {
+      // 新規テスト作成
+      if (!dupNewTestName.trim() || !dupNewTestDate) {
+        alert("テスト名と実施日を入力してください")
+        return
+      }
+      const description = dupGeneratedDescription
+      const isDuplicate = testSessions.some((ts) => ts.description === description)
+      if (isDuplicate) {
+        alert(`「${description}」は既に登録されています。テスト名を変更してください。`)
+        return
+      }
+      try {
+        const universityCode = (original as any).universityCode || sessionStorage.getItem("universityCode") || ""
+        const res = await fetch("/api/test-sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description,
+            test_date: dupNewTestDate,
+            university_code: universityCode,
+            subject_code: (original as any).subjectCode || null,
+          }),
+        })
+        if (!res.ok) throw new Error("Failed to create test session")
+        const newSession = await res.json()
+        setTestSessions([...testSessions, newSession])
+        targetSessionId = newSession.id
+      } catch (error) {
+        console.error("[v0] Error creating test session for duplicate:", error)
+        alert("新規テストの作成に失敗しました")
+        return
+      }
     }
 
     const roleLabel = duplicateRoleType === "teacher" ? "教員側" : "患者役側"
@@ -607,20 +653,72 @@ export function QuestionManagement() {
                     </p>
                   )}
                   {duplicateMode === "new" && (
-                    <Select value={duplicateTargetSessionId} onValueChange={setDuplicateTargetSessionId}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="複製先のテストを選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {testSessions
-                          .filter((ts) => ts.id !== (source as any).testSessionId)
-                          .map((ts) => (
-                            <SelectItem key={ts.id} value={ts.id}>
-                              {ts.description || "(名称未設定)"}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Button
+                          variant={duplicateNewSessionMode === "existing" ? "default" : "outline"}
+                          size="sm"
+                          className={duplicateNewSessionMode === "existing" ? "bg-[#00417A]/80 hover:bg-[#00417A]/70 flex-1 text-xs" : "flex-1 text-xs"}
+                          onClick={() => setDuplicateNewSessionMode("existing")}
+                        >
+                          既存テストから選択
+                        </Button>
+                        <Button
+                          variant={duplicateNewSessionMode === "create" ? "default" : "outline"}
+                          size="sm"
+                          className={duplicateNewSessionMode === "create" ? "bg-[#00417A]/80 hover:bg-[#00417A]/70 flex-1 text-xs" : "flex-1 text-xs"}
+                          onClick={() => setDuplicateNewSessionMode("create")}
+                        >
+                          新規テスト作成
+                        </Button>
+                      </div>
+                      {duplicateNewSessionMode === "existing" && (
+                        <Select value={duplicateTargetSessionId} onValueChange={setDuplicateTargetSessionId}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="複製先のテストを選択" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {testSessions
+                              .filter((ts) => ts.id !== (source as any).testSessionId)
+                              .map((ts) => (
+                                <SelectItem key={ts.id} value={ts.id}>
+                                  {ts.description || "(名称未設定)"}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {duplicateNewSessionMode === "create" && (
+                        <div className="space-y-2 p-3 rounded-md border bg-secondary/30">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs">実施日</Label>
+                              <Input
+                                type="date"
+                                className="h-8 text-sm"
+                                value={dupNewTestDate}
+                                onChange={(e) => setDupNewTestDate(e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">テスト名</Label>
+                              <Input
+                                className="h-8 text-sm"
+                                value={dupNewTestName}
+                                onChange={(e) => setDupNewTestName(e.target.value)}
+                                placeholder="例: 全身OSCE"
+                              />
+                            </div>
+                          </div>
+                          {dupGeneratedDescription && (
+                            <div className="px-2 py-1.5 bg-blue-50 rounded border border-blue-200">
+                              <p className="text-xs text-muted-foreground">登録名称:</p>
+                              <p className="text-sm font-medium text-blue-900">{dupGeneratedDescription}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -662,7 +760,10 @@ export function QuestionManagement() {
                   <Button
                     className="flex-1 bg-[#00417A] hover:bg-[#00417A]/90"
                     onClick={executeDuplicate}
-                    disabled={duplicateMode === "new" && !duplicateTargetSessionId}
+                    disabled={duplicateMode === "new" && (
+                      (duplicateNewSessionMode === "existing" && !duplicateTargetSessionId) ||
+                      (duplicateNewSessionMode === "create" && !dupGeneratedDescription)
+                    )}
                   >
                     複製を実行
                   </Button>
