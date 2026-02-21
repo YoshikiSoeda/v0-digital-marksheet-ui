@@ -517,8 +517,8 @@ export function AdminLoginForm() {
             )}
           </div>
 
-          {/* New test code button: master_admin and university_admin */}
-          {(authRole === "master_admin" || authRole === "university_admin") && (
+          {/* New test code button: master_admin, university_admin, subject_admin */}
+          {(authRole === "master_admin" || authRole === "university_admin" || authRole === "subject_admin") && (
             <Button
               variant="default"
               className="w-full"
