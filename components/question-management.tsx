@@ -24,6 +24,7 @@ export function QuestionManagement() {
   const [selectedSubject, setSelectedSubject] = useState<string>("all")
   const [teacherSubjectCode, setTeacherSubjectCode] = useState<string>("")
   const [isTeacher, setIsTeacher] = useState(false)
+  const [authRole, setAuthRole] = useState<string>("")
 
   const [showSessionDialog, setShowSessionDialog] = useState(false)
   const [newTestName, setNewTestName] = useState("")
@@ -48,12 +49,18 @@ export function QuestionManagement() {
     const userUniversityCode = sessionStorage.getItem("universityCode")
     const subjectCode = sessionStorage.getItem("subjectCode")
     const userType = sessionStorage.getItem("userType") // "admin" or "teacher"
+    const role = sessionStorage.getItem("role") || ""
 
     setIsSpecialMaster(accountType === "special_master")
     setIsTeacher(userType === "teacher")
+    setAuthRole(role)
 
-    if (subjectCode) {
+    // 教科ロック: subject_admin と general のみ（university_admin, master_admin は自由に切替可能）
+    const isSubjectLocked = role === "subject_admin" || role === "general" || (userType === "teacher" && role !== "university_admin" && role !== "master_admin")
+    if (subjectCode && isSubjectLocked) {
       setTeacherSubjectCode(subjectCode)
+      setSelectedSubject(subjectCode)
+    } else if (subjectCode) {
       setSelectedSubject(subjectCode)
     }
 
