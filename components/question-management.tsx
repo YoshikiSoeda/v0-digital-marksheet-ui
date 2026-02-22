@@ -60,9 +60,8 @@ export function QuestionManagement() {
     if (subjectCode && isSubjectLocked) {
       setTeacherSubjectCode(subjectCode)
       setSelectedSubject(subjectCode)
-    } else if (subjectCode) {
-      setSelectedSubject(subjectCode)
     }
+    // university_admin, master_admin は初期値 "all" のまま（教科フィルタを自由に変更可能）
 
     if (accountType === "special_master") {
       fetch("/api/universities")
@@ -161,7 +160,18 @@ export function QuestionManagement() {
   })
 
   // testSessionIdでグルーピング（通常ユーザー向け）
+  // まずフィルタ条件に合うセッションを全て含める（テスト0件のセッションも表示）
   const groupedBySession: Record<string, Test[]> = {}
+  const userUniversityCode = typeof window !== "undefined" ? sessionStorage.getItem("universityCode") : null
+  testSessions.forEach((session) => {
+    // 大学フィルタ
+    if (userUniversityCode && !isSpecialMaster && session.university_code !== userUniversityCode) return
+    if (isSpecialMaster && selectedUniversity !== "all" && session.university_code !== selectedUniversity) return
+    // 教科フィルタ
+    if (teacherSubjectCode && session.subject_code !== teacherSubjectCode) return
+    if (!teacherSubjectCode && selectedSubject !== "all" && session.subject_code !== selectedSubject) return
+    groupedBySession[session.id] = []
+  })
   filteredTests.forEach((test) => {
     const sessionId = (test as any).testSessionId || "unassigned"
     if (!groupedBySession[sessionId]) {
@@ -551,7 +561,15 @@ export function QuestionManagement() {
               </div>
             ) : (
               <div className="space-y-5">
-                {Object.entries(groupedBySession).map(([sessionId, testsInSession]) => {
+                {Object.entries(groupedBySession)
+                  .sort(([idA], [idB]) => {
+                    const sessionA = testSessions.find((ts) => ts.id === idA)
+                    const sessionB = testSessions.find((ts) => ts.id === idB)
+                    const dateA = sessionA?.test_date ? new Date(sessionA.test_date).getTime() : 0
+                    const dateB = sessionB?.test_date ? new Date(sessionB.test_date).getTime() : 0
+                    return dateB - dateA
+                  })
+                  .map(([sessionId, testsInSession]) => {
                   const testSession = testSessions.find((ts) => ts.id === sessionId)
                   const sessionLabel = testSession?.description || "未分類"
 
@@ -561,6 +579,11 @@ export function QuestionManagement() {
                         <h4 className="text-base font-bold text-[#00417A]">{sessionLabel}</h4>
                       </div>
                       <div className="divide-y">
+                        {testsInSession.length === 0 && (
+                          <div className="px-4 py-4 text-sm text-muted-foreground italic">
+                            このセッションにはテスト（評価シート）がまだ登録されていません。「新規作成」からテストを追加してください。
+                          </div>
+                        )}
                         {testsInSession.map((test) => {
                           const subjectName = subjects.find((s) => s.code === (test as any).subjectCode)?.name || (test as any).subjectCode
                           return (
