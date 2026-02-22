@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Shield, Calendar, ArrowLeft, Plus } from "lucide-react"
+import { Shield, Calendar, ArrowLeft, Plus, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { loadTeachers, loadSubjects, type Subject } from "@/lib/data-storage"
@@ -422,11 +422,8 @@ export function AdminLoginForm() {
       : "教科管理者"
 
     return (
-      <Card className="w-full max-w-lg">
-        <CardHeader className="space-y-4">
-          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
-            <Calendar className="w-6 h-6 text-primary" />
-          </div>
+      <Card className="w-full max-w-4xl">
+        <CardHeader className="space-y-2 py-4">
           <CardTitle className="text-2xl text-center">試験の選択</CardTitle>
           <CardDescription className="text-center">
             {roleLabel}としてログイン中 - 管理する試験を選択してください
@@ -487,35 +484,71 @@ export function AdminLoginForm() {
           </div>
 
           {/* Session list */}
-          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-            {filteredSessions.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-6">
-                該当する試験がありません
-              </p>
-            ) : (
-              filteredSessions.map((session) => {
-                const subjectName = subjects.find((s) => s.subjectCode === session.subject_code)?.subjectName
-                const uniName = universities.find((u) => u.university_code === session.university_code)?.university_name
-                return (
-                  <Button
-                    key={session.id}
-                    variant="outline"
-                    className="w-full justify-start h-auto py-3 px-4"
-                    onClick={() => handleSessionSelect(session.id)}
-                  >
-                    <div className="text-left w-full">
-                      <div className="font-medium">{session.description || "(名称未設定)"}</div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
-                        <span>{session.test_date}</span>
-                        {uniName && <span>{uniName}</span>}
-                        {subjectName && <span>{subjectName}</span>}
-                      </div>
-                    </div>
-                  </Button>
-                )
-              })
-            )}
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="max-h-[400px] overflow-y-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-xs text-muted-foreground sticky top-0">
+                      <th className="text-left py-2 px-3 font-medium">実施日</th>
+                      <th className="text-left py-2 px-3 font-medium">テスト名</th>
+                      <th className="text-left py-2 px-3 font-medium">教科名</th>
+                      {authRole === "master_admin" && (
+                        <th className="text-left py-2 px-3 font-medium">大学</th>
+                      )}
+                      <th className="py-2 px-3 w-20"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSessions.length === 0 ? (
+                      <tr>
+                        <td colSpan={authRole === "master_admin" ? 5 : 4} className="text-center text-sm text-muted-foreground py-6">
+                          該当する試験がありません
+                        </td>
+                      </tr>
+                    ) : (
+                      [...filteredSessions].sort((a, b) => {
+                        const dateA = a.test_date ? new Date(a.test_date).getTime() : 0
+                        const dateB = b.test_date ? new Date(b.test_date).getTime() : 0
+                        return dateB - dateA
+                      }).map((session) => {
+                        const sessionSubjectName = subjects.find((s) => s.subjectCode === session.subject_code)?.subjectName
+                        const uniName = universities.find((u) => u.university_code === session.university_code)?.university_name
+                        return (
+                          <tr
+                            key={session.id}
+                            className="border-b last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
+                            onClick={() => handleSessionSelect(session.id)}
+                          >
+                            <td className="py-2 px-3 text-sm font-medium whitespace-nowrap">
+                              {session.test_date ? new Date(session.test_date).toLocaleDateString("ja-JP") : "-"}
+                            </td>
+                            <td className="py-2 px-3 text-sm font-semibold text-primary">
+                              {session.description || "(名称未設定)"}
+                            </td>
+                            <td className="py-2 px-3 text-sm text-muted-foreground">
+                              {sessionSubjectName || "-"}
+                            </td>
+                            {authRole === "master_admin" && (
+                              <td className="py-2 px-3 text-sm text-muted-foreground">
+                                {uniName || session.university_code}
+                              </td>
+                            )}
+                            <td className="py-2 px-3 text-right">
+                              <Button size="sm" variant="default" className="h-7 text-xs px-3">
+                                選択
+                                <ChevronRight className="w-3 h-3 ml-1" />
+                              </Button>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* New test code button: master_admin, university_admin, subject_admin */}
           {(authRole === "master_admin" || authRole === "university_admin" || authRole === "subject_admin") && (
