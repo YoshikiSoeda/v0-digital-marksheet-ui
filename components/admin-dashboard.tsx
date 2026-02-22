@@ -143,6 +143,7 @@ const AdminDashboard = () => {
       const parsedLoginInfo = JSON.parse(loginInfo)
       const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
       const isMasterAdmin = universityCodes.includes("ALL")
+      let fetchedSessions: TestSession[] = []
 
       // userRole は "admin" を設定（ダッシュボードのアクセス許可用）
       // loginType が admin/teacher_admin、または role が admin/master_admin/university_admin/subject_admin
@@ -223,6 +224,7 @@ const AdminDashboard = () => {
               : []
 
             console.log("[v0] Transformed test sessions:", transformedSessions)
+            fetchedSessions = transformedSessions
             setTestSessions(transformedSessions)
           } else {
             console.error("[v0] Test sessions API error:", response.statusText)
@@ -247,6 +249,7 @@ const AdminDashboard = () => {
                   passingScore: session.passing_score ?? undefined,
                 }))
               : []
+            fetchedSessions = transformedSessions
             setTestSessions(transformedSessions)
           }
         } catch (error) {
@@ -409,7 +412,7 @@ const AdminDashboard = () => {
 
             // Calculate pass count per student (sum teacher + patient scores)
             const currentSessionId = sessionStorage.getItem("testSessionId") || ""
-            const currentSession = transformedSessions?.find((s: any) => s.id === currentSessionId)
+            const currentSession = fetchedSessions.find((s) => s.id === currentSessionId)
             const passingScoreVal = currentSession?.passingScore
             let passCount = 0
             if (passingScoreVal != null && passingScoreVal > 0) {
