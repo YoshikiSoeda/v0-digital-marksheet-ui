@@ -85,6 +85,22 @@ export default function StudentsDetailPage() {
     const totalScore = completedEvaluations.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     const averageScore = completedEvaluations.length > 0 ? Math.round(totalScore / completedEvaluations.length) : 0
 
+    // Calculate teacher and patient scores separately
+    const teacherEvals = completedEvaluations.filter((e: any) => e.evaluatorType === "teacher")
+    const patientEvals = completedEvaluations.filter((e: any) => e.evaluatorType === "patient")
+    const teacherScore = teacherEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+    const patientScore = patientEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+    const combinedScore = teacherScore + patientScore
+
+    // Pass/fail check
+    const currentSessionId = sessionStorage.getItem("testSessionId") || filterTestSessionId
+    const currentSession = testSessions.find((s: any) => s.id === currentSessionId)
+    const passingScore = currentSession?.passing_score
+    let passResult: "合格" | "不合格" | "" = ""
+    if (passingScore != null && passingScore > 0 && completedEvaluations.length > 0) {
+      passResult = combinedScore >= passingScore ? "合格" : "不合格"
+    }
+
     const testTitle = filteredTests.length > 0 ? filteredTests[0].title : ""
 
     let status = "未受験"
@@ -104,6 +120,9 @@ export default function StudentsDetailPage() {
       testTitle,
       progress,
       score: averageScore > 0 ? averageScore : "",
+      teacherScore: teacherEvals.length > 0 ? teacherScore : "",
+      patientScore: patientEvals.length > 0 ? patientScore : "",
+      passResult,
       status,
     }
   }
@@ -154,6 +173,9 @@ export default function StudentsDetailPage() {
                     <TableHead>タイトル１</TableHead>
                     <TableHead>進捗</TableHead>
                     <TableHead>点数</TableHead>
+                    <TableHead>教員</TableHead>
+                    <TableHead>患者</TableHead>
+                    <TableHead>合否</TableHead>
                     <TableHead>ステータス</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -169,6 +191,15 @@ export default function StudentsDetailPage() {
                         <TableCell>{data.testTitle || "-"}</TableCell>
                         <TableCell>{data.progress || "-"}</TableCell>
                         <TableCell>{data.score || "-"}</TableCell>
+                        <TableCell>{data.teacherScore !== "" ? data.teacherScore : "-"}</TableCell>
+                        <TableCell>{data.patientScore !== "" ? data.patientScore : "-"}</TableCell>
+                        <TableCell>
+                          {data.passResult ? (
+                            <span className={`font-semibold ${data.passResult === "合格" ? "text-red-600" : "text-blue-600"}`}>
+                              {data.passResult}
+                            </span>
+                          ) : "-"}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={
