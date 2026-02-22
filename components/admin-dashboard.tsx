@@ -119,6 +119,11 @@ const AdminDashboard = () => {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
   const selectedRoomData = selectedRoom ? rooms.find((r) => r.roomNumber === selectedRoom) : null
+  const currentPassingScore = (() => {
+    if (typeof window === "undefined") return undefined
+    const sid = sessionStorage.getItem("testSessionId") || ""
+    return testSessions.find((s) => s.id === sid)?.passingScore
+  })()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [updateCounter, setUpdateCounter] = useState(0)
   const [accountType, setAccountType] = useState<string | null>(null)
@@ -303,7 +308,7 @@ const AdminDashboard = () => {
             completedCount: number
             alertCount: number
             averageScore: number
-            students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number }>
             universityCode?: string
           }
         >()
@@ -431,6 +436,8 @@ const AdminDashboard = () => {
                 (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
               )
               const totalScore = studentEvaluation?.totalScore || 0
+              const studentEvals = roomEvaluations.filter((e) => e.studentId === student.id)
+              const combinedScore = studentEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
               return {
                 id: student.studentId,
                 name: student.name,
@@ -438,6 +445,7 @@ const AdminDashboard = () => {
                 isCompleted: statusInfo?.isCompleted || false,
                 totalScore: totalScore,
                 alertCount: studentAlertCountMap.get(student.id) || 0,
+                combinedScore,
               }
             })
 
@@ -646,6 +654,8 @@ const AdminDashboard = () => {
               (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
             )
             const totalScore = studentEvaluation?.totalScore || 0
+            const studentEvalsR = roomEvaluations.filter((e) => e.studentId === student.id)
+            const combinedScore = studentEvalsR.reduce((sum, e) => sum + (e.totalScore || 0), 0)
             return {
               id: student.studentId,
               name: student.name,
@@ -653,6 +663,7 @@ const AdminDashboard = () => {
               isCompleted: statusInfo?.isCompleted || false,
               totalScore: totalScore,
               alertCount: studentAlertCountMap.get(student.id) || 0,
+              combinedScore,
             }
           })
 
@@ -1061,10 +1072,7 @@ const AdminDashboard = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
-                  <span className="text-xs text-muted-foreground">合算平均: </span>
-                  <span className="font-bold text-primary">{selectedRoomData.averageScore}点</span>
-                </div>
+
               </div>
 
               <div className="border-t pt-4">
@@ -1080,6 +1088,7 @@ const AdminDashboard = () => {
                           <th className="text-center py-2">合計点</th>
                           <th className="text-center py-2">アラート</th>
                           <th className="text-center py-2">完了</th>
+                          <th className="text-center py-2">合否</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1115,6 +1124,17 @@ const AdminDashboard = () => {
                             <td className="text-center py-2">
                               {student.isCompleted ? (
                                 <span className="text-blue-600">✓</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="text-center py-2 font-semibold">
+                              {currentPassingScore != null && currentPassingScore > 0 && student.isCompleted ? (
+                                student.combinedScore >= currentPassingScore ? (
+                                  <span className="text-red-600">合格</span>
+                                ) : (
+                                  <span className="text-blue-600">不合格</span>
+                                )
                               ) : (
                                 <span className="text-gray-400">-</span>
                               )}
