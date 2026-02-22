@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, ChevronRight, Calendar, Shield } from "lucide-react"
-import { loadTests, type Test } from "@/lib/data-storage"
+import { ChevronRight, Shield } from "lucide-react"
+import { loadTests, loadTestSessions, type Test, type TestSession } from "@/lib/data-storage"
 import Link from "next/link"
 
 interface TestSelectionScreenProps {
@@ -13,9 +13,16 @@ interface TestSelectionScreenProps {
   userType: "teacher" | "patient"
 }
 
+interface SubjectInfo {
+  subject_code: string
+  subject_name: string
+}
+
 export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenProps) {
   const router = useRouter()
   const [tests, setTests] = useState<Test[]>([])
+  const [testSessions, setTestSessions] = useState<TestSession[]>([])
+  const [subjects, setSubjects] = useState<SubjectInfo[]>([])
   const [teacherRole, setTeacherRole] = useState<string>("")
   const [subjectName, setSubjectName] = useState<string>("")
 
@@ -30,30 +37,37 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
 
     const fetchData = async () => {
       try {
-        // 教科名を取得
-        if (teacherSubjectCode) {
-          try {
-            const subjectsRes = await fetch("/api/subjects")
-            if (subjectsRes.ok) {
-              const subjects = await subjectsRes.json()
-              const matched = subjects.find((s: any) => s.subject_code === teacherSubjectCode)
+        // 教科一覧を取得
+        try {
+          const subjectsRes = await fetch("/api/subjects")
+          if (subjectsRes.ok) {
+            const subjectsData = await subjectsRes.json()
+            setSubjects(subjectsData)
+            if (teacherSubjectCode) {
+              const matched = subjectsData.find((s: any) => s.subject_code === teacherSubjectCode)
               if (matched) setSubjectName(matched.subject_name)
             }
-          } catch (err) {
-            console.error("[v0] Error loading subjects:", err)
           }
+        } catch (err) {
+          console.error("[v0] Error loading subjects:", err)
+        }
+
+        // テストセッション一覧を取得
+        const universityCode = sessionStorage.getItem("universityCode") || undefined
+        try {
+          const sessions = await loadTestSessions(universityCode)
+          setTestSessions(sessions)
+        } catch (err) {
+          console.error("[v0] Error loading test sessions:", err)
         }
 
         // テストを教科コードでフィルタして取得
-        const universityCode = sessionStorage.getItem("universityCode") || undefined
         const fetchedTests = await loadTests(universityCode, teacherSubjectCode || undefined)
         if (Array.isArray(fetchedTests)) {
-          // roleTypeでフィルタ: 教員はteacher, 患者役はpatientのテストのみ表示
           const expectedRoleType = userType === "patient" ? "patient" : "teacher"
           const filtered = fetchedTests.filter((t) => (t.roleType || "teacher") === expectedRoleType)
           setTests(filtered)
         } else {
-          console.error("[v0] loadTests did not return an array:", fetchedTests)
           setTests([])
         }
       } catch (error) {
@@ -62,7 +76,21 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       }
     }
     fetchData()
-  }, [])
+  }, [userType])
+
+  const getTestDate = (test: Test): string => {
+    const session = testSessions.find((s) => s.id === test.testSessionId)
+    if (session?.testDate) {
+      return new Date(session.testDate).toLocaleDateString("ja-JP")
+    }
+    return "-"
+  }
+
+  const getSubjectName = (test: Test): string => {
+    if (!test.subjectCode) return "-"
+    const matched = subjects.find((s) => s.subject_code === test.subjectCode)
+    return matched?.subject_name || test.subjectCode
+  }
 
   const handleSelectTest = (testId: string) => {
     sessionStorage.setItem(`${userType}_selected_test`, testId)
@@ -93,20 +121,20 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-primary">
+            <h1 className="text-2xl font-bold text-primary">
               評価テスト選択
               {subjectName && (
-                <span className="ml-3 text-lg font-semibold text-muted-foreground">({subjectName})</span>
+                <span className="ml-3 text-base font-semibold text-muted-foreground">({subjectName})</span>
               )}
             </h1>
-            <p className="text-muted-foreground mt-2">実施するテストを選択してください</p>
+            <p className="text-sm text-muted-foreground mt-1">実施するテストを選択してください</p>
           </div>
           {userType === "teacher" && teacherRole !== "general" && teacherRole !== "" && (
             <Link href="/admin/dashboard">
-              <Button variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-700 hover:bg-blue-50">
+              <Button variant="outline" size="sm" className="flex items-center gap-2 border-blue-500 text-blue-700 hover:bg-blue-50">
                 <Shield className="w-4 h-4" />
                 管理画面
               </Button>
@@ -114,47 +142,49 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
           )}
         </div>
 
-        <div className="grid gap-4">
-          {tests.map((test) => (
-            <Card key={test.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-xl">{test.title}</CardTitle>
-                    <CardDescription className="mt-2">
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="flex items-center gap-1">
-                          <FileText className="w-4 h-4" />
-                          {test.sheets.length} シート
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          作成: {new Date(test.createdAt).toLocaleDateString("ja-JP")}
-                        </span>
-                      </div>
-                    </CardDescription>
-                  </div>
-                  <Button onClick={() => handleSelectTest(test.id)} className="ml-4">
-                    選択
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">含まれるシート:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {test.sheets.map((sheet) => (
-                      <div key={sheet.id} className="px-3 py-1 bg-secondary rounded-md text-sm">
-                        {sheet.title}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
+                  <th className="text-left py-2 px-3 font-medium">実施日</th>
+                  <th className="text-left py-2 px-3 font-medium">テスト名</th>
+                  <th className="text-left py-2 px-3 font-medium">教科名</th>
+                  <th className="text-left py-2 px-3 font-medium">作成日</th>
+                  <th className="py-2 px-3 w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {tests.map((test) => (
+                  <tr
+                    key={test.id}
+                    className="border-b last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
+                    onClick={() => handleSelectTest(test.id)}
+                  >
+                    <td className="py-2 px-3 text-sm font-medium whitespace-nowrap">
+                      {getTestDate(test)}
+                    </td>
+                    <td className="py-2 px-3 text-sm font-semibold text-primary">
+                      {test.title}
+                    </td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground">
+                      {getSubjectName(test)}
+                    </td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground whitespace-nowrap">
+                      {new Date(test.createdAt).toLocaleDateString("ja-JP")}
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <Button size="sm" variant="default" className="h-7 text-xs px-3">
+                        選択
+                        <ChevronRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
