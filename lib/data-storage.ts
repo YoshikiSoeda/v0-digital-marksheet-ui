@@ -133,13 +133,16 @@ export interface Test {
 }
 
 // 試験セッションデータの型定義
+export type TestSessionStatus = "not_started" | "in_progress" | "completed"
+
 export interface TestSession {
   id: string
   testDate: string
   description: string
   universityCode: string
   subjectCode?: string
-  passingScore?: number | null // 合格ライン
+  passingScore?: number | null
+  status: TestSessionStatus
   createdAt: string
   updatedAt: string
 }
@@ -167,6 +170,7 @@ export async function loadTestSessions(universityCode?: string): Promise<TestSes
     universityCode: row.university_code,
     subjectCode: row.subject_code,
     passingScore: row.passing_score ?? null,
+    status: row.status || "not_started",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }))
