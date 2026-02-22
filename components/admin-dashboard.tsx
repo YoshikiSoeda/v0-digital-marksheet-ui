@@ -728,9 +728,9 @@ const AdminDashboard = () => {
           <h1 className="text-2xl font-bold text-[#00417A]">管理者ダッシュボード</h1>
 
           <div className="flex items-center gap-3">
-            <Button onClick={() => router.push("/")} variant="outline" size="sm">
-              戻る
-            </Button>
+  <Button onClick={() => router.push("/admin/login")} variant="outline" size="sm">
+試験選択に戻る
+  </Button>
 
             {accountType === "special_master" && (
               <>

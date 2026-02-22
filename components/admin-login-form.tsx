@@ -65,6 +65,21 @@ export function AdminLoginForm() {
   const [createError, setCreateError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
+  // Auto-skip to session step if already authenticated (e.g. coming back from dashboard)
+  useEffect(() => {
+    const loginInfo = sessionStorage.getItem("loginInfo")
+    const role = sessionStorage.getItem("role") || ""
+    const universityCode = sessionStorage.getItem("universityCode") || ""
+    const subjectCode = sessionStorage.getItem("subjectCode") || ""
+    if (loginInfo && role) {
+      setAuthRole(role)
+      setAuthUniversityCode(universityCode)
+      setAuthSubjectCode(subjectCode)
+      loadFilterData(role, universityCode, subjectCode)
+      setStep("session")
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load filter data when entering session step
   const loadFilterData = useCallback(async (role: string, universityCode: string, subjectCode: string) => {
     try {
