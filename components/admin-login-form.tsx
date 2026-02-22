@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Shield, Calendar, ArrowLeft, Plus, ChevronRight } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Shield, Calendar, ArrowLeft, Plus, ChevronRight, Filter } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { loadTeachers, loadSubjects, type Subject } from "@/lib/data-storage"
@@ -21,6 +22,8 @@ interface SessionData {
   description: string
   university_code: string
   subject_code: string | null
+  status: string
+  created_at: string
 }
 
 interface UniversityData {
@@ -49,6 +52,9 @@ export function AdminLoginForm() {
   const [allSessions, setAllSessions] = useState<SessionData[]>([])
   const [filterUniversity, setFilterUniversity] = useState<string>("all")
   const [filterSubject, setFilterSubject] = useState<string>("all")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterTestDate, setFilterTestDate] = useState<string>("")
+  const [filterCreatedDate, setFilterCreatedDate] = useState<string>("")
 
   // New test session creation state
 
@@ -106,17 +112,47 @@ export function AdminLoginForm() {
     return base1 === base2 || code1 === base2 || base1 === code2
   }
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "not_started": return "未実施"
+      case "in_progress": return "実施中"
+      case "completed": return "テスト終了"
+      default: return status || "未実施"
+    }
+  }
+
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case "completed": return "destructive"
+      case "in_progress": return "default"
+      default: return "outline"
+    }
+  }
+
   // Filtered sessions
   const filteredSessions = allSessions.filter((s) => {
     // non-master: restrict to their own university
     if (authRole !== "master_admin" && authUniversityCode && s.university_code !== authUniversityCode) return false
-    // subject_admin: show ALL sessions linked to their assigned subject (no other filters)
+    // subject_admin: show ALL sessions linked to their assigned subject (no other filters except status/date)
     if (authRole === "subject_admin" && authSubjectCode) {
-      return s.subject_code ? subjectCodeMatches(s.subject_code, authSubjectCode) : false
+      if (!(s.subject_code && subjectCodeMatches(s.subject_code, authSubjectCode))) return false
+    } else {
+      // master_admin / university_admin: apply dropdown filters
+      if (filterUniversity !== "all" && s.university_code !== filterUniversity) return false
+      if (filterSubject !== "all" && s.subject_code ? !subjectCodeMatches(s.subject_code, filterSubject) : filterSubject !== "all") return false
     }
-    // master_admin / university_admin: apply dropdown filters
-    if (filterUniversity !== "all" && s.university_code !== filterUniversity) return false
-    if (filterSubject !== "all" && s.subject_code ? !subjectCodeMatches(s.subject_code, filterSubject) : filterSubject !== "all") return false
+    // Status filter
+    if (filterStatus !== "all" && (s.status || "not_started") !== filterStatus) return false
+    // Test date filter
+    if (filterTestDate) {
+      const sessionDate = s.test_date ? s.test_date.split("T")[0] : ""
+      if (sessionDate !== filterTestDate) return false
+    }
+    // Created date filter
+    if (filterCreatedDate) {
+      const createdDate = s.created_at ? s.created_at.split("T")[0] : ""
+      if (createdDate !== filterCreatedDate) return false
+    }
     return true
   })
 
@@ -430,38 +466,40 @@ export function AdminLoginForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col gap-3">
-            {/* University filter: master_admin only */}
-            {authRole === "master_admin" && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">大学で絞り込み</Label>
-                <Select value={filterUniversity} onValueChange={setFilterUniversity}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="大学を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">すべての大学</SelectItem>
-                    {universities.map((u) => (
-                      <SelectItem key={u.university_code} value={u.university_code}>
-                        {u.university_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+          {/* Filter panel */}
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
 
-            {/* Subject filter: master_admin and university_admin */}
-            {(authRole === "master_admin" || authRole === "university_admin") && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">教科で絞り込み</Label>
-                <Select value={filterSubject} onValueChange={setFilterSubject}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="教科を選択" />
+                {/* University filter: master_admin only */}
+                {authRole === "master_admin" && (
+                  <Select value={filterUniversity} onValueChange={setFilterUniversity}>
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                      <SelectValue placeholder="大学" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全ての大学</SelectItem>
+                      {universities.map((u) => (
+                        <SelectItem key={u.university_code} value={u.university_code}>
+                          {u.university_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Subject filter */}
+                <Select
+                  value={authRole === "subject_admin" ? authSubjectCode : filterSubject}
+                  onValueChange={setFilterSubject}
+                  disabled={authRole === "subject_admin"}
+                >
+                  <SelectTrigger className="w-[160px] h-8 text-xs">
+                    <SelectValue placeholder="教科" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">すべての教科</SelectItem>
+                    <SelectItem value="all">全ての教科</SelectItem>
                     {subjects.map((s) => (
                       <SelectItem key={s.subjectCode} value={s.subjectCode}>
                         {s.subjectName}
@@ -469,21 +507,63 @@ export function AdminLoginForm() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
 
-            {/* Subject info for subject_admin */}
-            {authRole === "subject_admin" && authSubjectCode && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                <p className="text-xs text-blue-600 font-medium">担当教科</p>
-                <p className="text-sm font-bold text-blue-900">
-                  {subjects.find((s) => s.subjectCode === authSubjectCode)?.subjectName || authSubjectCode}
-                </p>
-              </div>
-            )}
-          </div>
+                {/* Status filter */}
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectValue placeholder="ステータス" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全てのステータス</SelectItem>
+                    <SelectItem value="not_started">未実施</SelectItem>
+                    <SelectItem value="in_progress">実施中</SelectItem>
+                    <SelectItem value="completed">テスト終了</SelectItem>
+                  </SelectContent>
+                </Select>
 
-          {/* Session list */}
+                {/* Test date filter */}
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">実施日:</span>
+                  <Input
+                    type="date"
+                    value={filterTestDate}
+                    onChange={(e) => setFilterTestDate(e.target.value)}
+                    className="w-[140px] h-8 text-xs"
+                  />
+                </div>
+
+                {/* Created date filter */}
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">作成日:</span>
+                  <Input
+                    type="date"
+                    value={filterCreatedDate}
+                    onChange={(e) => setFilterCreatedDate(e.target.value)}
+                    className="w-[140px] h-8 text-xs"
+                  />
+                </div>
+
+                {(filterUniversity !== "all" || filterSubject !== "all" || filterStatus !== "all" || filterTestDate || filterCreatedDate) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      if (authRole === "master_admin") setFilterUniversity("all")
+                      if (authRole !== "subject_admin") setFilterSubject("all")
+                      setFilterStatus("all")
+                      setFilterTestDate("")
+                      setFilterCreatedDate("")
+                    }}
+                  >
+                    リセット
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Session table */}
           <Card>
             <CardContent className="p-0">
               <div className="max-h-[400px] overflow-y-auto">
@@ -492,17 +572,19 @@ export function AdminLoginForm() {
                     <tr className="border-b bg-muted/50 text-xs text-muted-foreground sticky top-0">
                       <th className="text-left py-2 px-3 font-medium">実施日</th>
                       <th className="text-left py-2 px-3 font-medium">テスト名</th>
+                      <th className="text-left py-2 px-3 font-medium">ステータス</th>
                       <th className="text-left py-2 px-3 font-medium">教科名</th>
                       {authRole === "master_admin" && (
                         <th className="text-left py-2 px-3 font-medium">大学</th>
                       )}
+                      <th className="text-left py-2 px-3 font-medium">作成日</th>
                       <th className="py-2 px-3 w-20"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredSessions.length === 0 ? (
                       <tr>
-                        <td colSpan={authRole === "master_admin" ? 5 : 4} className="text-center text-sm text-muted-foreground py-6">
+                        <td colSpan={authRole === "master_admin" ? 7 : 6} className="text-center text-sm text-muted-foreground py-6">
                           該当する試験がありません
                         </td>
                       </tr>
@@ -514,6 +596,7 @@ export function AdminLoginForm() {
                       }).map((session) => {
                         const sessionSubjectName = subjects.find((s) => s.subjectCode === session.subject_code)?.subjectName
                         const uniName = universities.find((u) => u.university_code === session.university_code)?.university_name
+                        const status = session.status || "not_started"
                         return (
                           <tr
                             key={session.id}
@@ -526,6 +609,11 @@ export function AdminLoginForm() {
                             <td className="py-2 px-3 text-sm font-semibold text-primary">
                               {session.description || "(名称未設定)"}
                             </td>
+                            <td className="py-2 px-3">
+                              <Badge variant={getStatusVariant(status)} className="text-xs">
+                                {getStatusLabel(status)}
+                              </Badge>
+                            </td>
                             <td className="py-2 px-3 text-sm text-muted-foreground">
                               {sessionSubjectName || "-"}
                             </td>
@@ -534,6 +622,9 @@ export function AdminLoginForm() {
                                 {uniName || session.university_code}
                               </td>
                             )}
+                            <td className="py-2 px-3 text-sm text-muted-foreground whitespace-nowrap">
+                              {session.created_at ? new Date(session.created_at).toLocaleDateString("ja-JP") : "-"}
+                            </td>
                             <td className="py-2 px-3 text-right">
                               <Button size="sm" variant="default" className="h-7 text-xs px-3">
                                 選択
@@ -568,7 +659,7 @@ export function AdminLoginForm() {
           <Button
             variant="ghost"
             className="w-full"
-            onClick={() => { setStep("credentials"); setError(""); setFilterUniversity("all"); setFilterSubject("all") }}
+            onClick={() => { setStep("credentials"); setError(""); setFilterUniversity("all"); setFilterSubject("all"); setFilterStatus("all"); setFilterTestDate(""); setFilterCreatedDate("") }}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             ログイン画面に戻る
