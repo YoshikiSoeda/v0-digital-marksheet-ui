@@ -18,27 +18,6 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-interface RoomData {
-  roomNumber: string
-  roomName: string
-  teacherName: string
-  patientName: string
-  presentCount: number
-  absentCount: number
-  completedCount: number
-  alertCount: number
-  averageScore: number
-  students: Array<{
-    id: string
-    name: string
-    status: string
-    isCompleted: boolean
-    totalScore: number
-    alertCount: number
-  }>
-  universityCode: string
-}
-
 interface RoleStats {
   completedCount: number
   alertCount: number
@@ -58,7 +37,7 @@ interface RoomData {
   passCount: number
   teacherStats: RoleStats
   patientStats: RoleStats
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number }>
   universityCode?: string
 }
 
@@ -119,11 +98,6 @@ const AdminDashboard = () => {
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
   const selectedRoomData = selectedRoom ? rooms.find((r) => r.roomNumber === selectedRoom) : null
-  const currentPassingScore = (() => {
-    if (typeof window === "undefined") return undefined
-    const sid = sessionStorage.getItem("testSessionId") || ""
-    return testSessions.find((s) => s.id === sid)?.passingScore
-  })()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [updateCounter, setUpdateCounter] = useState(0)
   const [accountType, setAccountType] = useState<string | null>(null)
@@ -135,6 +109,11 @@ const AdminDashboard = () => {
   const [isTeacherLogin, setIsTeacherLogin] = useState(false)
   const [assignedSubjectName, setAssignedSubjectName] = useState<string>("")
   const hasSetDefaultUniversity = useRef(false)
+  const currentPassingScore = (() => {
+    if (typeof window === "undefined") return undefined
+    const sid = sessionStorage.getItem("testSessionId") || ""
+    return testSessions.find((s) => s.id === sid)?.passingScore
+  })()
 
   useEffect(() => {
     const fetchData = async () => {
