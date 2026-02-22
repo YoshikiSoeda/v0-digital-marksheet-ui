@@ -21,8 +21,6 @@ interface PatientExamTabsProps {
   patientEmail: string
   patientRoomNumber: string
   testId: string
-  patientName: string
-  elapsedTime: number
 }
 
 interface Answer {
@@ -41,8 +39,6 @@ export default function PatientExamTabs({
   patientEmail,
   patientRoomNumber,
   testId,
-  patientName,
-  elapsedTime,
 }: PatientExamTabsProps) {
   const router = useRouter()
   const [selectedTest, setSelectedTest] = useState<Test | null>(null)
@@ -54,6 +50,8 @@ export default function PatientExamTabs({
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
   const [alertTriggers, setAlertTriggers] = useState<Record<string, boolean>>({})
+  const [elapsedTime, setElapsedTime] = useState<number>(0)
+  const [patientName, setPatientName] = useState<string>("")
 
   const getUniversityCode = (): string => {
     try {
@@ -341,6 +339,24 @@ export default function PatientExamTabs({
 
     category.questions.push(question)
   })
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedTime((prev) => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    try {
+      const loginInfo = sessionStorage.getItem("loginInfo")
+      if (loginInfo) {
+        const info = JSON.parse(loginInfo)
+        setPatientName(info.name || "")
+      }
+    } catch {}
+  }, [])
 
   const handleEnableEdit = (studentId: string) => {
     setCompletionStatus((prev) => ({
