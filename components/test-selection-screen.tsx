@@ -155,7 +155,13 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
                 </tr>
               </thead>
               <tbody>
-                {tests.map((test) => (
+                {[...tests].sort((a, b) => {
+                  const sessionA = testSessions.find((s) => s.id === a.testSessionId)
+                  const sessionB = testSessions.find((s) => s.id === b.testSessionId)
+                  const dateA = sessionA?.testDate ? new Date(sessionA.testDate).getTime() : 0
+                  const dateB = sessionB?.testDate ? new Date(sessionB.testDate).getTime() : 0
+                  return dateB - dateA
+                }).map((test) => (
                   <tr
                     key={test.id}
                     className="border-b last:border-b-0 hover:bg-accent/50 transition-colors cursor-pointer"
