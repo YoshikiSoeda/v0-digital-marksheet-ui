@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, Clock, CheckCircle, XCircle, DoorOpen } from "lucide-react"
+import { Users, Clock, CheckCircle, XCircle, DoorOpen, Trophy } from "lucide-react"
 import {
   loadStudents,
   loadTeachers,
@@ -17,27 +17,6 @@ import {
 } from "@/lib/data-storage"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-interface RoomData {
-  roomNumber: string
-  roomName: string
-  teacherName: string
-  patientName: string
-  presentCount: number
-  absentCount: number
-  completedCount: number
-  alertCount: number
-  averageScore: number
-  students: Array<{
-    id: string
-    name: string
-    status: string
-    isCompleted: boolean
-    totalScore: number
-    alertCount: number
-  }>
-  universityCode: string
-}
 
 interface RoleStats {
   completedCount: number
@@ -55,9 +34,10 @@ interface RoomData {
   completedCount: number
   alertCount: number
   averageScore: number
+  passCount: number
   teacherStats: RoleStats
   patientStats: RoleStats
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number }>
   universityCode?: string
 }
 
@@ -91,6 +71,7 @@ interface Evaluation {
   testId: string
   hasAlert: boolean
   isCompleted: boolean
+  evaluatorType?: string
 }
 
 interface University {
@@ -103,6 +84,7 @@ interface TestSession {
   description: string
   universityCode: string
   testDate: string
+  passingScore?: number
 }
 
 const AdminDashboard = () => {
@@ -127,6 +109,11 @@ const AdminDashboard = () => {
   const [isTeacherLogin, setIsTeacherLogin] = useState(false)
   const [assignedSubjectName, setAssignedSubjectName] = useState<string>("")
   const hasSetDefaultUniversity = useRef(false)
+  const currentPassingScore = (() => {
+    if (typeof window === "undefined") return undefined
+    const sid = sessionStorage.getItem("testSessionId") || ""
+    return testSessions.find((s) => s.id === sid)?.passingScore
+  })()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -140,6 +127,7 @@ const AdminDashboard = () => {
       const parsedLoginInfo = JSON.parse(loginInfo)
       const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
       const isMasterAdmin = universityCodes.includes("ALL")
+      let fetchedSessions: TestSession[] = []
 
       // userRole は "admin" を設定（ダッシュボードのアクセス許可用）
       // loginType が admin/teacher_admin、または role が admin/master_admin/university_admin/subject_admin
@@ -215,10 +203,12 @@ const AdminDashboard = () => {
                   description: session.description || "(名称未設定)",
                   universityCode: session.university_code,
                   testDate: session.test_date,
+                  passingScore: session.passing_score ?? undefined,
                 }))
               : []
 
             console.log("[v0] Transformed test sessions:", transformedSessions)
+            fetchedSessions = transformedSessions
             setTestSessions(transformedSessions)
           } else {
             console.error("[v0] Test sessions API error:", response.statusText)
@@ -240,8 +230,10 @@ const AdminDashboard = () => {
                   description: session.description || "(名称未設定)",
                   universityCode: session.university_code,
                   testDate: session.test_date,
+                  passingScore: session.passing_score ?? undefined,
                 }))
               : []
+            fetchedSessions = transformedSessions
             setTestSessions(transformedSessions)
           }
         } catch (error) {
@@ -295,7 +287,7 @@ const AdminDashboard = () => {
             completedCount: number
             alertCount: number
             averageScore: number
-            students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number }>
             universityCode?: string
           }
         >()
@@ -402,12 +394,29 @@ const AdminDashboard = () => {
               }
             })
 
+            // Calculate pass count per student (sum teacher + patient scores)
+            const currentSessionId = sessionStorage.getItem("testSessionId") || ""
+            const currentSession = fetchedSessions.find((s) => s.id === currentSessionId)
+            const passingScoreVal = currentSession?.passingScore
+            let passCount = 0
+            if (passingScoreVal != null && passingScoreVal > 0) {
+              const studentScoreSum = new Map<string, number>()
+              roomEvaluations.forEach((e) => {
+                if (e.isCompleted) {
+                  studentScoreSum.set(e.studentId, (studentScoreSum.get(e.studentId) || 0) + (e.totalScore || 0))
+                }
+              })
+              studentScoreSum.forEach((sum) => { if (sum >= passingScoreVal) passCount++ })
+            }
+
             const studentsWithStatus = roomStudents.map((student) => {
               const statusInfo = studentStatusMap.get(student.id)
               const studentEvaluation = evaluationsData.find(
                 (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
               )
               const totalScore = studentEvaluation?.totalScore || 0
+              const studentEvals = roomEvaluations.filter((e) => e.studentId === student.id)
+              const combinedScore = studentEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
               return {
                 id: student.studentId,
                 name: student.name,
@@ -415,12 +424,9 @@ const AdminDashboard = () => {
                 isCompleted: statusInfo?.isCompleted || false,
                 totalScore: totalScore,
                 alertCount: studentAlertCountMap.get(student.id) || 0,
+                combinedScore,
               }
             })
-
-            console.log(
-              `[v0] Room ${room.roomNumber}: alertCount=${alertCount}, avgScore=${avgScore}, presentCount=${presentCount}, completedCount=${completedCount}`,
-            )
 
             roomMap.set(room.roomNumber, {
               roomNumber: room.roomNumber,
@@ -432,6 +438,7 @@ const AdminDashboard = () => {
               completedCount,
               alertCount,
               averageScore: avgScore,
+              passCount,
               teacherStats,
               patientStats,
               students: studentsWithStatus,
@@ -605,12 +612,29 @@ const AdminDashboard = () => {
             }
           })
 
+          // Calculate pass count
+          const currentSessionIdR = sessionStorage.getItem("testSessionId") || ""
+          const currentSessionR = testSessions.find((s) => s.id === currentSessionIdR)
+          const passingScoreValR = currentSessionR?.passingScore
+          let passCountR = 0
+          if (passingScoreValR != null && passingScoreValR > 0) {
+            const studentScoreSumR = new Map<string, number>()
+            roomEvaluations.forEach((e) => {
+              if (e.isCompleted) {
+                studentScoreSumR.set(e.studentId, (studentScoreSumR.get(e.studentId) || 0) + (e.totalScore || 0))
+              }
+            })
+            studentScoreSumR.forEach((sum) => { if (sum >= passingScoreValR) passCountR++ })
+          }
+
           const studentsWithStatus = roomStudents.map((student) => {
             const statusInfo = studentStatusMap.get(student.id)
             const studentEvaluation = fetchedEvaluations.find(
               (e) => e.studentId === student.id && e.roomNumber === room.roomNumber,
             )
             const totalScore = studentEvaluation?.totalScore || 0
+            const studentEvalsR = roomEvaluations.filter((e) => e.studentId === student.id)
+            const combinedScore = studentEvalsR.reduce((sum, e) => sum + (e.totalScore || 0), 0)
             return {
               id: student.studentId,
               name: student.name,
@@ -618,12 +642,9 @@ const AdminDashboard = () => {
               isCompleted: statusInfo?.isCompleted || false,
               totalScore: totalScore,
               alertCount: studentAlertCountMap.get(student.id) || 0,
+              combinedScore,
             }
           })
-
-          console.log(
-            `[v0] Room ${room.roomNumber}: teacher=${teacherForRoom?.name || "未割当"}, patient=${patientForRoom?.name || "未割当"}`,
-          )
 
           roomMap.set(room.roomNumber, {
             roomNumber: room.roomNumber,
@@ -635,6 +656,7 @@ const AdminDashboard = () => {
             completedCount,
             alertCount,
             averageScore: avgScore,
+            passCount: passCountR,
             teacherStats: teacherStatsP,
             patientStats: patientStatsP,
             students: studentsWithStatus,
@@ -677,6 +699,7 @@ const AdminDashboard = () => {
   const totalCompletedCount = filteredRooms.reduce((sum, room) => sum + room.completedCount, 0)
   const totalAlertCount = filteredRooms.reduce((sum, room) => sum + room.alertCount, 0)
   const totalAbsentCount = filteredRooms.reduce((sum, room) => sum + room.absentCount, 0)
+  const totalPassCount = filteredRooms.reduce((sum, room) => sum + room.passCount, 0)
 
   console.log("[v0] Rendering AdminDashboard, rooms count:", rooms.length, "updateCounter:", updateCounter)
 
@@ -705,9 +728,9 @@ const AdminDashboard = () => {
           <h1 className="text-2xl font-bold text-[#00417A]">管理者ダッシュボード</h1>
 
           <div className="flex items-center gap-3">
-            <Button onClick={() => router.push("/")} variant="outline" size="sm">
-              戻る
-            </Button>
+  <Button onClick={() => router.push("/admin/login")} variant="outline" size="sm">
+試験選択に戻る
+  </Button>
 
             {accountType === "special_master" && (
               <>
@@ -801,134 +824,135 @@ const AdminDashboard = () => {
   </div>
   )}
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">総受験者数</CardTitle>
-              <Users className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">{totalPresentCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">出席者のみ</p>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground">総受験者数</span>
+                <Users className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold text-primary">{totalPresentCount}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">部屋数</CardTitle>
-              <DoorOpen className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">{filteredRooms.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">登録済み部屋</p>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground">部屋数</span>
+                <DoorOpen className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold text-primary">{filteredRooms.length}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">試験中</CardTitle>
-              <Clock className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{totalPresentCount - totalCompletedCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">出席・未完了</p>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground">試験中</span>
+                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold text-blue-600">{totalPresentCount - totalCompletedCount}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">提出済み</CardTitle>
-              <CheckCircle className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{totalCompletedCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">完了者数</p>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground">提出済み</span>
+                <CheckCircle className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold text-green-600">{totalCompletedCount}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">要注意</CardTitle>
-              <XCircle className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">{totalAlertCount}</div>
-              <p className="text-xs text-muted-foreground mt-1">アラート対象</p>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground">要注意</span>
+                <XCircle className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold text-red-600">{totalAlertCount}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-muted-foreground">合格者</span>
+                <Trophy className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="text-2xl font-bold text-amber-600">{totalPassCount}</div>
             </CardContent>
           </Card>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>部屋別進捗状況</CardTitle>
-            <CardDescription>各部屋の出席状況と進捗を確認</CardDescription>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-base">部屋別進捗状況</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4 pt-0">
             {filteredRooms.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">表示する部屋がありません</p>
+              <p className="text-muted-foreground text-center py-6">表示する部屋がありません</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {filteredRooms.map((room) => (
-                  <Card key={room.roomNumber} className={`transition-colors ${room.alertCount > 0 ? "bg-red-50 border-red-200 hover:bg-red-100" : "bg-accent/30 hover:bg-accent/50"}`}>
-                    <CardContent className="p-4">
-                      <div className="space-y-2">
-                        <div className="text-center border-b pb-2">
-                          <div className="font-bold text-lg text-primary">部屋{room.roomNumber}</div>
-                          {room.roomName && <div className="text-sm text-muted-foreground">{room.roomName}</div>}
+                  <Card key={room.roomNumber} className={`transition-colors cursor-pointer ${room.alertCount > 0 ? "bg-red-50 border-red-200 hover:bg-red-100" : "bg-accent/30 hover:bg-accent/50"}`} onClick={() => setSelectedRoom(room.roomNumber)}>
+                    <CardContent className="p-3">
+                      <div className="space-y-1.5">
+                        <div className="text-center border-b pb-1.5">
+                          <div className="font-bold text-sm text-primary">部屋{room.roomNumber}</div>
+                          {room.roomName && <div className="text-xs text-muted-foreground truncate">{room.roomName}</div>}
                         </div>
-                        <div className="text-sm space-y-1">
+                        <div className="text-xs space-y-0.5">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">教員:</span>
-                            <span className="font-medium truncate ml-2">{room.teacherName}</span>
+                            <span className="font-medium truncate ml-1">{room.teacherName}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">患者:</span>
-                            <span className="font-medium truncate ml-2">{room.patientName}</span>
+                            <span className="font-medium truncate ml-1">{room.patientName}</span>
                           </div>
-                          <div className="border-t pt-2 mt-2 space-y-1">
+                          <div className="border-t pt-1.5 mt-1 space-y-0.5">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">出席:</span>
                               <span className="font-semibold text-green-600">{room.presentCount}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">欠席:</span>
-                              <span className="font-semibold text-orange-600">{room.absentCount}</span>
-                            </div>
-                            <div className="flex justify-between">
                               <span className="text-muted-foreground">完了:</span>
-                              <span className="font-semibold text-xs">
-                                <span className="text-blue-600">教 {room.teacherStats.completedCount}</span>
-                                <span className="mx-1 text-muted-foreground">/</span>
-                                <span className="text-pink-600">患 {room.patientStats.completedCount}</span>
+                              <span className="font-semibold">
+                                <span className="text-blue-600">教{room.teacherStats.completedCount}</span>
+                                <span className="mx-0.5 text-muted-foreground">/</span>
+                                <span className="text-pink-600">患{room.patientStats.completedCount}</span>
                               </span>
                             </div>
                             {(room.teacherStats.alertCount > 0 || room.patientStats.alertCount > 0) && (
                               <div className="flex justify-between">
-                                <span className="text-muted-foreground">アラート:</span>
-                                <span className="font-semibold text-xs">
-                                  <span className="text-red-600">教 {room.teacherStats.alertCount}</span>
-                                  <span className="mx-1 text-muted-foreground">/</span>
-                                  <span className="text-red-600">患 {room.patientStats.alertCount}</span>
+                                <span className="text-muted-foreground">注意:</span>
+                                <span className="font-semibold">
+                                  <span className="text-red-600">教{room.teacherStats.alertCount}</span>
+                                  <span className="mx-0.5 text-muted-foreground">/</span>
+                                  <span className="text-red-600">患{room.patientStats.alertCount}</span>
                                 </span>
                               </div>
                             )}
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">合格:</span>
+                              <span className="font-semibold text-amber-600">{room.passCount}</span>
+                            </div>
                             {(room.teacherStats.averageScore > 0 || room.patientStats.averageScore > 0) && (
-                              <div className="pt-2 border-t mt-2 space-y-0.5">
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-muted-foreground">平均(教員):</span>
+                              <div className="pt-1 border-t mt-1 space-y-0.5">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">平均(教):</span>
                                   <span className="font-bold text-blue-700">{room.teacherStats.averageScore}点</span>
                                 </div>
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-muted-foreground">平均(患者):</span>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">平均(患):</span>
                                   <span className="font-bold text-pink-700">{room.patientStats.averageScore}点</span>
                                 </div>
                               </div>
                             )}
                           </div>
                         </div>
-                        <Button size="sm" className="w-full mt-2" onClick={() => setSelectedRoom(room.roomNumber)}>
-                          詳細
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1027,10 +1051,7 @@ const AdminDashboard = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-3 p-2 bg-secondary/50 rounded text-center">
-                  <span className="text-xs text-muted-foreground">合算平均: </span>
-                  <span className="font-bold text-primary">{selectedRoomData.averageScore}点</span>
-                </div>
+
               </div>
 
               <div className="border-t pt-4">
@@ -1046,6 +1067,7 @@ const AdminDashboard = () => {
                           <th className="text-center py-2">合計点</th>
                           <th className="text-center py-2">アラート</th>
                           <th className="text-center py-2">完了</th>
+                          <th className="text-center py-2">合否</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1081,6 +1103,17 @@ const AdminDashboard = () => {
                             <td className="text-center py-2">
                               {student.isCompleted ? (
                                 <span className="text-blue-600">✓</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="text-center py-2 font-semibold">
+                              {currentPassingScore != null && currentPassingScore > 0 && student.isCompleted ? (
+                                student.combinedScore >= currentPassingScore ? (
+                                  <span className="text-red-600">合格</span>
+                                ) : (
+                                  <span className="text-blue-600">不合格</span>
+                                )
                               ) : (
                                 <span className="text-gray-400">-</span>
                               )}

@@ -413,22 +413,31 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   </p>
                 </div>
               )}
-              <div className="min-w-[160px] flex-1">
-                <Label htmlFor="subject" className="text-xs">教科</Label>
-                <Select value={selectedSubjectCode || "default"} onValueChange={setSelectedSubjectCode}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="教科を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">未設定</SelectItem>
-                    {filteredSubjects.map((subject) => (
-                      <SelectItem key={subject.subject_code} value={subject.subject_code}>
-                        {subject.subject_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {accountType === "special_master" ? (
+                <div className="min-w-[160px] flex-1">
+                  <Label htmlFor="subject" className="text-xs">教科</Label>
+                  <Select value={selectedSubjectCode || "default"} onValueChange={setSelectedSubjectCode}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="教科を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">未設定</SelectItem>
+                      {filteredSubjects.map((subject) => (
+                        <SelectItem key={subject.subject_code} value={subject.subject_code}>
+                          {subject.subject_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="min-w-[160px] flex-1">
+                  <Label htmlFor="subject" className="text-xs">担当教科</Label>
+                  <p className="text-sm px-3 py-1.5 border rounded-md bg-muted h-9 flex items-center">
+                    {filteredSubjects.find((s) => s.subject_code === selectedSubjectCode)?.subject_name || selectedSubjectCode || "未設定"}
+                  </p>
+                </div>
+              )}
               <div className="min-w-[100px]">
                 <Label className="text-xs">合格基準点</Label>
                 <Input
