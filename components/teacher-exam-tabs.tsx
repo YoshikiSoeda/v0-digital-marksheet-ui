@@ -136,7 +136,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     return sessionStorage.getItem("testSessionId") || ""
   }
 
-  const handleAnswerChange = async (questionId: string, optionValue: number) => {
+  const handleAnswerChange = async (questionKey: string, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
 
@@ -148,7 +148,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       ...studentAnswers,
       [activeStudent.id]: {
         ...(studentAnswers[activeStudent.id] || {}),
-        [questionId]: optionValue,
+        [questionKey]: optionValue,
       },
     }
     setStudentAnswers(updatedAnswers)
@@ -158,7 +158,9 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     const studentAnswersData = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
-    const question = questions.find((q) => q.id === questionId)
+    // Parse questionKey to find the matching question
+    const [categoryNumber, questionNumber] = questionKey.split("-").map(Number)
+    const question = questions.find((q) => q.categoryNumber === categoryNumber && q.number === questionNumber)
     const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
 
     const newEvaluation: EvaluationResult = {
@@ -415,7 +417,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           <p className="text-sm text-muted-foreground mb-1">
             {activeStudent?.studentId} - {answeredCount}/{questions.length}回答済み
           </p>
-          <p className="text-sm font-medium">テスト: {selectedTest?.title || "評価シート"}</p>
+          <p className="text-sm font-medium">��スト: {selectedTest?.title || "評価シート"}</p>
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
@@ -438,13 +440,14 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
                     <div className="space-y-1 px-4">
                       {category.questions.map((question) => {
-                        const isAnswered = studentAnswersData[question.id] !== undefined
-                        const selectedOption = studentAnswersData[question.id]
+                        const questionKey = `${category.categoryNumber}-${question.number}`
+                        const isAnswered = studentAnswersData[questionKey] !== undefined
+                        const selectedOption = studentAnswersData[questionKey]
                         const isAlertTarget = question.isAlertTarget
 
                         return (
                           <div
-                            key={question.id}
+                            key={questionKey}
                             className="flex items-center gap-4 py-2 border-b border-gray-200/40"
                           >
                             <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
@@ -467,7 +470,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                                   variant={selectedOption === option ? "default" : "outline"}
                                   size="sm"
                                   className="w-10 h-10 p-0 text-sm rounded-md"
-                                  onClick={() => handleAnswerChange(question.id, option)}
+                                  onClick={() => handleAnswerChange(questionKey, option)}
                                   disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
                                 >
                                   {option}
