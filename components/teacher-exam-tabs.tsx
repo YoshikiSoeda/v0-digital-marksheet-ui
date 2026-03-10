@@ -27,7 +27,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [selectedTest, setSelectedTest] = useState<any>(null)
   const [assignedStudents, setAssignedStudents] = useState<any[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<string, number>>>({})
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | null>>({})
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
@@ -101,7 +101,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
         const fetchedEvaluationResults = await loadEvaluationResults(universityCode, testSessionId)
         if (Array.isArray(fetchedEvaluationResults)) {
-          const answersByStudent: Record<string, Record<number, number>> = {}
+          const answersByStudent: Record<string, Record<string, number>> = {}
           const completionByStudent: Record<string, boolean> = {}
           const editByStudent: Record<string, boolean> = {}
 
@@ -136,7 +136,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     return sessionStorage.getItem("testSessionId") || ""
   }
 
-  const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
+  const handleAnswerChange = async (questionKey: string, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
 
@@ -148,7 +148,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       ...studentAnswers,
       [activeStudent.id]: {
         ...(studentAnswers[activeStudent.id] || {}),
-        [questionNumber]: optionValue,
+        [questionKey]: optionValue,
       },
     }
     setStudentAnswers(updatedAnswers)
@@ -158,7 +158,9 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     const studentAnswersData = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
-    const question = questions.find((q) => q.number === questionNumber)
+    // Parse questionKey to find the matching question
+    const [categoryNumber, questionNumber] = questionKey.split("-").map(Number)
+    const question = questions.find((q) => q.categoryNumber === categoryNumber && q.number === questionNumber)
     const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
 
     const newEvaluation: EvaluationResult = {
@@ -415,7 +417,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           <p className="text-sm text-muted-foreground mb-1">
             {activeStudent?.studentId} - {answeredCount}/{questions.length}回答済み
           </p>
-          <p className="text-sm font-medium">テスト: {selectedTest?.title || "評価シート"}</p>
+          <p className="text-sm font-medium">��スト: {selectedTest?.title || "評価シート"}</p>
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
@@ -436,22 +438,23 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                       <p className="text-sm font-semibold">{category.categoryTitle}</p>
                     </div>
 
-                    <div className="space-y-1 px-4">
+                    <div className="space-y-0 px-4">
                       {category.questions.map((question) => {
-                        const isAnswered = studentAnswersData[question.number] !== undefined
-                        const selectedOption = studentAnswersData[question.number]
+                        const questionKey = `${category.categoryNumber}-${question.number}`
+                        const isAnswered = studentAnswersData[questionKey] !== undefined
+                        const selectedOption = studentAnswersData[questionKey]
                         const isAlertTarget = question.isAlertTarget
 
                         return (
                           <div
-                            key={`${category.categoryNumber}-${question.number}`}
-                            className="flex items-center gap-4 py-2 border-b border-gray-200/40"
+                            key={questionKey}
+                            className="flex items-center gap-3 py-1 border-b border-gray-200/40"
                           >
-                            <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
+                            <div className="flex-shrink-0 w-6 text-xs font-medium text-muted-foreground">
                               {question.number}
                             </div>
 
-                            <div className="flex-1 min-w-0 text-sm">
+                            <div className="flex-1 min-w-0 text-xs">
                               {question.text}
                               {isAlertTarget && (
                                 <span className="ml-2 text-xs text-red-600 font-medium">
@@ -460,14 +463,14 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {[1, 2, 3, 4, 5].map((option) => (
                                 <Button
                                   key={option}
                                   variant={selectedOption === option ? "default" : "outline"}
                                   size="sm"
-                                  className="w-10 h-10 p-0 text-sm rounded-md"
-                                  onClick={() => handleAnswerChange(question.number, option)}
+                                  className="w-8 h-8 p-0 text-xs rounded-md"
+                                  onClick={() => handleAnswerChange(questionKey, option)}
                                   disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
                                 >
                                   {option}

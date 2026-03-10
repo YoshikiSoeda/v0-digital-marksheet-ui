@@ -800,8 +800,6 @@ export async function loadTests(universityCode?: string, subjectCode?: string): 
     return []
   }
 
-  console.log("[v0] Loaded tests from DB:", tests)
-
   return (tests || []).map((test) => ({
     id: test.id,
     title: test.title,
