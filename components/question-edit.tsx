@@ -55,11 +55,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         setUniversities(universitiesData)
 
         const tests = await loadTests()
-        console.log("[v0] QuestionEdit - all tests:", tests)
-        console.log("[v0] QuestionEdit - looking for testId:", testId)
         const test = Array.isArray(tests) ? tests.find((t) => t.id === testId) : null
-        console.log("[v0] QuestionEdit - found test:", test)
-        console.log("[v0] QuestionEdit - test sheets:", test?.sheets)
 
         if (!test) {
           alert("テストが見つかりませんでした")
