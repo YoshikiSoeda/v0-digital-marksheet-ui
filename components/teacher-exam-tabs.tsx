@@ -27,7 +27,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [selectedTest, setSelectedTest] = useState<any>(null)
   const [assignedStudents, setAssignedStudents] = useState<any[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<string, number>>>({})
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | null>>({})
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
@@ -101,7 +101,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
         const fetchedEvaluationResults = await loadEvaluationResults(universityCode, testSessionId)
         if (Array.isArray(fetchedEvaluationResults)) {
-          const answersByStudent: Record<string, Record<number, number>> = {}
+          const answersByStudent: Record<string, Record<string, number>> = {}
           const completionByStudent: Record<string, boolean> = {}
           const editByStudent: Record<string, boolean> = {}
 
@@ -136,7 +136,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     return sessionStorage.getItem("testSessionId") || ""
   }
 
-  const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
+  const handleAnswerChange = async (questionId: string, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
 
@@ -148,7 +148,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       ...studentAnswers,
       [activeStudent.id]: {
         ...(studentAnswers[activeStudent.id] || {}),
-        [questionNumber]: optionValue,
+        [questionId]: optionValue,
       },
     }
     setStudentAnswers(updatedAnswers)
@@ -158,7 +158,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     const studentAnswersData = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
-    const question = questions.find((q) => q.number === questionNumber)
+    const question = questions.find((q) => q.id === questionId)
     const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
 
     const newEvaluation: EvaluationResult = {
@@ -438,13 +438,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
                     <div className="space-y-1 px-4">
                       {category.questions.map((question) => {
-                        const isAnswered = studentAnswersData[question.number] !== undefined
-                        const selectedOption = studentAnswersData[question.number]
+                        const isAnswered = studentAnswersData[question.id] !== undefined
+                        const selectedOption = studentAnswersData[question.id]
                         const isAlertTarget = question.isAlertTarget
 
                         return (
                           <div
-                            key={`${category.categoryNumber}-${question.number}`}
+                            key={question.id}
                             className="flex items-center gap-4 py-2 border-b border-gray-200/40"
                           >
                             <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
@@ -467,7 +467,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                                   variant={selectedOption === option ? "default" : "outline"}
                                   size="sm"
                                   className="w-10 h-10 p-0 text-sm rounded-md"
-                                  onClick={() => handleAnswerChange(question.number, option)}
+                                  onClick={() => handleAnswerChange(question.id, option)}
                                   disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
                                 >
                                   {option}
