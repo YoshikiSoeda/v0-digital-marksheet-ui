@@ -438,7 +438,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                       <p className="text-sm font-semibold">{category.categoryTitle}</p>
                     </div>
 
-                    <div className="space-y-1 px-4">
+                    <div className="space-y-0 px-4">
                       {category.questions.map((question) => {
                         const questionKey = `${category.categoryNumber}-${question.number}`
                         const isAnswered = studentAnswersData[questionKey] !== undefined
@@ -448,13 +448,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                         return (
                           <div
                             key={questionKey}
-                            className="flex items-center gap-4 py-2 border-b border-gray-200/40"
+                            className="flex items-center gap-3 py-1 border-b border-gray-200/40"
                           >
-                            <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
+                            <div className="flex-shrink-0 w-6 text-xs font-medium text-muted-foreground">
                               {question.number}
                             </div>
 
-                            <div className="flex-1 min-w-0 text-sm">
+                            <div className="flex-1 min-w-0 text-xs">
                               {question.text}
                               {isAlertTarget && (
                                 <span className="ml-2 text-xs text-red-600 font-medium">
@@ -463,13 +463,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {[1, 2, 3, 4, 5].map((option) => (
                                 <Button
                                   key={option}
                                   variant={selectedOption === option ? "default" : "outline"}
                                   size="sm"
-                                  className="w-10 h-10 p-0 text-sm rounded-md"
+                                  className="w-8 h-8 p-0 text-xs rounded-md"
                                   onClick={() => handleAnswerChange(questionKey, option)}
                                   disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
                                 >
