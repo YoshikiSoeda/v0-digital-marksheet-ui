@@ -244,7 +244,14 @@ export function RoomManagement() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-primary">部屋マスター管理</h1>
-            <p className="text-muted-foreground">試験会場の部屋を管理します</p>
+            <p className="text-muted-foreground">
+              試験会場の部屋を管理します
+              {sessionStorage.getItem("testSessionId") && (
+                <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
+                  test_session_id: {sessionStorage.getItem("testSessionId")}
+                </span>
+              )}
+            </p>
           </div>
           <Link href="/admin/dashboard">
             <Button variant="outline">
@@ -364,13 +371,14 @@ export function RoomManagement() {
                     {isSpecialMaster && <th className="p-3 text-left font-medium">大学名</th>}
                     <th className="p-3 text-left font-medium">部屋番号</th>
                     <th className="p-3 text-left font-medium">部屋名</th>
+                    <th className="p-3 text-left font-medium">test_session_id</th>
                     <th className="p-3 text-center font-medium">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedRooms.length === 0 ? (
                     <tr>
-                      <td colSpan={isSpecialMaster ? 5 : 4} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={isSpecialMaster ? 6 : 5} className="p-8 text-center text-muted-foreground">
                         登録されている部屋がありません
                       </td>
                     </tr>
@@ -415,6 +423,9 @@ export function RoomManagement() {
                           ) : (
                             room.roomName
                           )}
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground font-mono">
+                          {room.testSessionId || room.test_session_id || "-"}
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2 justify-center">
