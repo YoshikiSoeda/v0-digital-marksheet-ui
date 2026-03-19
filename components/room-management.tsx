@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { loadRooms, saveRooms, loadSubjects, type Room, type Subject } from "@/lib/data-storage"
+import { loadRooms, saveRooms, loadSubjects, loadTestSessions, type Room, type Subject, type TestSession } from "@/lib/data-storage"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -31,6 +31,7 @@ export function RoomManagement() {
   const [selectedUniversityFilter, setSelectedUniversityFilter] = useState<string>("all")
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [testSessions, setTestSessions] = useState<TestSession[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -65,6 +66,12 @@ export function RoomManagement() {
       setSubjects(loadedSubjects)
     }
     fetchSubjects()
+
+    const fetchTestSessions = async () => {
+      const loadedSessions = await loadTestSessions()
+      setTestSessions(loadedSessions)
+    }
+    fetchTestSessions()
   }, [])
 
   const handleAddRoom = async () => {
@@ -223,6 +230,12 @@ export function RoomManagement() {
     link.click()
   }
 
+  const getTestSessionName = (testSessionId: string | undefined): string => {
+    if (!testSessionId) return "-"
+    const session = testSessions.find((s) => s.id === testSessionId)
+    return session?.name || testSessionId
+  }
+
   const filteredRooms =
     selectedUniversityFilter === "all"
       ? rooms
@@ -248,7 +261,7 @@ export function RoomManagement() {
               試験会場の部屋を管理します
               {sessionStorage.getItem("testSessionId") && (
                 <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
-                  test_session_id: {sessionStorage.getItem("testSessionId")}
+                  テスト: {getTestSessionName(sessionStorage.getItem("testSessionId") || undefined)}
                 </span>
               )}
             </p>
@@ -371,7 +384,7 @@ export function RoomManagement() {
                     {isSpecialMaster && <th className="p-3 text-left font-medium">大学名</th>}
                     <th className="p-3 text-left font-medium">部屋番号</th>
                     <th className="p-3 text-left font-medium">部屋名</th>
-                    <th className="p-3 text-left font-medium">test_session_id</th>
+                    <th className="p-3 text-left font-medium">テスト名</th>
                     <th className="p-3 text-center font-medium">操作</th>
                   </tr>
                 </thead>
@@ -424,8 +437,8 @@ export function RoomManagement() {
                             room.roomName
                           )}
                         </td>
-                        <td className="p-3 text-xs text-muted-foreground font-mono">
-                          {room.testSessionId || room.test_session_id || "-"}
+                        <td className="p-3 text-sm">
+                          {getTestSessionName(room.testSessionId || (room as any).test_session_id)}
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2 justify-center">
