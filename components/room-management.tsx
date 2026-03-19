@@ -233,7 +233,7 @@ export function RoomManagement() {
   const getTestSessionName = (testSessionId: string | undefined): string => {
     if (!testSessionId) return "-"
     const session = testSessions.find((s) => s.id === testSessionId)
-    return session?.name || testSessionId
+    return session?.description || testSessionId
   }
 
   const filteredRooms =
