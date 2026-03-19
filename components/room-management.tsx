@@ -25,6 +25,8 @@ export function RoomManagement() {
   const [editRoomName, setEditRoomName] = useState("")
   const [editUniversityCode, setEditUniversityCode] = useState("")
   const [editSubjectCode, setEditSubjectCode] = useState("")
+  const [editTestSessionId, setEditTestSessionId] = useState("")
+  const [newTestSessionId, setNewTestSessionId] = useState("")
   const [isSpecialMaster, setIsSpecialMaster] = useState(false)
   const [universities, setUniversities] = useState<Record<string, string>>({})
   const [universitiesList, setUniversitiesList] = useState<Array<{ code: string; name: string }>>([])
@@ -93,7 +95,7 @@ export function RoomManagement() {
 
     const universityCode = isSpecialMaster ? newUniversityCode : sessionStorage.getItem("universityCode") || ""
 
-    const testSessionId = sessionStorage.getItem("testSessionId") || ""
+    const testSessionId = newTestSessionId || sessionStorage.getItem("testSessionId") || ""
     const newRoom: Room = {
       id: crypto.randomUUID(),
       roomNumber: newRoomNumber,
@@ -112,6 +114,7 @@ export function RoomManagement() {
     setNewRoomName("")
     setNewUniversityCode("")
     setNewSubjectCode("")
+    setNewTestSessionId("")
     setIsAddingRoom(false)
   }
 
@@ -120,6 +123,7 @@ export function RoomManagement() {
     setEditRoomNumber(room.roomNumber)
     setEditRoomName(room.roomName)
     setEditUniversityCode(room.university_code || "")
+    setEditTestSessionId(room.testSessionId || (room as any).test_session_id || "")
   }
 
   const handleSaveEdit = async (roomId: string) => {
@@ -135,7 +139,7 @@ export function RoomManagement() {
 
     const updatedRooms = rooms.map((room) =>
       room.id === roomId
-        ? { ...room, roomNumber: editRoomNumber, roomName: editRoomName, university_code: editUniversityCode }
+        ? { ...room, roomNumber: editRoomNumber, roomName: editRoomName, university_code: editUniversityCode, testSessionId: editTestSessionId }
         : room,
     )
 
@@ -366,6 +370,21 @@ export function RoomManagement() {
                       onChange={(e) => setNewRoomName(e.target.value)}
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="newTestSessionId">テストセッション</Label>
+                    <Select value={newTestSessionId} onValueChange={setNewTestSessionId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="テストセッションを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {testSessions.map((session) => (
+                          <SelectItem key={session.id} value={session.id}>
+                            {session.description || session.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="flex gap-2 mt-4">
                   <Button onClick={handleAddRoom}>追加</Button>
@@ -438,7 +457,22 @@ export function RoomManagement() {
                           )}
                         </td>
                         <td className="p-3 text-sm">
-                          {getTestSessionName(room.testSessionId || (room as any).test_session_id)}
+                          {editingRoomId === room.id ? (
+                            <Select value={editTestSessionId} onValueChange={setEditTestSessionId}>
+                              <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="テストセッションを選択" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {testSessions.map((session) => (
+                                  <SelectItem key={session.id} value={session.id}>
+                                    {session.description || session.id}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            getTestSessionName(room.testSessionId || (room as any).test_session_id)
+                          )}
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2 justify-center">
