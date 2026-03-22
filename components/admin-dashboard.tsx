@@ -90,7 +90,7 @@ interface TestSession {
 const AdminDashboard = () => {
   const router = useRouter()
   const [userRole, setUserRole] = useState<string | null>(null)
-  const [rooms, setRooms] = useState<Room[]>([])
+  const [rooms, setRooms] = useState<RoomData[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [patients, setPatients] = useState<PatientRole[]>([])
@@ -165,19 +165,15 @@ const AdminDashboard = () => {
       }
 
       if (storedAccountType === "special_master") {
-        console.log("[v0] Fetching universities for special master")
         try {
           const response = await fetch("/api/universities")
-          console.log("[v0] Universities API response status:", response.status)
           if (response.ok) {
             const universitiesData = await response.json()
-            console.log("[v0] Fetched universities raw:", universitiesData)
 
             const transformedUniversities = universitiesData.map((uni: any) => ({
               code: uni.university_code,
               name: uni.university_name,
             }))
-            console.log("[v0] Transformed universities:", transformedUniversities)
             setUniversities(transformedUniversities)
 
             if (!hasSetDefaultUniversity.current && transformedUniversities.length > 0) {
@@ -191,10 +187,8 @@ const AdminDashboard = () => {
 
         try {
           const response = await fetch("/api/test-sessions")
-          console.log("[v0] Test sessions API response status:", response.status)
           if (response.ok) {
             const sessionsData = await response.json()
-            console.log("[v0] Fetched test sessions raw:", sessionsData)
 
             // Transform snake_case to camelCase
             const transformedSessions = Array.isArray(sessionsData)
@@ -207,7 +201,6 @@ const AdminDashboard = () => {
                 }))
               : []
 
-            console.log("[v0] Transformed test sessions:", transformedSessions)
             fetchedSessions = transformedSessions
             setTestSessions(transformedSessions)
           } else {
@@ -245,7 +238,6 @@ const AdminDashboard = () => {
         const universityCode = isMasterAdmin ? undefined : universityCodes[0]
 
         const testsData = await loadTests(universityCode)
-        console.log("[v0] Fetched tests:", testsData)
         setTests(Array.isArray(testsData) ? testsData : [])
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
@@ -264,10 +256,6 @@ const AdminDashboard = () => {
           loadRooms(universityCode, undefined, testSessionId),
           loadAttendanceRecords(universityCode, testSessionId),
         ])
-
-        console.log("[v0] Login info:", parsedLoginInfo)
-        console.log("[v0] Loaded evaluations data:", evaluationsData)
-        console.log("[v0] Loaded attendance records data:", attendanceData)
 
         setStudents(Array.isArray(studentsData) ? studentsData : [])
         setTeachers(Array.isArray(teachersData) ? teachersData : [])
@@ -455,8 +443,6 @@ const AdminDashboard = () => {
 
         setRooms(roomList)
         setUpdateCounter((prev) => prev + 1)
-        console.log("[v0] Room statistics calculated:", roomList)
-        console.log("[v0] State updated, rooms count:", roomList.length)
       } catch (error) {
         console.error("[v0] Error loading data:", error)
       }
@@ -467,7 +453,6 @@ const AdminDashboard = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
-    console.log("[v0] Refresh button clicked, fetching latest data...")
 
     try {
       setRooms([])
@@ -503,10 +488,6 @@ const AdminDashboard = () => {
           loadAttendanceRecords(universityCode, testSessionId),
           loadTests(universityCode),
         ])
-
-      console.log("[v0] Refreshed teachers data:", fetchedTeachers)
-      console.log("[v0] Refreshed patients data:", fetchedPatients)
-      console.log("[v0] Refreshed rooms data:", fetchedRooms)
 
       const roomMap = new Map<string, RoomData>()
 
@@ -673,8 +654,6 @@ const AdminDashboard = () => {
 
       setRooms(roomList)
       setUpdateCounter((prev) => prev + 1)
-      console.log("[v0] Refreshed room statistics:", roomList)
-      console.log("[v0] Refresh complete, rooms count:", roomList.length)
     } catch (error) {
       console.error("[v0] Error refreshing data:", error)
     } finally {
@@ -700,14 +679,6 @@ const AdminDashboard = () => {
   const totalAlertCount = filteredRooms.reduce((sum, room) => sum + room.alertCount, 0)
   const totalAbsentCount = filteredRooms.reduce((sum, room) => sum + room.absentCount, 0)
   const totalPassCount = filteredRooms.reduce((sum, room) => sum + room.passCount, 0)
-
-  console.log("[v0] Rendering AdminDashboard, rooms count:", rooms.length, "updateCounter:", updateCounter)
-
-  if (rooms.length > 0) {
-    rooms.slice(0, 3).forEach((room) => {
-      console.log(`[v0] Room ${room.roomNumber}: teacher=${room.teacherName}, patient=${room.patientName}`)
-    })
-  }
 
   if (userRole === null) {
     return <div className="flex justify-center items-center min-h-screen">認証確認中...</div>

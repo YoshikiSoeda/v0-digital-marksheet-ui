@@ -78,7 +78,7 @@ export function AdminLoginForm() {
       loadFilterData(role, universityCode, subjectCode)
       setStep("session")
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadFilterData])
 
   // Load filter data when entering session step
   const loadFilterData = useCallback(async (role: string, universityCode: string, subjectCode: string) => {

@@ -240,8 +240,6 @@ export async function loadStudents(universityCode?: string, subjectCode?: string
     return []
   }
 
-  console.log("[v0] Loaded students data:", data)
-
   if (!data || !Array.isArray(data)) {
     console.error("[v0] Students data is not an array:", data)
     return []
@@ -314,10 +312,7 @@ export async function loadTeachers(universityCode?: string, subjectCode?: string
     return []
   }
 
-  console.log("[v0] Loaded teachers data:", data)
-
   if (!data || !Array.isArray(data)) {
-    console.error("[v0] Teachers data is not an array:", data)
     return []
   }
 
@@ -579,10 +574,7 @@ export async function loadRooms(universityCode?: string, subjectCode?: string, t
     return []
   }
 
-  console.log("[v0] Loaded rooms data:", data)
-
   if (!data || !Array.isArray(data)) {
-    console.error("[v0] Rooms data is not an array:", data)
     return []
   }
 
@@ -800,8 +792,6 @@ export async function loadTests(universityCode?: string, subjectCode?: string): 
     return []
   }
 
-  console.log("[v0] Loaded tests from DB:", tests)
-
   return (tests || []).map((test) => ({
     id: test.id,
     title: test.title,
@@ -887,10 +877,7 @@ export async function loadSubjects(universityCode?: string): Promise<Subject[]> 
     return []
   }
 
-  console.log("[v0] Loaded subjects data:", data)
-
   if (!data || !Array.isArray(data)) {
-    console.error("[v0] Subjects data is not an array:", data)
     return []
   }
 
@@ -909,15 +896,12 @@ export async function loadSubjects(universityCode?: string): Promise<Subject[]> 
 export async function deleteTeacher(teacherId: string) {
   const supabase = createClient()
 
-  console.log("[v0] Deleting teacher from database:", teacherId)
-
   const { error } = await supabase.from("teachers").delete().eq("id", teacherId)
 
   if (error) {
-    console.error("[v0] Error deleting teacher:", error.message)
+    console.error("Error deleting teacher:", error.message)
     throw error
   }
 
-  console.log("[v0] Teacher deleted successfully from database")
   return { success: true }
 }
