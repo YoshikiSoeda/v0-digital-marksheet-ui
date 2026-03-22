@@ -65,21 +65,6 @@ export function AdminLoginForm() {
   const [createError, setCreateError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
-  // Auto-skip to session step if already authenticated (e.g. coming back from dashboard)
-  useEffect(() => {
-    const loginInfo = sessionStorage.getItem("loginInfo")
-    const role = sessionStorage.getItem("role") || ""
-    const universityCode = sessionStorage.getItem("universityCode") || ""
-    const subjectCode = sessionStorage.getItem("subjectCode") || ""
-    if (loginInfo && role) {
-      setAuthRole(role)
-      setAuthUniversityCode(universityCode)
-      setAuthSubjectCode(subjectCode)
-      loadFilterData(role, universityCode, subjectCode)
-      setStep("session")
-    }
-  }, [loadFilterData])
-
   // Load filter data when entering session step
   const loadFilterData = useCallback(async (role: string, universityCode: string, subjectCode: string) => {
     try {
@@ -112,9 +97,24 @@ export function AdminLoginForm() {
         setFilterUniversity(universityCode)
       }
     } catch (err) {
-      console.error("[v0] Error loading filter data:", err)
+      console.error("Error loading filter data:", err)
     }
   }, [])
+
+  // Auto-skip to session step if already authenticated (e.g. coming back from dashboard)
+  useEffect(() => {
+    const loginInfo = sessionStorage.getItem("loginInfo")
+    const role = sessionStorage.getItem("role") || ""
+    const universityCode = sessionStorage.getItem("universityCode") || ""
+    const subjectCode = sessionStorage.getItem("subjectCode") || ""
+    if (loginInfo && role) {
+      setAuthRole(role)
+      setAuthUniversityCode(universityCode)
+      setAuthSubjectCode(subjectCode)
+      loadFilterData(role, universityCode, subjectCode)
+      setStep("session")
+    }
+  }, [loadFilterData])
 
   // Helper: check if two subject codes match, handling university prefix format
   // e.g. "dentshowa_GENERAL" should match "GENERAL" and vice versa
