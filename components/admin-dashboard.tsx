@@ -758,6 +758,10 @@ const AdminDashboard = () => {
               アカウント管理
             </Button>
           )}
+          {/* 部屋マスター管理: 全管理者（subject_admin以上） */}
+          <Button onClick={() => router.push("/admin/room-management")} variant="outline" size="sm">
+            部屋マスター管理
+          </Button>
           {/* 問題管理: 全管理者（subject_admin以上） */}
           <Button onClick={() => router.push("/admin/question-management")} variant="outline" size="sm">
             問題管理
