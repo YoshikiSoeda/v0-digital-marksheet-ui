@@ -201,11 +201,8 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   }
 
   const handleMarkComplete = async (studentId: string) => {
-    console.log("[v0] Complete button clicked for student:", studentId)
     const studentAnswersData = studentAnswers[studentId] || {}
     const answeredCount = Object.keys(studentAnswersData).length
-    console.log("[v0] Answered count:", answeredCount, "Total questions:", questions.length)
-    console.log("[v0] Attendance status:", attendanceStatus[studentId])
 
     if (answeredCount === questions.length && attendanceStatus[studentId] === "present") {
       setCompletionStatus((prev) => ({ ...prev, [studentId]: true }))
@@ -231,9 +228,6 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       }
 
       await saveEvaluationResults([completedResult])
-      console.log("[v0] Evaluation marked as complete")
-    } else {
-      console.log("[v0] Cannot mark as complete - conditions not met")
     }
   }
 
@@ -291,7 +285,6 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   })
 
   const handleFinishEvaluation = async () => {
-    console.log("[v0] Finish evaluation button clicked")
     router.push("/teacher/results")
   }
 

@@ -42,16 +42,13 @@ export default function StudentsListPage() {
   useEffect(() => {
     const fetchData = async () => {
       const storedAccountType = sessionStorage.getItem("accountType") || ""
-      console.log("[v0] StudentsListPage: accountType =", storedAccountType)
       setAccountType(storedAccountType)
 
       if (storedAccountType === "special_master") {
         try {
-          console.log("[v0] StudentsListPage: Fetching universities for special master...")
           const response = await fetch("/api/universities")
           if (response.ok) {
             const data = await response.json()
-            console.log("[v0] StudentsListPage: Universities data:", data)
             setUniversitiesList(Array.isArray(data) ? data : [])
             const universityMap: Record<string, string> = {}
             if (Array.isArray(data)) {
@@ -60,10 +57,9 @@ export default function StudentsListPage() {
               })
             }
             setUniversities(universityMap)
-            console.log("[v0] StudentsListPage: University map set:", universityMap)
           }
         } catch (error) {
-          console.error("[v0] StudentsListPage: Error fetching universities:", error)
+          console.error("Error fetching universities:", error)
         }
       }
 
@@ -255,10 +251,6 @@ export default function StudentsListPage() {
                     </tr>
                   ) : (
                     filteredStudents.map((student, index) => {
-                      console.log(`[v0] Rendering student ${student.name}:`, {
-                        universityCode: student.university_code,
-                        universities_map: universities,
-                      })
                       const universityCode = (student as any).university_code || (student as any).universityCode || ""
                       const universityName = universities[universityCode] || "-"
 

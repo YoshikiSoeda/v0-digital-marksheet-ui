@@ -35,16 +35,13 @@ export default function TeachersListPage() {
   useEffect(() => {
     const fetchData = async () => {
       const storedAccountType = sessionStorage.getItem("accountType") || ""
-      console.log("[v0] TeachersListPage: accountType =", storedAccountType)
       setAccountType(storedAccountType)
 
       if (storedAccountType === "special_master") {
         try {
-          console.log("[v0] TeachersListPage: Fetching universities for special master...")
           const response = await fetch("/api/universities")
           if (response.ok) {
             const data = await response.json()
-            console.log("[v0] TeachersListPage: Universities data:", data)
             setUniversitiesList(Array.isArray(data) ? data : [])
             const universityMap: Record<string, string> = {}
             if (Array.isArray(data)) {
@@ -53,19 +50,15 @@ export default function TeachersListPage() {
               })
             }
             setUniversities(universityMap)
-            console.log("[v0] TeachersListPage: University map set:", universityMap)
           }
         } catch (error) {
-          console.error("[v0] TeachersListPage: Error fetching universities:", error)
+          console.error("Error fetching universities:", error)
         }
       }
 
-      console.log("[v0] TeachersListPage: Loading teachers, rooms, and subjects...")
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
       const [fetchedTeachers, fetchedRooms, fetchedSubjects] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
 
-      console.log("[v0] TeachersListPage: Loaded teachers:", fetchedTeachers?.length || 0)
-      console.log("[v0] TeachersListPage: Loaded rooms:", fetchedRooms?.length || 0)
       setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
       setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
       setSubjects(Array.isArray(fetchedSubjects) ? fetchedSubjects : [])
@@ -98,8 +91,6 @@ export default function TeachersListPage() {
   const handleSaveEdit = async () => {
     if (!editingTeacher) return
 
-    console.log("[v0] TeachersListPage: Saving edit for teacher:", editingTeacher.id)
-
     const updatedTeachers = teachers.map((t) =>
       t.id === editingTeacher.id
         ? {
@@ -116,7 +107,6 @@ export default function TeachersListPage() {
     )
 
     await saveTeachers(updatedTeachers)
-    console.log("[v0] TeachersListPage: Teachers saved, refreshing...")
     setTeachers(updatedTeachers)
     setEditingTeacher(null)
     alert("教員情報を更新しました")
@@ -124,16 +114,14 @@ export default function TeachersListPage() {
 
   const handleDelete = async (id: string) => {
     if (confirm("この教員を削除しますか？")) {
-      console.log("[v0] TeachersListPage: Deleting teacher:", id)
       try {
         await deleteTeacher(id)
-        console.log("[v0] TeachersListPage: Teacher deleted from database")
 
         const updated = teachers.filter((t) => t.id !== id)
         setTeachers(updated)
         alert("教員を削除しました")
       } catch (error) {
-        console.error("[v0] TeachersListPage: Error deleting teacher:", error)
+        console.error("Error deleting teacher:", error)
         alert("削除に失敗しました")
       }
     }
@@ -142,15 +130,13 @@ export default function TeachersListPage() {
   const handleDeleteAll = async () => {
     if (confirm("全ての教員データを削除しますか？この操作は取り消せません。")) {
       try {
-        console.log("[v0] TeachersListPage: Deleting all teachers...")
         for (const teacher of teachers) {
           await deleteTeacher(teacher.id)
         }
-        console.log("[v0] TeachersListPage: All teachers deleted from database")
         setTeachers([])
         alert("全ての教員データを削除しました")
       } catch (error) {
-        console.error("[v0] TeachersListPage: Error deleting all teachers:", error)
+        console.error("Error deleting all teachers:", error)
         alert("削除に失敗しました")
       }
     }
@@ -189,10 +175,8 @@ export default function TeachersListPage() {
   }
 
   const handleRefresh = async () => {
-    console.log("[v0] TeachersListPage: Refreshing data...")
     const testSessionId = sessionStorage.getItem("testSessionId") || ""
     const [fetchedTeachers, fetchedRooms] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId)])
-    console.log("[v0] TeachersListPage: Refreshed teachers:", fetchedTeachers?.length || 0)
     setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
     setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
   }
@@ -300,12 +284,6 @@ export default function TeachersListPage() {
                     </tr>
                   ) : (
                     filteredTeachers.map((teacher) => {
-                      console.log(`[v0] Rendering teacher ${teacher.name}:`, {
-                        university_code: teacher.university_code,
-                        universityCode: teacher.universityCode,
-                        mapped_value: universities[teacher.university_code || ""],
-                        universities_map: universities,
-                      })
                       const universityCode = teacher.universityCode || ""
                       const universityName = universities[universityCode] || "-"
 
