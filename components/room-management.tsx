@@ -31,6 +31,7 @@ export function RoomManagement() {
   const [selectedUniversityFilter, setSelectedUniversityFilter] = useState<string>("all")
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("all")
   const [subjects, setSubjects] = useState<Subject[]>([])
+  const [testSessionName, setTestSessionName] = useState<string>("")
   const router = useRouter()
 
   useEffect(() => {
@@ -57,6 +58,22 @@ export function RoomManagement() {
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
       const loadedRooms = await loadRooms(undefined, undefined, testSessionId)
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
+
+      // テストセッション名を取得
+      if (testSessionId) {
+        try {
+          const response = await fetch("/api/test-sessions")
+          if (response.ok) {
+            const sessions = await response.json()
+            const currentSession = sessions.find((s: any) => s.id === testSessionId)
+            if (currentSession) {
+              setTestSessionName(currentSession.description || "(名称未設定)")
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching test session:", error)
+        }
+      }
     }
     fetchRooms()
 
@@ -258,7 +275,14 @@ export function RoomManagement() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>登録済み部屋一覧</CardTitle>
+                <div className="flex items-center gap-3">
+                  <CardTitle>登録済み部屋一覧</CardTitle>
+                  {testSessionName && (
+                    <span className="text-sm font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                      {testSessionName}
+                    </span>
+                  )}
+                </div>
                 <CardDescription>登録されている部屋: {filteredRooms.length}件</CardDescription>
               </div>
               <div className="flex gap-2">
