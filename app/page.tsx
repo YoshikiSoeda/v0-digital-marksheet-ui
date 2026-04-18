@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { GraduationCap, Shield, UserCircle, Mail, ExternalLink } from "lucide-react"
 
 export default function HomePage() {
+  console.log("[v0] HomePage rendering")
   return (
     <div className="min-h-screen flex flex-col bg-secondary/30">
       <main className="flex-1 flex items-center justify-center p-4">
