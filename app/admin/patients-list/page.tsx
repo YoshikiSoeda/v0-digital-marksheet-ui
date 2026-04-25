@@ -86,6 +86,7 @@ export default function PatientsListPage() {
       role: patient.role,
       roomNumber: patient.assignedRoomNumber || "",
       university_code: patient.universityCode || "",
+      subjectCode: patient.subjectCode || "",
     })
   }
 

@@ -16,6 +16,7 @@ import {
   loadRooms,
   loadSubjects,
   type Teacher,
+  type TeacherRole,
   type Room,
   type Subject,
 } from "@/lib/data-storage"
@@ -34,7 +35,7 @@ export function TeacherRegistration() {
     name: "",
     email: "",
     password: "",
-    role: "general" as "general" | "admin",
+    role: "general" as TeacherRole,
     roomNumber: "",
     university_code: "", // Add university_code to formData
     subjectCode: "",
@@ -147,7 +148,7 @@ export function TeacherRegistration() {
       role: formData.role,
       assignedRoomNumber: formData.roomNumber,
       createdAt: new Date().toISOString(),
-      university_code: formData.university_code,
+      universityCode: formData.university_code,
       subjectCode: formData.subjectCode,
       testSessionId: sessionStorage.getItem("testSessionId") || "",
     }
@@ -370,14 +371,14 @@ export function TeacherRegistration() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      {console.log(
+      {(() => { console.log(
         "[v0] TeacherRegistration: RENDERING, accountType=",
         accountType,
         "universities=",
         universities,
         "subjects=",
         subjects,
-      )}
+      ); return null })()}
       <div className="max-w-7xl mx-auto space-y-6">
         <Card className="mx-auto max-w-6xl">
           <CardHeader>

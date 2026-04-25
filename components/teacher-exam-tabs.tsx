@@ -28,7 +28,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [assignedStudents, setAssignedStudents] = useState<any[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
   const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
-  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | null>>({})
+  const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "pending">>({})
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
   const [questions, setQuestions] = useState<any[]>([])
@@ -94,7 +94,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
                 acc[record.studentId] = record.status
                 return acc
               },
-              {} as Record<string, "present" | "absent" | null>,
+              {} as Record<string, "present" | "absent" | "pending">,
             ),
           )
         }
@@ -144,7 +144,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       return
     }
 
-    const updatedAnswers = {
+    const updatedAnswers: Record<string, Record<number, number>> = {
       ...studentAnswers,
       [activeStudent.id]: {
         ...(studentAnswers[activeStudent.id] || {}),
@@ -155,7 +155,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
     const universityCode = getUniversityCode()
     const testSessionId = getTestSessionId()
-    const studentAnswersData = updatedAnswers[activeStudent.id] || {}
+    const studentAnswersData: Record<number, number> = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
     const question = questions.find((q) => q.number === questionNumber)
