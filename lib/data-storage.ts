@@ -67,6 +67,7 @@ export interface EvaluationResult {
   studentId: string
   evaluatorId: string // 教員または患者役のID
   evaluatorType: "teacher" | "patient"
+  testId?: string // 紐づく試験(Test)ID — teacher/patient-exam-tabs で記録
   roomNumber: string
   answers: Record<number, number> // 問題番号: 回答値（1-5）
   totalScore: number
@@ -74,8 +75,9 @@ export interface EvaluationResult {
   isCompleted: boolean
   hasAlert?: boolean // Add hasAlert flag to track if any answer triggers an alert
   completedAt?: string
-  createdAt: string
-  updatedAt: string
+  createdAt?: string // saveEvaluationResults 後に DB が付与
+  updatedAt?: string // 同上
+  timestamp?: string // teacher/patient-exam-tabs が記録時刻として渡す
   universityCode?: string // 大学コード
   testSessionId?: string // 試験セッションID
 }

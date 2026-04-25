@@ -8,6 +8,7 @@ import {
   type AttendanceRecord,
   type EvaluationResult,
   type Test,
+  type Question,
   loadTests,
   loadStudents,
   loadRooms,
@@ -15,7 +16,6 @@ import {
   loadEvaluationResults,
   saveEvaluationResults,
 } from "@/lib/data-storage"
-import type { Question } from "@/lib/types" // Declare the Question variable
 
 interface PatientExamTabsProps {
   patientEmail: string
