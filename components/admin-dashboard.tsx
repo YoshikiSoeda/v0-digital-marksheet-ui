@@ -276,22 +276,7 @@ const AdminDashboard = () => {
         setAttendanceRecords(Array.isArray(attendanceData) ? attendanceData : [])
         setEvaluations(Array.isArray(evaluationsData) ? evaluationsData : [])
 
-        const roomMap = new Map<
-          string,
-          {
-            roomNumber: string
-            roomName: string
-            teacherName: string
-            patientName: string
-            presentCount: number
-            absentCount: number
-            completedCount: number
-            alertCount: number
-            averageScore: number
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number }>
-            universityCode?: string
-          }
-        >()
+        const roomMap = new Map<string, RoomData>()
 
         if (
           Array.isArray(roomsData) &&

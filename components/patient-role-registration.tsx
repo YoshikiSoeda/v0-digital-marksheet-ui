@@ -137,7 +137,7 @@ export function PatientRoleRegistration() {
     }
 
     setPatients([...patients, newPatient])
-    setFormData({ name: "", email: "", password: "", role: "general", roomNumber: "", university_code: "" })
+    setFormData({ name: "", email: "", password: "", role: "general", roomNumber: "", university_code: "", subjectCode: "" })
   }
 
   const handleDeletePatient = async (id: string) => {
@@ -303,7 +303,7 @@ export function PatientRoleRegistration() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      {console.log("[v0] PatientRoleRegistration: RENDERING, accountType=", accountType, "universities=", universities)}
+      {(() => { console.log("[v0] PatientRoleRegistration: RENDERING, accountType=", accountType, "universities=", universities); return null })()}
       <div className="max-w-7xl mx-auto space-y-6">
         <Card className="mx-auto max-w-6xl">
           <CardHeader>

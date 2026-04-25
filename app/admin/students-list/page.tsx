@@ -94,6 +94,7 @@ export default function StudentsListPage() {
       department: student.department,
       roomNumber: student.roomNumber,
       university_code: student.universityCode || "",
+      subjectCode: student.subjectCode || "",
     })
   }
 

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, loadSubjects, type Teacher, type Subject } from "@/lib/data-storage"
+import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, loadSubjects, type Teacher,
+  type TeacherRole, type Subject } from "@/lib/data-storage"
 
 export default function TeachersListPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -26,7 +27,7 @@ export default function TeachersListPage() {
     name: "",
     email: "",
     password: "",
-    role: "general" as "general" | "admin",
+    role: "general" as TeacherRole,
     assignedRoomNumber: "",
     university_code: "",
     subjectCode: "",
@@ -168,7 +169,7 @@ export default function TeachersListPage() {
         t.name,
         t.email,
         t.password,
-        t.role === "admin" ? "管理者" : "一般",
+        t.role !== "general" ? "管理者" : "一般",
         t.assignedRoomNumber || "",
       ]
       return baseRow

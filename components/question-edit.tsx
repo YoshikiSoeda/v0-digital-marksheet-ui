@@ -295,7 +295,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
               sheets,
               testSessionId: testSession.id,
               universityCode: testSession.university_code,
-              subjectCode: selectedSubjectCode || null,
+              subjectCode: selectedSubjectCode || undefined,
               roleType: roleType,
               updatedAt: new Date().toISOString(),
             }
