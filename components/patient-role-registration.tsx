@@ -132,7 +132,7 @@ export function PatientRoleRegistration() {
       role: formData.role,
       assignedRoomNumber: formData.roomNumber,
       createdAt: new Date().toISOString(),
-      university_code: formData.university_code,
+      universityCode: formData.university_code,
       testSessionId: sessionStorage.getItem("testSessionId") || "",
     }
 
@@ -179,7 +179,7 @@ export function PatientRoleRegistration() {
           role: "general" as "general" | "admin",
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
-          university_code: university_code || "",
+          universityCode: university_code || "",
           testSessionId,
         })
       }
@@ -248,7 +248,7 @@ export function PatientRoleRegistration() {
         "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n" +
         patients
           .map((p) => {
-            const universityName = universities[p.university_code || ""] || ""
+            const universityName = universities[p.universityCode || ""] || ""
             return `${universityName},${p.name},${p.email},${p.password},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`
           })
           .join("\n")
@@ -531,7 +531,7 @@ export function PatientRoleRegistration() {
                     {patients.map((patient) => (
                       <TableRow key={patient.email}>
                         {accountType === "special_master" && (
-                          <TableCell>{universities[patient.university_code || ""] || "-"}</TableCell>
+                          <TableCell>{universities[patient.universityCode || ""] || "-"}</TableCell>
                         )}
                         <TableCell className="font-medium">{patient.name}</TableCell>
                         <TableCell>{patient.email}</TableCell>

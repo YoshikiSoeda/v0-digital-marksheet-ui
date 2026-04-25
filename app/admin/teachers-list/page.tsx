@@ -90,7 +90,7 @@ export default function TeachersListPage() {
       password: teacher.password,
       role: teacher.role,
       assignedRoomNumber: teacher.assignedRoomNumber || "",
-      university_code: teacher.university_code || "",
+      university_code: teacher.universityCode || "",
       subjectCode: teacher.subjectCode || "",
     })
   }
@@ -109,7 +109,7 @@ export default function TeachersListPage() {
             password: editForm.password,
             role: editForm.role,
             assignedRoomNumber: editForm.assignedRoomNumber,
-            university_code: editForm.university_code,
+            universityCode: editForm.university_code,
             subjectCode: editForm.subjectCode,
           }
         : t,
@@ -164,7 +164,7 @@ export default function TeachersListPage() {
 
     const rows = teachers.map((t) => {
       const baseRow = [
-        ...(accountType === "special_master" ? [universities[t.university_code || ""] || ""] : []),
+        ...(accountType === "special_master" ? [universities[t.universityCode || ""] || ""] : []),
         t.name,
         t.email,
         t.password,
@@ -301,9 +301,9 @@ export default function TeachersListPage() {
                   ) : (
                     filteredTeachers.map((teacher) => {
                       console.log(`[v0] Rendering teacher ${teacher.name}:`, {
-                        university_code: teacher.university_code,
+                        university_code: teacher.universityCode,
                         universityCode: teacher.universityCode,
-                        mapped_value: universities[teacher.university_code || ""],
+                        mapped_value: universities[teacher.universityCode || ""],
                         universities_map: universities,
                       })
                       const universityCode = teacher.universityCode || ""

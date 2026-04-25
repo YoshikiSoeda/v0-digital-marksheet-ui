@@ -119,7 +119,7 @@ export function StudentRegistration() {
   email: formData.email || undefined,
   department: formData.department,
   roomNumber: formData.roomNumber,
-  university_code: formData.university_code,
+  universityCode: formData.university_code,
   testSessionId: sessionStorage.getItem("testSessionId") || "",
   createdAt: new Date().toISOString(),
   }
@@ -153,7 +153,7 @@ export function StudentRegistration() {
           email: email || undefined,
           department,
           roomNumber,
-          university_code: university_code || "",
+          universityCode: university_code || "",
           testSessionId,
           createdAt: new Date().toISOString(),
         })
@@ -231,7 +231,7 @@ export function StudentRegistration() {
         students
           .map(
             (s, index) =>
-              `${index + 1},${s.studentId},${universities[s.university_code || ""] || ""},${s.name},${s.email || ""},${s.department},${s.roomNumber}`,
+              `${index + 1},${s.studentId},${universities[s.universityCode || ""] || ""},${s.name},${s.email || ""},${s.department},${s.roomNumber}`,
           )
           .join("\n")
     } else {
@@ -516,7 +516,7 @@ export function StudentRegistration() {
                     {students.map((student) => (
                       <tr key={student.id} className="border-b hover:bg-muted/50">
                         {accountType === "special_master" && (
-                          <td className="p-3">{universities[student.university_code || ""] || "-"}</td>
+                          <td className="p-3">{universities[student.universityCode || ""] || "-"}</td>
                         )}
                         <td className="p-3 font-medium">{student.studentId}</td>
                         <td className="p-3">{student.name}</td>
