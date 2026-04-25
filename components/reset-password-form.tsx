@@ -20,7 +20,7 @@ export function ResetPasswordForm() {
   const [success, setSuccess] = useState(false)
   const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
@@ -39,15 +39,15 @@ export function ResetPasswordForm() {
       return
     }
 
-    const teachers = loadTeachers()
-    const patients = loadPatients()
+    const teachers = await loadTeachers()
+    const patients = await loadPatients()
 
     const teacherIndex = teachers.findIndex((t) => t.email === email)
     const patientIndex = patients.findIndex((p) => p.email === email)
 
     if (teacherIndex >= 0) {
       teachers[teacherIndex].password = newPassword
-      saveTeachers(teachers)
+      await saveTeachers(teachers)
       setSuccess(true)
       setTimeout(() => {
         router.push("/teacher/login")
@@ -57,7 +57,7 @@ export function ResetPasswordForm() {
 
     if (patientIndex >= 0) {
       patients[patientIndex].password = newPassword
-      savePatients(patients)
+      await savePatients(patients)
       setSuccess(true)
       setTimeout(() => {
         router.push("/patient/login")

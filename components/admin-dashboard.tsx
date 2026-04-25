@@ -14,6 +14,7 @@ import {
   loadAttendanceRecords,
   loadTests,
   loadSubjects,
+  type EvaluationResult,
 } from "@/lib/data-storage"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -90,7 +91,7 @@ interface TestSession {
 const AdminDashboard = () => {
   const router = useRouter()
   const [userRole, setUserRole] = useState<string | null>(null)
-  const [rooms, setRooms] = useState<Room[]>([])
+  const [rooms, setRooms] = useState<RoomData[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [patients, setPatients] = useState<PatientRole[]>([])
@@ -487,7 +488,7 @@ const AdminDashboard = () => {
       const universityCode = isMasterAdmin ? undefined : universityCodes[0]
 
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
-      let fetchedEvaluations = []
+      let fetchedEvaluations: EvaluationResult[] = []
       try {
         fetchedEvaluations = await loadEvaluationResults(universityCode, testSessionId)
       } catch (error) {
