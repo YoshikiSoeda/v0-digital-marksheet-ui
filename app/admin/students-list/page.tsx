@@ -93,7 +93,7 @@ export default function StudentsListPage() {
       email: student.email || "",
       department: student.department,
       roomNumber: student.roomNumber,
-      university_code: student.university_code || "",
+      university_code: student.universityCode || "",
     })
   }
 
@@ -109,7 +109,7 @@ export default function StudentsListPage() {
             email: editForm.email,
             department: editForm.department,
             roomNumber: editForm.roomNumber,
-            university_code: editForm.university_code,
+            universityCode: editForm.university_code,
           }
         : s,
     )
@@ -144,7 +144,7 @@ export default function StudentsListPage() {
       const baseRow = [
         (index + 1).toString(),
         s.studentId,
-        ...(accountType === "special_master" ? [universities[s.university_code || ""] || ""] : []),
+        ...(accountType === "special_master" ? [universities[s.universityCode || ""] || ""] : []),
         s.name,
         s.email || "",
         s.department,
@@ -256,7 +256,7 @@ export default function StudentsListPage() {
                   ) : (
                     filteredStudents.map((student, index) => {
                       console.log(`[v0] Rendering student ${student.name}:`, {
-                        universityCode: student.university_code,
+                        universityCode: student.universityCode,
                         universities_map: universities,
                       })
                       const universityCode = (student as any).university_code || (student as any).universityCode || ""

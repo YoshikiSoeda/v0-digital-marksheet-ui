@@ -85,7 +85,7 @@ export default function PatientsListPage() {
       password: patient.password,
       role: patient.role,
       roomNumber: patient.assignedRoomNumber || "",
-      university_code: patient.university_code || "",
+      university_code: patient.universityCode || "",
     })
   }
 
@@ -106,7 +106,7 @@ export default function PatientsListPage() {
             password: editForm.password,
             role: editForm.role,
             assignedRoomNumber: editForm.roomNumber,
-            university_code: editForm.university_code,
+            universityCode: editForm.university_code,
           }
         : p,
     )
@@ -141,7 +141,7 @@ export default function PatientsListPage() {
 
     const rows = patients.map((p) => {
       const baseRow = [
-        ...(accountType === "special_master" ? [universities[p.university_code || ""] || ""] : []),
+        ...(accountType === "special_master" ? [universities[p.universityCode || ""] || ""] : []),
         p.name,
         p.email,
         p.password,

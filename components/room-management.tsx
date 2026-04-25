@@ -112,7 +112,7 @@ export function RoomManagement() {
     setEditingRoomId(room.id)
     setEditRoomNumber(room.roomNumber)
     setEditRoomName(room.roomName)
-    setEditUniversityCode(room.university_code || "")
+    setEditUniversityCode(room.universityCode || "")
   }
 
   const handleSaveEdit = async (roomId: string) => {
@@ -128,7 +128,7 @@ export function RoomManagement() {
 
     const updatedRooms = rooms.map((room) =>
       room.id === roomId
-        ? { ...room, roomNumber: editRoomNumber, roomName: editRoomName, university_code: editUniversityCode }
+        ? { ...room, roomNumber: editRoomNumber, roomName: editRoomName, universityCode: editUniversityCode }
         : room,
     )
 
@@ -174,7 +174,7 @@ export function RoomManagement() {
             id: crypto.randomUUID(),
             roomNumber,
             roomName,
-            university_code: universityCode,
+            universityCode,
             testSessionId,
             createdAt: new Date().toISOString(),
           })
@@ -198,7 +198,7 @@ export function RoomManagement() {
     const rows = rooms.map((room) => {
       const row = [room.roomNumber, room.roomName]
       if (isSpecialMaster) {
-        row.push(universities[room.university_code || ""] || "")
+        row.push(universities[room.universityCode || ""] || "")
       }
       return row
     })
@@ -229,7 +229,7 @@ export function RoomManagement() {
       : rooms.filter(
           (room) =>
             (room as any).universityCode === selectedUniversityFilter ||
-            room.university_code === selectedUniversityFilter,
+            room.universityCode === selectedUniversityFilter,
         )
 
   const sortedRooms = [...filteredRooms].sort((a, b) => {
@@ -394,7 +394,7 @@ export function RoomManagement() {
                                 </SelectContent>
                               </Select>
                             ) : (
-                              universities[(room as any).universityCode || room.university_code || ""] || "-"
+                              universities[room.universityCode || ""] || "-"
                             )}
                           </td>
                         )}

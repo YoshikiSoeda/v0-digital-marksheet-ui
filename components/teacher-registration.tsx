@@ -635,7 +635,7 @@ export function TeacherRegistration() {
                     {teachers.map((teacher) => (
                       <TableRow key={teacher.email} className="border-b hover:bg-muted/50">
                         {accountType === "special_master" && (
-                          <TableCell>{universities[teacher.university_code || ""] || "-"}</TableCell>
+                          <TableCell>{universities[teacher.universityCode || ""] || "-"}</TableCell>
                         )}
                         <TableCell className="font-medium">{teacher.name}</TableCell>
                         <TableCell>{teacher.email}</TableCell>
