@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-import { loadTeachers, loadTestSessions, type Teacher, type TestSession } from "@/lib/data-storage"
-import { setLoginCookie } from "@/lib/auth/cookie"
+import { loadTestSessions, type Teacher, type TestSession } from "@/lib/data-storage"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -36,46 +35,53 @@ export function TeacherLoginForm() {
     }
 
     try {
-      // Load all teachers (no session filter) to verify credentials
-      const teachers = await loadTeachers()
+      // Phase 8: 認証はサーバー側 API で実施(bcrypt 照合 + HttpOnly cookie 発行)
+      const res = await fetch("/api/auth/teacher/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: teacherId, password }),
+      })
+      const result = await res.json()
 
-      if (!Array.isArray(teachers)) {
-        setError("データの読み込みに失敗しました")
+      if (!res.ok) {
+        setError(result?.error || "認証エラーが発生しました")
         setIsLoading(false)
         return
       }
 
-      // Find all teacher records matching this email/password (may exist in multiple sessions)
-      const matched = teachers.filter((t) => t.email === teacherId && t.password === password)
+      if (result?.needsSessionSelection && Array.isArray(result.sessions)) {
+        const universityCode = result.sessions[0]?.universityCode || "dentshowa"
+        const allSessions = await loadTestSessions(universityCode)
+        const sessionIds = new Set(result.sessions.map((s: { id: string | null }) => s.id).filter(Boolean))
+        const availableSessions = allSessions.filter((s) => sessionIds.has(s.id))
 
-      if (matched.length === 0) {
-        setError("IDまたはパスワードが正しくありません")
-        setIsLoading(false)
-        return
-      }
-
-      // Load available test sessions
-      const universityCode = matched[0].universityCode || "dentshowa"
-      const allSessions = await loadTestSessions(universityCode)
-
-      // Filter sessions that this teacher is registered for
-      const teacherSessionIds = new Set(matched.map((t) => t.testSessionId).filter(Boolean))
-      const availableSessions = allSessions.filter((s) => teacherSessionIds.has(s.id))
-
-      if (availableSessions.length === 1) {
-        // Only one session - auto-select
-        const teacher = matched.find((t) => t.testSessionId === availableSessions[0].id) || matched[0]
-        completeLogin(teacher, availableSessions[0].id)
-      } else if (availableSessions.length > 1) {
-        // Multiple sessions - show selection
-        setMatchedTeachers(matched)
+        const placeholder: Teacher[] = result.sessions.map((s: {
+          id: string | null
+          name: string
+          assignedRoomNumber: string | null
+          universityCode: string | null
+          subjectCode: string | null
+        }) => ({
+          id: "",
+          teacherId: "",
+          email: teacherId,
+          password: "", // Phase 8: 平文を保持しない
+          name: s.name,
+          role: "general",
+          assignedRoomNumber: s.assignedRoomNumber || "",
+          createdAt: new Date().toISOString(),
+          universityCode: s.universityCode || "dentshowa",
+          subjectCode: s.subjectCode || "",
+          testSessionId: s.id || "",
+        }))
+        setMatchedTeachers(placeholder)
         setSessions(availableSessions)
         setStep("session")
         setIsLoading(false)
-      } else {
-        // No sessions found - fallback with first matched teacher
-        completeLogin(matched[0], matched[0].testSessionId || "")
+        return
       }
+
+      completeLoginFromApi(result)
     } catch (error) {
       console.error("[v0] Error during login:", error)
       setError("ログイン処理中にエラーが発生しました")
@@ -83,55 +89,68 @@ export function TeacherLoginForm() {
     }
   }
 
-  const handleSessionSelect = (sessionId: string) => {
-    const teacher = matchedTeachers.find((t) => t.testSessionId === sessionId) || matchedTeachers[0]
-    completeLogin(teacher, sessionId)
+  const handleSessionSelectViaApi = async (sessionId: string) => {
+    setError("")
+    setIsLoading(true)
+    try {
+      const res = await fetch("/api/auth/teacher/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: teacherId, password, testSessionId: sessionId }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result?.error || "認証エラーが発生しました")
+        setIsLoading(false)
+        return
+      }
+      completeLoginFromApi(result)
+    } catch (error) {
+      console.error("[v0] Error during teacher session select:", error)
+      setError("ログイン処理中にエラーが発生しました")
+      setIsLoading(false)
+    }
   }
 
-  const completeLogin = (teacher: Teacher, testSessionId: string) => {
-    const teacherRole = teacher.role as string
-
-    const loginInfo = {
-      loginType: "teacher",
-      role: teacherRole,
-      userId: teacher.id,
-      userName: teacher.name,
-      email: teacher.email,
-      assignedRoomNumber: teacher.assignedRoomNumber || "",
-      universityCode: teacher.universityCode || "dentshowa",
-      subjectCode: teacher.subjectCode || "",
-      testSessionId,
-    }
-
-    sessionStorage.setItem("loginInfo", JSON.stringify(loginInfo))
-    sessionStorage.setItem("teacherId", teacher.id)
-    sessionStorage.setItem("teacherName", teacher.name)
-    sessionStorage.setItem("teacherEmail", teacher.email)
-    sessionStorage.setItem("teacherRole", teacherRole)
-    sessionStorage.setItem("teacherRoom", teacher.assignedRoomNumber || "")
-    sessionStorage.setItem("universityCode", teacher.universityCode || "dentshowa")
-    sessionStorage.setItem("subjectCode", teacher.subjectCode || "")
-    sessionStorage.setItem("testSessionId", testSessionId)
-    const accountTypeMap: Record<string, string> = {
-      master_admin: "special_master",
-      university_admin: "university_master",
-      subject_admin: "subject_admin",
-      general: "general",
-    }
-    sessionStorage.setItem("accountType", accountTypeMap[teacherRole] || "general")
-
-    // middleware が認可判定に使う Cookie も書く(Phase 7)
-    setLoginCookie({
-      loginType: "teacher",
-      role: teacherRole,
-      userId: teacher.id,
-      userName: teacher.name,
-      universityCode: teacher.universityCode || "dentshowa",
-      subjectCode: teacher.subjectCode || "",
-    })
+  const completeLoginFromApi = (apiResult: {
+    teacherId: string
+    teacherName: string
+    teacherEmail: string
+    teacherRole: string
+    teacherRoom: string
+    universityCode: string
+    subjectCode: string
+    testSessionId: string
+    accountType: string
+  }) => {
+    sessionStorage.setItem(
+      "loginInfo",
+      JSON.stringify({
+        loginType: "teacher",
+        role: apiResult.teacherRole,
+        userId: apiResult.teacherId,
+        userName: apiResult.teacherName,
+        email: apiResult.teacherEmail,
+        assignedRoomNumber: apiResult.teacherRoom,
+        universityCode: apiResult.universityCode,
+        subjectCode: apiResult.subjectCode,
+        testSessionId: apiResult.testSessionId,
+      }),
+    )
+    sessionStorage.setItem("teacherId", apiResult.teacherId)
+    sessionStorage.setItem("teacherName", apiResult.teacherName)
+    sessionStorage.setItem("teacherEmail", apiResult.teacherEmail)
+    sessionStorage.setItem("teacherRole", apiResult.teacherRole)
+    sessionStorage.setItem("teacherRoom", apiResult.teacherRoom)
+    sessionStorage.setItem("universityCode", apiResult.universityCode)
+    sessionStorage.setItem("subjectCode", apiResult.subjectCode)
+    sessionStorage.setItem("testSessionId", apiResult.testSessionId)
+    sessionStorage.setItem("accountType", apiResult.accountType)
 
     window.location.href = "/teacher/exam-info"
   }
+
+  // 旧 handleSessionSelect/completeLogin は handleSessionSelectViaApi/completeLoginFromApi に統合済み
 
   if (step === "session") {
     return (
@@ -149,7 +168,7 @@ export function TeacherLoginForm() {
               key={session.id}
               variant="outline"
               className="w-full justify-start h-auto py-3 px-4"
-              onClick={() => handleSessionSelect(session.id)}
+              onClick={() => handleSessionSelectViaApi(session.id)}
             >
               <div className="text-left">
                 <div className="font-medium">{session.description || "(名称未設定)"}</div>
