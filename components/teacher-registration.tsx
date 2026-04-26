@@ -275,22 +275,24 @@ export function TeacherRegistration() {
   const handleExportCSV = () => {
     let csvContent: string
     if (accountType === "special_master") {
+      // Phase 8c: パスワード列はエクスポートから除外(セキュリティ強化)
       csvContent =
-        "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n" +
+        "大学名,氏名,メールアドレス（ログインID）,権限,担当部屋番号,教科コード\n" +
         teachers
           .map((t) => {
             const roleLabel = getRoleLabel(t.role)
             const universityName = universities[t.universityCode || ""] || ""
-            return `${universityName},${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber},${t.subjectCode || ""}`
+            return `${universityName},${t.name},${t.email},${roleLabel},${t.assignedRoomNumber},${t.subjectCode || ""}`
           })
           .join("\n")
     } else {
+      // Phase 8c: パスワード列はエクスポートから除外(セキュリティ強化)
       csvContent =
-        "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n" +
+        "氏名,メールアドレス（ログインID）,権限,担当部屋番号,教科コード\n" +
         teachers
           .map((t) => {
             const roleLabel = getRoleLabel(t.role)
-            return `${t.name},${t.email},${t.password},${roleLabel},${t.assignedRoomNumber},${t.subjectCode || ""}`
+            return `${t.name},${t.email},${roleLabel},${t.assignedRoomNumber},${t.subjectCode || ""}`
           })
           .join("\n")
     }

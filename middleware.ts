@@ -17,6 +17,8 @@ const PUBLIC_API_PATHS: string[] = [
   "/api/auth/teacher/login",
   "/api/auth/patient/login",
   "/api/auth/logout",
+  // パスワードリセット (Phase 8c) は未ログインで使う
+  "/api/auth/reset-password",
 ]
 
 const PUBLIC_PAGES_PREFIX = [

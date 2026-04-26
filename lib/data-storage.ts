@@ -264,28 +264,44 @@ export async function loadStudents(universityCode?: string, subjectCode?: string
 }
 
 // 教員データの保存
+// Phase 8c (2026-04-26 以降): /api/admin/register-teachers 経由でサーバーサイド bcrypt 化。
+//   平文 password はここで送られる時点では平文だが、API → RPC で hash 化されて DB に入る。
+//   既存 hash はそのまま据え置き(register_teachers_bulk RPC 内で判別)。
 export async function saveTeachers(teachers: Teacher[]) {
-  const supabase = createClient()
-
-  const teachersData = teachers.map((t) => ({
-  name: t.name,
-  email: t.email,
-  password: t.password,
-  role: t.role, // general, subject_admin, university_admin, master_admin
-  assigned_room_number: t.assignedRoomNumber,
-  university_code: t.universityCode || null,
-  subject_code: t.subjectCode || null,
-  test_session_id: t.testSessionId || null,
-  }))
-
-  const { error } = await supabase.from("teachers").upsert(teachersData, { onConflict: "email,test_session_id" })
-
-  if (error) {
-    console.error("[v0] Error saving teachers:", error.message)
-    throw error
+  if (!Array.isArray(teachers) || teachers.length === 0) {
+    return { success: true, upserted: 0 }
   }
 
-  return { success: true }
+  const payload = teachers.map((t) => ({
+    name: t.name,
+    email: t.email,
+    password: t.password,
+    role: t.role,
+    assignedRoomNumber: t.assignedRoomNumber || "",
+    subjectCode: t.subjectCode || "",
+    universityCode: t.universityCode || "",
+    accountType: (t as any).accountType || "",
+    testSessionId: t.testSessionId || "",
+  }))
+
+  const response = await fetch("/api/admin/register-teachers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ teachers: payload }),
+  })
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try {
+      const body = await response.json()
+      if (body?.error) message = body.error
+    } catch {}
+    console.error("[v0] Error saving teachers:", message)
+    throw new Error(message)
+  }
+
+  return { success: true, ...(await response.json().catch(() => ({}))) }
 }
 
 // 教員データの読み込み
@@ -339,29 +355,44 @@ export async function loadTeachers(universityCode?: string, subjectCode?: string
   }
   
   // 患者役データの保存
+// Phase 8c (2026-04-26 以降): /api/admin/register-patients 経由でサーバーサイド bcrypt 化。
+//   平文 password はここで送られる時点では平文だが、API → RPC で hash 化されて DB に入る。
+//   既存 hash はそのまま据え置き(register_patients_bulk RPC 内で判別)。
 export async function savePatients(patients: Patient[]) {
-  const supabase = createClient()
+  if (!Array.isArray(patients) || patients.length === 0) {
+    return { success: true, upserted: 0 }
+  }
 
-  const patientsData = patients.map((p) => ({
+  const payload = patients.map((p) => ({
     name: p.name,
     email: p.email,
     password: p.password,
     role: p.role,
-    assigned_room_number: p.assignedRoomNumber,
-    university_code: p.universityCode || null,
-    account_type: p.accountType || null,
-    subject_code: p.subjectCode || null,
-    test_session_id: p.testSessionId || null,
+    assignedRoomNumber: p.assignedRoomNumber || "",
+    subjectCode: p.subjectCode || "",
+    universityCode: p.universityCode || "",
+    accountType: (p as any).accountType || "",
+    testSessionId: p.testSessionId || "",
   }))
 
-  const { error } = await supabase.from("patients").upsert(patientsData, { onConflict: "email,test_session_id" })
+  const response = await fetch("/api/admin/register-patients", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ patients: payload }),
+  })
 
-  if (error) {
-    console.error("[v0] Error saving patients:", error.message)
-    throw error
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try {
+      const body = await response.json()
+      if (body?.error) message = body.error
+    } catch {}
+    console.error("[v0] Error saving patients:", message)
+    throw new Error(message)
   }
 
-  return { success: true }
+  return { success: true, ...(await response.json().catch(() => ({}))) }
 }
 
 // 患者役データの読み込み
