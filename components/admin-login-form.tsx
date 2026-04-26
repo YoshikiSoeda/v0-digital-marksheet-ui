@@ -15,6 +15,7 @@ import { Shield, Calendar, ArrowLeft, Plus, ChevronRight, Filter } from "lucide-
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { loadTeachers, loadSubjects, type Subject } from "@/lib/data-storage"
+import { setLoginCookie } from "@/lib/auth/cookie"
 
 interface SessionData {
   id: string
@@ -320,6 +321,19 @@ export function AdminLoginForm() {
       sessionStorage.setItem(key, value)
     }
     sessionStorage.setItem("testSessionId", sessionId)
+    // middleware が認可判定に使う Cookie も書く(Phase 7)
+    try {
+      const li = JSON.parse(pendingLoginInfo.loginInfo || "{}")
+      setLoginCookie({
+        loginType: "admin",
+        role: li.role || authRole || "admin",
+        userId: li.userId,
+        userName: li.userName,
+        universityCodes: li.universityCodes,
+      })
+    } catch {
+      // noop: cookie 失敗してもユーザー操作は継続
+    }
     window.location.href = "/admin/dashboard"
   }
 
