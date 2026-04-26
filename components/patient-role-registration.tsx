@@ -244,21 +244,23 @@ export function PatientRoleRegistration() {
   const handleExportCSV = () => {
     let csvContent
     if (accountType === "special_master") {
+      // Phase 8c: パスワード列はエクスポートから除外(セキュリティ強化)
       csvContent =
-        "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n" +
+        "大学名,氏名,メールアドレス（ログインID）,権限,担当部屋番号\n" +
         patients
           .map((p) => {
             const universityName = universities[p.universityCode || ""] || ""
-            return `${universityName},${p.name},${p.email},${p.password},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`
+            return `${universityName},${p.name},${p.email},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`
           })
           .join("\n")
     } else {
+      // Phase 8c: パスワード列はエクスポートから除外(セキュリティ強化)
       csvContent =
-        "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n" +
+        "氏名,メールアドレス（ログインID）,権限,担当部屋番号\n" +
         patients
           .map(
             (p) =>
-              `${p.name},${p.email},${p.password},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`,
+              `${p.name},${p.email},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`,
           )
           .join("\n")
     }

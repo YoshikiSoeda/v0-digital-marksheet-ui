@@ -10,14 +10,21 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { loadTeachers, loadPatients, saveTeachers, savePatients } from "@/lib/data-storage"
 
+/**
+ * Phase 8c (2026-04-26 以降):
+ *   /api/auth/reset-password 経由で password 変更。
+ *   サーバー側で bcrypt ハッシュ化して該当 1 件だけ UPDATE する。
+ *   旧実装(load 全件 → 配列内書き換え → save 全件)は削除済み。
+ */
 export function ResetPasswordForm() {
   const [email, setEmail] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  const [updated, setUpdated] = useState<"teachers" | "patients" | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,44 +35,46 @@ export function ResetPasswordForm() {
       setError("すべての項目を入力してください")
       return
     }
-
     if (newPassword !== confirmPassword) {
       setError("パスワードが一致しません")
       return
     }
-
     if (newPassword.length < 4) {
       setError("パスワードは4文字以上で入力してください")
       return
     }
 
-    const teachers = await loadTeachers()
-    const patients = await loadPatients()
+    setSubmitting(true)
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), newPassword }),
+      })
 
-    const teacherIndex = teachers.findIndex((t) => t.email === email)
-    const patientIndex = patients.findIndex((p) => p.email === email)
+      if (response.status === 404) {
+        setError("登録されていないメールアドレスです")
+        return
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        setError(body?.error || `エラーが発生しました (HTTP ${response.status})`)
+        return
+      }
 
-    if (teacherIndex >= 0) {
-      teachers[teacherIndex].password = newPassword
-      await saveTeachers(teachers)
+      const body = await response.json().catch(() => ({}))
+      const target = (body?.updated === "teachers" || body?.updated === "patients") ? body.updated : null
+      setUpdated(target)
       setSuccess(true)
       setTimeout(() => {
-        router.push("/teacher/login")
+        router.push(target === "patients" ? "/patient/login" : "/teacher/login")
       }, 2000)
-      return
+    } catch (err) {
+      console.error("[reset-password] fetch error:", err)
+      setError("通信エラーが発生しました")
+    } finally {
+      setSubmitting(false)
     }
-
-    if (patientIndex >= 0) {
-      patients[patientIndex].password = newPassword
-      await savePatients(patients)
-      setSuccess(true)
-      setTimeout(() => {
-        router.push("/patient/login")
-      }, 2000)
-      return
-    }
-
-    setError("登録されていないメールアドレスです")
   }
 
   if (success) {
@@ -76,7 +85,9 @@ export function ResetPasswordForm() {
           <CardDescription className="text-center">新しいパスワードでログインしてください</CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-          <p className="text-sm text-muted-foreground">2秒後にログイン画面に戻ります...</p>
+          <p className="text-sm text-muted-foreground">
+            2秒後に{updated === "patients" ? "患者担当者" : "教員"}ログイン画面に戻ります...
+          </p>
         </CardContent>
       </Card>
     )
@@ -137,8 +148,8 @@ export function ResetPasswordForm() {
 
           {error && <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>}
 
-          <Button type="submit" className="w-full">
-            パスワードを変更
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting ? "変更中..." : "パスワードを変更"}
           </Button>
 
           <div className="text-center space-y-2">
