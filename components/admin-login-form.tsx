@@ -13,9 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Shield, Calendar, ArrowLeft, Plus, ChevronRight, Filter } from "lucide-react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
 import { loadTeachers, loadSubjects, type Subject } from "@/lib/data-storage"
-import { setLoginCookie } from "@/lib/auth/cookie"
 
 interface SessionData {
   id: string
@@ -188,146 +186,84 @@ export function AdminLoginForm() {
       setAuthRole(role)
       setAuthUniversityCode(universityCode)
       setAuthSubjectCode(subjectCode)
-      // Phase 7: middleware が API ガードに使う Cookie をここで先に発行する。
-      // /api/universities や /api/test-sessions の取得が loadFilterData 内で行われるため、
-      // それらの呼び出し前に Cookie が無いと 401 になりセッション一覧が空になる回帰が発生する。
-      try {
-        const li = JSON.parse(loginData.loginInfo || "{}")
-        setLoginCookie({
-          loginType: "admin",
-          role: li.role || role,
-          userId: li.userId,
-          userName: li.userName,
-          universityCodes: li.universityCodes,
-        })
-      } catch {
-        // noop
-      }
+      // Phase 8: HttpOnly cookie は /api/auth/admin/login で既に発行済みなので
+      // ここでは追加 cookie 操作不要。loadFilterData の /api/* 呼び出しに認可情報が乗る。
       await loadFilterData(role, universityCode, subjectCode)
       setStep("session")
       setIsLoading(false)
     }
 
-    // 1. admin,admin でマスター管理者ログイン
-    if (adminId === "admin" && password === "admin") {
-      const supabase = createClient()
-      const { data: admins } = await supabase
-        .from("admins")
-        .select("*")
-        .eq("role", "master_admin")
-        .limit(1)
+    // Phase 8: 認証は /api/auth/admin/login に集約(bcrypt 照合 + HttpOnly cookie)
+    try {
+      const res = await fetch("/api/auth/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminId, password }),
+      })
+      const result = await res.json()
 
-      const admin = admins?.[0]
-      if (admin) {
-        const universityCodes = admin.university_codes || ["dentshowa"]
-        const loginData: Record<string, string> = {
-          loginInfo: JSON.stringify({
-            loginType: "admin",
-            role: "master_admin",
-            userId: admin.id,
-            userName: admin.name,
-            universityCodes,
-          }),
-          userRole: "admin",
-          userId: admin.id,
-          userName: admin.name,
-          universityCodes: JSON.stringify(universityCodes),
-          accountType: "special_master",
-          teacherRole: "master_admin",
-        }
-
-        await showSessionStep(loginData, "master_admin", universityCodes[0], "")
+      if (!res.ok) {
+        setError(result?.error || "管理者IDまたはパスワードが正しくありません")
+        setIsLoading(false)
         return
       }
-    }
 
-    // 2. adminsテーブルから検索
-    const supabase = createClient()
-    const emailToCheck = adminId === "ediand" ? "ediand@system.local" : adminId
+      // API レスポンスを既存 showSessionStep が期待する loginData 形式へマッピング
+      const isFromTeachers = result?.source === "teachers"
+      const role: string = result?.role || "master_admin"
+      const universityCodes: string[] = result?.universityCodes || ["dentshowa"]
+      const universityCode: string = result?.universityCode || universityCodes[0] || "dentshowa"
+      const subjectCode: string = result?.subjectCode || ""
+      const accountType: string = result?.accountType || "admin"
 
-    const { data: admin } = await supabase
-      .from("admins")
-      .select("*")
-      .eq("email", emailToCheck)
-      .eq("password", password)
-      .single()
+      const loginData: Record<string, string> = isFromTeachers
+        ? {
+            loginInfo: JSON.stringify({
+              loginType: "teacher_admin",
+              role,
+              userId: result.userId,
+              userName: result.userName,
+              email: result.teacherEmail || "",
+              universityCode,
+              subjectCode,
+            }),
+            userRole: "admin",
+            userId: result.userId,
+            userName: result.userName,
+            teacherId: result.userId,
+            teacherName: result.userName,
+            teacherEmail: result.teacherEmail || "",
+            teacherRole: role,
+            teacherRoom: result.teacherRoom || "",
+            universityCode,
+            universityCodes: JSON.stringify([universityCode]),
+            subjectCode,
+            accountType,
+          }
+        : {
+            loginInfo: JSON.stringify({
+              loginType: "admin",
+              role,
+              userId: result.userId,
+              userName: result.userName,
+              universityCodes,
+            }),
+            userRole: "admin",
+            userId: result.userId,
+            userName: result.userName,
+            universityCodes: JSON.stringify(universityCodes),
+            accountType,
+            teacherRole: role,
+          }
 
-    if (admin) {
-      const role = admin.role || "master_admin"
-      const accountTypeMap: Record<string, string> = {
-        master_admin: "special_master",
-        university_admin: "university_master",
-      }
-      const universityCodes = admin.university_codes || ["dentshowa"]
-
-      const loginData: Record<string, string> = {
-        loginInfo: JSON.stringify({
-          loginType: "admin",
-          role,
-          userId: admin.id,
-          userName: admin.name,
-          universityCodes,
-        }),
-        userRole: "admin",
-        userId: admin.id,
-        userName: admin.name,
-        universityCodes: JSON.stringify(universityCodes),
-        accountType: accountTypeMap[role] || "admin",
-        teacherRole: role,
-      }
-
-      await showSessionStep(loginData, role, universityCodes[0], "")
+      await showSessionStep(loginData, role, universityCode, subjectCode)
+      return
+    } catch (err) {
+      console.error("[admin-login] error:", err)
+      setError("ログイン処理中にエラーが発生しました")
+      setIsLoading(false)
       return
     }
-
-    // 3. teachersテーブルからuniversity_admin以上を検索
-    try {
-      const teachers = await loadTeachers()
-      const teacher = teachers.find(
-        (t) => t.email === adminId && t.password === password &&
-               (t.role === "university_admin" || t.role === "master_admin" || t.role === "subject_admin")
-      )
-
-      if (teacher) {
-        const teacherRole = teacher.role as string
-        const accountTypeMap: Record<string, string> = {
-          master_admin: "special_master",
-          university_admin: "university_master",
-          subject_admin: "subject_admin",
-        }
-
-        const loginData: Record<string, string> = {
-          loginInfo: JSON.stringify({
-            loginType: "teacher_admin",
-            role: teacherRole,
-            userId: teacher.id,
-            userName: teacher.name,
-            email: teacher.email,
-            universityCode: teacher.universityCode || "dentshowa",
-            subjectCode: teacher.subjectCode || "",
-          }),
-          userRole: "admin",
-          userId: teacher.id,
-          userName: teacher.name,
-          teacherId: teacher.id,
-          teacherName: teacher.name,
-          teacherEmail: teacher.email,
-          teacherRole,
-          teacherRoom: teacher.assignedRoomNumber || "",
-          universityCode: teacher.universityCode || "dentshowa",
-          universityCodes: JSON.stringify([teacher.universityCode || "dentshowa"]),
-          subjectCode: teacher.subjectCode || "",
-          accountType: accountTypeMap[teacherRole] || "admin",
-        }
-
-        await showSessionStep(loginData, teacherRole, teacher.universityCode || "dentshowa", teacher.subjectCode || "")
-        return
-      }
-    } catch (err) {
-      console.error("[v0] Error checking teachers:", err)
-    }
-
-    setError("管理者IDまたはパスワードが正しくありません")
     setIsLoading(false)
   }
 
@@ -336,19 +272,7 @@ export function AdminLoginForm() {
       sessionStorage.setItem(key, value)
     }
     sessionStorage.setItem("testSessionId", sessionId)
-    // middleware が認可判定に使う Cookie も書く(Phase 7)
-    try {
-      const li = JSON.parse(pendingLoginInfo.loginInfo || "{}")
-      setLoginCookie({
-        loginType: "admin",
-        role: li.role || authRole || "admin",
-        userId: li.userId,
-        userName: li.userName,
-        universityCodes: li.universityCodes,
-      })
-    } catch {
-      // noop: cookie 失敗してもユーザー操作は継続
-    }
+    // Phase 8: HttpOnly cookie は API 側で発行済みのため不要
     window.location.href = "/admin/dashboard"
   }
 

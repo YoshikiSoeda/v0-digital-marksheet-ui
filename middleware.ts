@@ -12,7 +12,11 @@ import type { NextRequest } from "next/server"
  */
 
 const PUBLIC_API_PATHS: string[] = [
-  // 現状はすべて要認証だが、将来の公開用 API はここに列挙する
+  // 認証エンドポイント自身は当然認証不要
+  "/api/auth/admin/login",
+  "/api/auth/teacher/login",
+  "/api/auth/patient/login",
+  "/api/auth/logout",
 ]
 
 const PUBLIC_PAGES_PREFIX = [

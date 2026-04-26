@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { GraduationCap, ArrowLeft, Calendar } from "lucide-react"
 import Link from "next/link"
-import { loadPatients, loadTestSessions, type Patient, type TestSession } from "@/lib/data-storage"
-import { setLoginCookie } from "@/lib/auth/cookie"
+import { loadTestSessions, type Patient, type TestSession } from "@/lib/data-storage"
 
 export function PatientLoginForm() {
   const router = useRouter()
@@ -35,38 +34,58 @@ export function PatientLoginForm() {
     }
 
     try {
-      const patients = await loadPatients()
+      // Phase 8: 認証はサーバー側 API で実施(bcrypt 照合 + HttpOnly cookie 発行)
+      const res = await fetch("/api/auth/patient/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: patientId, password }),
+      })
+      const result = await res.json()
 
-      if (!Array.isArray(patients)) {
-        setError("データの読み込みに失敗しました")
+      if (!res.ok) {
+        setError(result?.error || "認証エラーが発生しました")
         setIsLoading(false)
         return
       }
 
-      const matched = patients.filter((p) => p.email === patientId && p.password === password)
+      // 複数セッション持ちの場合: API は needsSessionSelection を返す
+      if (result?.needsSessionSelection && Array.isArray(result.sessions)) {
+        // 既存のセッション選択 UI を再利用するため、loadTestSessions で詳細を取得
+        const universityCode = result.sessions[0]?.universityCode || "dentshowa"
+        const allSessions = await loadTestSessions(universityCode)
+        const sessionIds = new Set(result.sessions.map((s: { id: string | null }) => s.id).filter(Boolean))
+        const availableSessions = allSessions.filter((s) => sessionIds.has(s.id))
 
-      if (matched.length === 0) {
-        setError("患者担当者IDまたはパスワードが正しくありません")
-        setIsLoading(false)
-        return
-      }
-
-      const universityCode = matched[0].universityCode || "dentshowa"
-      const allSessions = await loadTestSessions(universityCode)
-      const patientSessionIds = new Set(matched.map((p) => p.testSessionId).filter(Boolean))
-      const availableSessions = allSessions.filter((s) => patientSessionIds.has(s.id))
-
-      if (availableSessions.length === 1) {
-        const patient = matched.find((p) => p.testSessionId === availableSessions[0].id) || matched[0]
-        completeLogin(patient, availableSessions[0].id)
-      } else if (availableSessions.length > 1) {
-        setMatchedPatients(matched)
+        // matchedPatients は再ログイン時に session 選択するためのキャッシュ。
+        // API 呼び直しで対応するため、ここでは session 一覧と email/password だけ覚えておく。
+        // 既存の matchedPatients 型に合わせるため、最低限のフィールドで埋める。
+        const placeholder: Patient[] = result.sessions.map((s: {
+          id: string | null
+          name: string
+          assignedRoomNumber: string | null
+          universityCode: string | null
+          subjectCode: string | null
+        }) => ({
+          id: "", // API 再呼び出しで埋める
+          email: patientId,
+          password: "", // 既に検証済みのため保持しない(Phase 8: 平文を保持しない)
+          name: s.name,
+          role: "general",
+          assignedRoomNumber: s.assignedRoomNumber || "",
+          createdAt: new Date().toISOString(),
+          universityCode: s.universityCode || "dentshowa",
+          subjectCode: s.subjectCode || "",
+          testSessionId: s.id || "",
+        }))
+        setMatchedPatients(placeholder)
         setSessions(availableSessions)
         setStep("session")
         setIsLoading(false)
-      } else {
-        completeLogin(matched[0], matched[0].testSessionId || "")
+        return
       }
+
+      // 単一セッション or testSessionId 指定済み: completeLogin に相当する処理
+      completeLoginFromApi(result)
     } catch (error) {
       console.error("[v0] Error during patient login:", error)
       setError("ログイン処理中にエラーが発生しました")
@@ -74,48 +93,70 @@ export function PatientLoginForm() {
     }
   }
 
-  const handleSessionSelect = (sessionId: string) => {
-    const patient = matchedPatients.find((p) => p.testSessionId === sessionId) || matchedPatients[0]
-    completeLogin(patient, sessionId)
+  // セッション選択時に再度 API を呼ぶ(testSessionId を渡してログインを完了させる)
+  const handleSessionSelectViaApi = async (sessionId: string) => {
+    setError("")
+    setIsLoading(true)
+    try {
+      const res = await fetch("/api/auth/patient/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: patientId, password, testSessionId: sessionId }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        setError(result?.error || "認証エラーが発生しました")
+        setIsLoading(false)
+        return
+      }
+      completeLoginFromApi(result)
+    } catch (error) {
+      console.error("[v0] Error during patient session select:", error)
+      setError("ログイン処理中にエラーが発生しました")
+      setIsLoading(false)
+    }
   }
 
-  const completeLogin = (patient: Patient, testSessionId: string) => {
+  // API レスポンスを受けて sessionStorage を埋め、画面遷移する
+  const completeLoginFromApi = (apiResult: {
+    patientId: string
+    patientName: string
+    patientEmail: string
+    patientRoom: string
+    universityCode: string
+    subjectCode: string
+    testSessionId: string
+    userRole: string
+    accountType: string
+  }) => {
     sessionStorage.setItem(
       "loginInfo",
       JSON.stringify({
-        id: patient.id,
+        id: apiResult.patientId,
         loginType: "patient",
-        name: patient.name,
-        email: patient.email,
-        assignedRoomNumber: patient.assignedRoomNumber || "",
-        role: patient.role,
-        universityCode: patient.universityCode || "dentshowa",
-        subjectCode: patient.subjectCode || "",
-        testSessionId,
+        name: apiResult.patientName,
+        email: apiResult.patientEmail,
+        assignedRoomNumber: apiResult.patientRoom,
+        role: apiResult.userRole,
+        universityCode: apiResult.universityCode,
+        subjectCode: apiResult.subjectCode,
+        testSessionId: apiResult.testSessionId,
       }),
     )
-
-    sessionStorage.setItem("patientId", patient.id)
-    sessionStorage.setItem("patientName", patient.name)
-    sessionStorage.setItem("patientEmail", patient.email)
-    sessionStorage.setItem("patientRoom", patient.assignedRoomNumber || "")
-    sessionStorage.setItem("userRole", patient.role)
-    sessionStorage.setItem("universityCode", patient.universityCode || "dentshowa")
-    sessionStorage.setItem("subjectCode", patient.subjectCode || "")
-    sessionStorage.setItem("testSessionId", testSessionId)
-
-    // middleware が認可判定に使う Cookie も書く(Phase 7)
-    setLoginCookie({
-      loginType: "patient",
-      role: patient.role || "general",
-      userId: patient.id,
-      userName: patient.name,
-      universityCode: patient.universityCode || "dentshowa",
-      subjectCode: patient.subjectCode || "",
-    })
+    sessionStorage.setItem("patientId", apiResult.patientId)
+    sessionStorage.setItem("patientName", apiResult.patientName)
+    sessionStorage.setItem("patientEmail", apiResult.patientEmail)
+    sessionStorage.setItem("patientRoom", apiResult.patientRoom)
+    sessionStorage.setItem("userRole", apiResult.userRole)
+    sessionStorage.setItem("universityCode", apiResult.universityCode)
+    sessionStorage.setItem("subjectCode", apiResult.subjectCode)
+    sessionStorage.setItem("testSessionId", apiResult.testSessionId)
+    sessionStorage.setItem("accountType", apiResult.accountType)
 
     window.location.href = "/patient/exam-info"
   }
+
+  // 旧 handleSessionSelect/completeLogin は handleSessionSelectViaApi/completeLoginFromApi に統合済み
 
   if (step === "session") {
     return (
@@ -133,7 +174,7 @@ export function PatientLoginForm() {
               key={session.id}
               variant="outline"
               className="w-full justify-start h-auto py-3 px-4"
-              onClick={() => handleSessionSelect(session.id)}
+              onClick={() => handleSessionSelectViaApi(session.id)}
             >
               <div className="text-left">
                 <div className="font-medium">{session.description || "(名称未設定)"}</div>
