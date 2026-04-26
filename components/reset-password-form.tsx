@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { loadTeachers, loadPatients, saveTeachers, savePatients } from "@/lib/data-storage"
 
 export function ResetPasswordForm() {
   const [email, setEmail] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const router = useRouter()
 
@@ -28,44 +28,41 @@ export function ResetPasswordForm() {
       setError("すべての項目を入力してください")
       return
     }
-
     if (newPassword !== confirmPassword) {
       setError("パスワードが一致しません")
       return
     }
-
     if (newPassword.length < 4) {
       setError("パスワードは4文字以上で入力してください")
       return
     }
 
-    const teachers = await loadTeachers()
-    const patients = await loadPatients()
+    setIsLoading(true)
+    try {
+      // Phase 8b: bcrypt 化はサーバー側 RPC で実施
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, newPassword }),
+      })
+      const result = await res.json()
 
-    const teacherIndex = teachers.findIndex((t) => t.email === email)
-    const patientIndex = patients.findIndex((p) => p.email === email)
+      if (!res.ok) {
+        setError(result?.error || "パスワード変更に失敗しました")
+        setIsLoading(false)
+        return
+      }
 
-    if (teacherIndex >= 0) {
-      teachers[teacherIndex].password = newPassword
-      await saveTeachers(teachers)
       setSuccess(true)
+      const redirectTo: string = result?.redirectTo || "/teacher/login"
       setTimeout(() => {
-        router.push("/teacher/login")
+        router.push(redirectTo)
       }, 2000)
-      return
+    } catch (err) {
+      console.error("[reset-password] error:", err)
+      setError("ログイン処理中にエラーが発生しました")
+      setIsLoading(false)
     }
-
-    if (patientIndex >= 0) {
-      patients[patientIndex].password = newPassword
-      await savePatients(patients)
-      setSuccess(true)
-      setTimeout(() => {
-        router.push("/patient/login")
-      }, 2000)
-      return
-    }
-
-    setError("登録されていないメールアドレスです")
   }
 
   if (success) {
@@ -137,8 +134,8 @@ export function ResetPasswordForm() {
 
           {error && <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">{error}</div>}
 
-          <Button type="submit" className="w-full">
-            パスワードを変更
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "変更中..." : "パスワードを変更"}
           </Button>
 
           <div className="text-center space-y-2">

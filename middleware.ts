@@ -17,6 +17,7 @@ const PUBLIC_API_PATHS: string[] = [
   "/api/auth/teacher/login",
   "/api/auth/patient/login",
   "/api/auth/logout",
+  "/api/auth/reset-password",
 ]
 
 const PUBLIC_PAGES_PREFIX = [
