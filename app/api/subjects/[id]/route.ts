@@ -1,10 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { requireAdmin } from "@/lib/auth/api-guard"
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const guard = requireAdmin(request)
+    if (guard) return guard
+
     const { id } = await params
     const body = await request.json()
     const { subject_name, description, is_active } = body
@@ -35,6 +39,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const guard = requireAdmin(request)
+    if (guard) return guard
+
     const { id } = await params
     const { error } = await supabase.from("subjects").delete().eq("id", id)
 

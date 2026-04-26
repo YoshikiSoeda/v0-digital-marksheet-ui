@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { loadTeachers, loadTestSessions, type Teacher, type TestSession } from "@/lib/data-storage"
+import { setLoginCookie } from "@/lib/auth/cookie"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -118,6 +119,16 @@ export function TeacherLoginForm() {
       general: "general",
     }
     sessionStorage.setItem("accountType", accountTypeMap[teacherRole] || "general")
+
+    // middleware が認可判定に使う Cookie も書く(Phase 7)
+    setLoginCookie({
+      loginType: "teacher",
+      role: teacherRole,
+      userId: teacher.id,
+      userName: teacher.name,
+      universityCode: teacher.universityCode || "dentshowa",
+      subjectCode: teacher.subjectCode || "",
+    })
 
     window.location.href = "/teacher/exam-info"
   }

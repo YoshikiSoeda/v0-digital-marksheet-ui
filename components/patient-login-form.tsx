@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { GraduationCap, ArrowLeft, Calendar } from "lucide-react"
 import Link from "next/link"
 import { loadPatients, loadTestSessions, type Patient, type TestSession } from "@/lib/data-storage"
+import { setLoginCookie } from "@/lib/auth/cookie"
 
 export function PatientLoginForm() {
   const router = useRouter()
@@ -102,6 +103,16 @@ export function PatientLoginForm() {
     sessionStorage.setItem("universityCode", patient.universityCode || "dentshowa")
     sessionStorage.setItem("subjectCode", patient.subjectCode || "")
     sessionStorage.setItem("testSessionId", testSessionId)
+
+    // middleware が認可判定に使う Cookie も書く(Phase 7)
+    setLoginCookie({
+      loginType: "patient",
+      role: patient.role || "general",
+      userId: patient.id,
+      userName: patient.name,
+      universityCode: patient.universityCode || "dentshowa",
+      subjectCode: patient.subjectCode || "",
+    })
 
     window.location.href = "/patient/exam-info"
   }
