@@ -188,6 +188,21 @@ export function AdminLoginForm() {
       setAuthRole(role)
       setAuthUniversityCode(universityCode)
       setAuthSubjectCode(subjectCode)
+      // Phase 7: middleware が API ガードに使う Cookie をここで先に発行する。
+      // /api/universities や /api/test-sessions の取得が loadFilterData 内で行われるため、
+      // それらの呼び出し前に Cookie が無いと 401 になりセッション一覧が空になる回帰が発生する。
+      try {
+        const li = JSON.parse(loginData.loginInfo || "{}")
+        setLoginCookie({
+          loginType: "admin",
+          role: li.role || role,
+          userId: li.userId,
+          userName: li.userName,
+          universityCodes: li.universityCodes,
+        })
+      } catch {
+        // noop
+      }
       await loadFilterData(role, universityCode, subjectCode)
       setStep("session")
       setIsLoading(false)
