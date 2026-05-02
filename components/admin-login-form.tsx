@@ -192,12 +192,13 @@ export function AdminLoginForm() {
       setIsLoading(false)
     }
 
-    // Phase 8: 認証は /api/auth/admin/login に集約(bcrypt 照合 + HttpOnly cookie)
+    // Phase 9b-β1: 統合 /api/auth/login へ切替(bcrypt 照合 + HttpOnly cookie)
+    // 管理画面は admins テーブル or admin-like role の teachers のみ受け入れる(form-side gating)
     try {
-      const res = await fetch("/api/auth/admin/login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminId, password }),
+        body: JSON.stringify({ loginId: adminId, password }),
       })
       const result = await res.json()
 
@@ -207,33 +208,49 @@ export function AdminLoginForm() {
         return
       }
 
-      // API レスポンスを既存 showSessionStep が期待する loginData 形式へマッピング
-      const isFromTeachers = result?.source === "teachers"
-      const role: string = result?.role || "master_admin"
-      const universityCodes: string[] = result?.universityCodes || ["dentshowa"]
-      const universityCode: string = result?.universityCode || universityCodes[0] || "dentshowa"
-      const subjectCode: string = result?.subjectCode || ""
-      const accountType: string = result?.accountType || "admin"
+      // 統合 API のレスポンス: { user: {...}, redirectTo } 形式
+      const user = result?.user
+      if (!user) {
+        setError("管理者IDまたはパスワードが正しくありません")
+        setIsLoading(false)
+        return
+      }
+
+      // form-side gating: admin-login で受け入れるのは admins or 管理ロールの teachers のみ
+      const ADMIN_LIKE_ROLES = new Set(["master_admin", "university_admin", "subject_admin"])
+      const isFromAdmins = user.source === "admins"
+      const isFromTeachers = user.source === "teachers" && ADMIN_LIKE_ROLES.has(user.role)
+      if (!isFromAdmins && !isFromTeachers) {
+        setError("管理者アカウントではありません。正しいログイン画面をご利用ください")
+        setIsLoading(false)
+        return
+      }
+
+      const role: string = user.role || "master_admin"
+      const universityCodes: string[] = user.universityCodes || ["dentshowa"]
+      const universityCode: string = user.universityCode || universityCodes[0] || "dentshowa"
+      const subjectCode: string = user.subjectCode || ""
+      const accountType: string = user.accountType || "admin"
 
       const loginData: Record<string, string> = isFromTeachers
         ? {
             loginInfo: JSON.stringify({
               loginType: "teacher_admin",
               role,
-              userId: result.userId,
-              userName: result.userName,
-              email: result.teacherEmail || "",
+              userId: user.id,
+              userName: user.name,
+              email: user.email || "",
               universityCode,
               subjectCode,
             }),
             userRole: "admin",
-            userId: result.userId,
-            userName: result.userName,
-            teacherId: result.userId,
-            teacherName: result.userName,
-            teacherEmail: result.teacherEmail || "",
+            userId: user.id,
+            userName: user.name,
+            teacherId: user.id,
+            teacherName: user.name,
+            teacherEmail: user.email || "",
             teacherRole: role,
-            teacherRoom: result.teacherRoom || "",
+            teacherRoom: user.assignedRoomNumber || "",
             universityCode,
             universityCodes: JSON.stringify([universityCode]),
             subjectCode,
@@ -243,13 +260,13 @@ export function AdminLoginForm() {
             loginInfo: JSON.stringify({
               loginType: "admin",
               role,
-              userId: result.userId,
-              userName: result.userName,
+              userId: user.id,
+              userName: user.name,
               universityCodes,
             }),
             userRole: "admin",
-            userId: result.userId,
-            userName: result.userName,
+            userId: user.id,
+            userName: user.name,
             universityCodes: JSON.stringify(universityCodes),
             accountType,
             teacherRole: role,
