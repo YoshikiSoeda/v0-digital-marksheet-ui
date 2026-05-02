@@ -149,33 +149,10 @@ export interface TestSession {
   updatedAt: string
 }
 
+// Phase 9c-2: anon SELECT 撤廃 → /api/test-sessions 経由(既存 API)。
 export async function loadTestSessions(universityCode?: string): Promise<TestSession[]> {
-  const supabase = createClient()
-
-  let query = supabase.from("test_sessions").select("*").order("test_date", { ascending: false })
-
-  if (universityCode) {
-    query = query.eq("university_code", universityCode)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading test sessions:", error)
-    return []
-  }
-
-  return (data || []).map((row) => ({
-    id: row.id,
-    testDate: row.test_date,
-    description: row.description || "",
-    universityCode: row.university_code,
-    subjectCode: row.subject_code,
-    passingScore: row.passing_score ?? null,
-    status: row.status || "not_started",
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
+  const { listTestSessions } = await import("./api/test-sessions")
+  return listTestSessions({ universityCode })
 }
 
 // localStorage キー
@@ -345,36 +322,10 @@ export async function saveAttendanceRecords(records: AttendanceRecord[]) {
   return { success: true }
 }
 
+// Phase 9c-2: anon SELECT 撤廃 → /api/attendance-records 経由。
 export async function loadAttendanceRecords(universityCode?: string, testSessionId?: string): Promise<AttendanceRecord[]> {
-  const supabase = createClient()
-
-  let query = supabase.from("attendance_records").select("*").order("recorded_at", { ascending: false })
-
-  if (testSessionId) {
-    query = query.eq("test_session_id", testSessionId)
-  }
-
-  if (universityCode) {
-    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading attendance records:", error)
-    return []
-  }
-
-  return (data || []).map((row) => ({
-    studentId: row.student_id,
-    status: row.status,
-    markedBy: "", // Will need to be derived from evaluator
-    markedByType: "teacher", // Default
-    roomNumber: row.room_number,
-    timestamp: row.recorded_at,
-    universityCode: row.university_code,
-    testSessionId: row.test_session_id,
-  }))
+  const { listAttendanceRecords } = await import("./api/attendance-records")
+  return listAttendanceRecords({ universityCode, testSessionId })
 }
 
 export async function saveEvaluationResults(results: EvaluationResult[]) {
@@ -405,41 +356,10 @@ export async function saveEvaluationResults(results: EvaluationResult[]) {
   return { success: true }
 }
 
+// Phase 9c-2: anon SELECT 撤廃 → /api/evaluation-results 経由。
 export async function loadEvaluationResults(universityCode?: string, testSessionId?: string): Promise<EvaluationResult[]> {
-  const supabase = createClient()
-
-  let query = supabase.from("exam_results").select("*").order("created_at", { ascending: false }).limit(1000)
-
-  if (testSessionId) {
-    query = query.eq("test_session_id", testSessionId)
-  }
-
-  if (universityCode) {
-    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading evaluation results:", error)
-    return []
-  }
-
-  return (data || []).map((row) => ({
-    studentId: row.student_id,
-    evaluatorId: row.evaluator_email,
-    evaluatorType: row.evaluator_type,
-    roomNumber: row.room_number,
-    answers: row.evaluations || {},
-    totalScore: row.total_score || 0,
-    answeredCount: Object.keys(row.evaluations || {}).length,
-    isCompleted: row.is_completed || false,
-    hasAlert: row.has_alert || false,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    universityCode: row.university_code,
-    testSessionId: row.test_session_id,
-  }))
+  const { listEvaluationResults } = await import("./api/evaluation-results")
+  return listEvaluationResults({ universityCode, testSessionId })
 }
 
 export async function saveRooms(rooms: Room[]) {
@@ -465,46 +385,10 @@ export async function saveRooms(rooms: Room[]) {
 }
 
 // ルームデータの読み込み
+// Phase 9c-2: anon SELECT 撤廃 → /api/rooms 経由。
 export async function loadRooms(universityCode?: string, subjectCode?: string, testSessionId?: string): Promise<Room[]> {
-  const supabase = createClient()
-
-  let query = supabase.from("rooms").select("*").order("room_number", { ascending: true })
-
-  if (testSessionId) {
-    query = query.eq("test_session_id", testSessionId)
-  }
-
-  if (universityCode) {
-    query = query.eq("university_code", universityCode)
-  }
-
-  if (subjectCode) {
-    query = query.eq("subject_code", subjectCode)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading rooms:", error)
-    return []
-  }
-
-  console.log("[v0] Loaded rooms data:", data)
-
-  if (!data || !Array.isArray(data)) {
-    console.error("[v0] Rooms data is not an array:", data)
-    return []
-  }
-
-  return data.map((row) => ({
-    id: row.id,
-    roomNumber: row.room_number,
-    roomName: row.room_name,
-    createdAt: row.created_at,
-    universityCode: row.university_code,
-    subjectCode: row.subject_code,
-    testSessionId: row.test_session_id,
-  }))
+  const { listRooms } = await import("./api/rooms")
+  return listRooms({ universityCode, subjectCode, testSessionId })
 }
 
 // テストデータの削除（カスケードで sheets/categories/questions も削除）
@@ -677,76 +561,10 @@ export async function saveTests(tests: Test[]) {
 }
 
 // テストデータの読み込み
+// Phase 9c-2: anon SELECT 撤廃 → /api/tests 経由。
 export async function loadTests(universityCode?: string, subjectCode?: string): Promise<Test[]> {
-  const supabase = createClient()
-
-  // Load tests with all related data including test_session_id
-  let query = supabase
-    .from("tests")
-    .select(`
-      *,
-      sheets:sheets (
-        *,
-        categories:categories (
-          *,
-          questions:questions (*)
-        )
-      )
-    `)
-    .order("created_at", { ascending: true })
-
-  if (universityCode) {
-    query = query.eq("university_code", universityCode)
-  }
-
-  if (subjectCode) {
-    query = query.eq("subject_code", subjectCode)
-  }
-
-  const { data: tests, error: testsError } = await query
-
-  if (testsError) {
-    console.error("[v0] Error loading tests:", testsError)
-    return []
-  }
-
-  console.log("[v0] Loaded tests from DB:", tests)
-
-  return (tests || []).map((test) => ({
-    id: test.id,
-    title: test.title,
-    testSessionId: test.test_session_id,
-    subjectCode: test.subject_code,
-    roleType: test.role_type || "teacher",
-    sheets: (test.sheets || []).map((sheet: any) => ({
-      id: sheet.id,
-      title: sheet.title,
-      categories: (sheet.categories || [])
-        .sort((a: any, b: any) => a.number - b.number)
-        .map((category: any) => ({
-          id: category.id,
-          title: category.title,
-          number: category.number,
-          questions: (category.questions || [])
-            .sort((a: any, b: any) => a.number - b.number)
-            .map((question: any) => ({
-              id: question.id,
-              number: question.number,
-              text: question.text,
-              option1: question.option1,
-              option2: question.option2,
-              option3: question.option3,
-              option4: question.option4,
-              option5: question.option5,
-              isAlertTarget: question.is_alert_target,
-              alertOptions: question.alert_options || [],
-            })),
-        })),
-    })),
-    createdAt: test.created_at,
-    updatedAt: test.updated_at,
-    universityCode: test.university_code, // Add university_code
-  }))
+  const { listTests } = await import("./api/tests")
+  return listTests({ universityCode, subjectCode })
 }
 
 export interface Subject {
@@ -781,39 +599,10 @@ export async function saveSubjects(subjects: Subject[]) {
   return { success: true }
 }
 
+// Phase 9c-2: anon SELECT 撤廃 → /api/subjects 経由(既存 API)。
 export async function loadSubjects(universityCode?: string): Promise<Subject[]> {
-  const supabase = createClient()
-
-  let query = supabase.from("subjects").select("*").order("subject_code", { ascending: true })
-
-  if (universityCode) {
-    query = query.eq("university_code", universityCode)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading subjects:", error)
-    return []
-  }
-
-  console.log("[v0] Loaded subjects data:", data)
-
-  if (!data || !Array.isArray(data)) {
-    console.error("[v0] Subjects data is not an array:", data)
-    return []
-  }
-
-  return data.map((row) => ({
-    id: row.id,
-    subjectCode: row.subject_code,
-    subjectName: row.subject_name,
-    universityCode: row.university_code,
-    description: row.description,
-    isActive: row.is_active,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }))
+  const { listSubjects } = await import("./api/subjects")
+  return listSubjects({ universityCode })
 }
 
 export async function deleteTeacher(teacherId: string) {
