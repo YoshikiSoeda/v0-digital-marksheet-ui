@@ -8,9 +8,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // ADR-001 Phase 9a: V0 由来のスタブルートを削除し、機能ページに redirect
+  // ADR-001 Phase 9a / 9d-2: 旧スタブルート + 旧ロール別ログインの統合 redirect
   async redirects() {
     return [
+      // V0 由来のスタブルート(Phase 9a)
       {
         source: "/admin/students",
         destination: "/admin/students-list",
@@ -19,6 +20,22 @@ const nextConfig = {
       {
         source: "/admin/questions",
         destination: "/admin/question-management",
+        permanent: true,
+      },
+      // ADR-001 §7-1: ログイン入口は /login に統一(Phase 9d-2)
+      {
+        source: "/admin/login",
+        destination: "/login",
+        permanent: true,
+      },
+      {
+        source: "/teacher/login",
+        destination: "/login",
+        permanent: true,
+      },
+      {
+        source: "/patient/login",
+        destination: "/login",
         permanent: true,
       },
     ];
