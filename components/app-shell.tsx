@@ -15,8 +15,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, LogOut } from "lucide-react"
-import { useSession, invalidateSessionCache } from "@/lib/auth/use-session"
+import { ArrowLeft } from "lucide-react"
+import { useSession } from "@/lib/auth/use-session"
 
 interface AppShellProps {
   children: ReactNode
@@ -64,17 +64,6 @@ function deriveRoleVariant(role: string, accountType: string) {
 export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppShellProps) {
   const router = useRouter()
   const { session, isLoading } = useSession()
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" })
-    } catch {
-      // logout API 失敗時も UI 側はキャッシュ破棄してトップへ進む(cookie は HttpOnly だが
-      // 万一残っても次の認証 API が新規発行する)
-    }
-    invalidateSessionCache()
-    router.push(loginPath)
-  }
 
   if (isLoading) {
     return (
@@ -132,10 +121,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
                   {deriveRoleLabel(session.role, session.accountType)}
                 </Badge>
               </div>
-              <Button onClick={handleLogout} variant="outline" size="sm">
-                <LogOut className="w-4 h-4 mr-1.5" />
-                ログアウト
-              </Button>
+
             </div>
           )}
         </div>
