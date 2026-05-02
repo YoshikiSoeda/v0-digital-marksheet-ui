@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
 import { saveStudents, loadStudents, loadRooms, loadSubjects, type Student, type Room, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 export function StudentRegistration() {
   const router = useRouter()
@@ -31,11 +32,15 @@ export function StudentRegistration() {
   const [accountType, setAccountType] = useState<string>("")
   const [universities, setUniversities] = useState<Record<string, string>>({})
 
+  // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const loadData = async () => {
       setIsLoading(true)
       try {
-        const accountType = sessionStorage.getItem("accountType") || ""
+        const accountType = session.accountType || ""
         setAccountType(accountType as any)
 
         try {
@@ -71,7 +76,7 @@ export function StudentRegistration() {
     }
 
     loadData()
-  }, [])
+  }, [session, isSessionLoading])
 
   const handleAddStudent = () => {
     if (!formData.name || !formData.studentId || !formData.department || !formData.roomNumber) {
