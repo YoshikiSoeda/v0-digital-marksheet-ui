@@ -91,23 +91,9 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
     <div className="min-h-screen flex flex-col bg-secondary/30">
       <header className="border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-primary font-semibold text-lg">
-              OSCE 評価システム
-            </Link>
-            {session && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.back()}
-                className="text-muted-foreground hover:text-foreground"
-                title="一つ前の画面に戻る"
-              >
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                戻る
-              </Button>
-            )}
-          </div>
+          <Link href="/" className="text-primary font-semibold text-lg">
+            OSCE 評価システム
+          </Link>
           {session && (
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
@@ -121,7 +107,15 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
                   {deriveRoleLabel(session.role, session.accountType)}
                 </Badge>
               </div>
-
+              <Button
+                onClick={() => router.back()}
+                variant="outline"
+                size="sm"
+                title="一つ前の画面に戻る"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                戻る
+              </Button>
             </div>
           )}
         </div>
