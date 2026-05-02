@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, UserCog, UserPlus, List, Home } from "lucide-react"
+import { Users, UserCog, UserPlus, List, Home, Plus } from "lucide-react"
 
 export default function AccountManagementPage() {
   return (
@@ -19,6 +19,28 @@ export default function AccountManagementPage() {
             </Button>
           </Link>
         </div>
+
+        {/* Phase 9d-4a: 統合ユーザー追加(教員 + 患者役) */}
+        <Card className="border-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-primary">
+              <Plus className="w-5 h-5" />
+              ユーザー追加(教員・患者役)
+            </CardTitle>
+            <CardDescription>
+              役割(一般教員 / 教科責任者 / 患者役)を選んで 1 件ずつ追加します。
+              CSV まとめ登録は下の専用ページから。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/users/new">
+              <Button className="w-full h-16">
+                <Plus className="w-5 h-5 mr-2" />
+                ユーザーを追加する
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         {/* Student Management */}
         <Card>
