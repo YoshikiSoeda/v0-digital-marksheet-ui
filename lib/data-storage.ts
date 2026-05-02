@@ -167,31 +167,12 @@ const STORAGE_KEYS = {
   subjects: "medical_exam_subjects", // Adding subjects storage key
 }
 
-import { createClient } from "./supabase/client"
 
 // 学生データの保存
+// Phase 9c-4: anon UPSERT 撤廃 → /api/students 経由。
 export async function saveStudents(students: Student[]) {
-  const supabase = createClient()
-
-  const studentsData = students.map((s) => ({
-    student_id: s.studentId,
-    name: s.name,
-    email: s.email || null,
-    department: s.department,
-    room_number: s.roomNumber,
-    university_code: s.universityCode || null,
-    subject_code: s.subjectCode || null,
-    test_session_id: s.testSessionId || null,
-  }))
-
-  const { error } = await supabase.from("students").upsert(studentsData, { onConflict: "student_id,test_session_id" })
-
-  if (error) {
-    console.error("[v0] Error saving students:", error.message)
-    throw error
-  }
-
-  return { success: true }
+  const { upsertStudents } = await import("./api/students")
+  return upsertStudents(students)
 }
 
 // 学生データの読み込み
@@ -298,28 +279,10 @@ export async function loadPatients(universityCode?: string, subjectCode?: string
   return listPatients({ universityCode, subjectCode, testSessionId })
 }
 
+// Phase 9c-4: anon UPSERT 撤廃 → /api/attendance-records 経由。
 export async function saveAttendanceRecords(records: AttendanceRecord[]) {
-  const supabase = createClient()
-
-  const attendanceData = records.map((r) => ({
-    student_id: r.studentId,
-    room_number: r.roomNumber,
-    status: r.status,
-    recorded_at: r.timestamp,
-    university_code: r.universityCode || null,
-    test_session_id: r.testSessionId || null,
-  }))
-
-  const { error } = await supabase
-    .from("attendance_records")
-    .upsert(attendanceData, { onConflict: "student_id,room_number,test_session_id" })
-
-  if (error) {
-    console.error("[v0] Error saving attendance records:", error)
-    return { success: false, error }
-  }
-
-  return { success: true }
+  const { upsertAttendanceRecords } = await import("./api/attendance-records")
+  return upsertAttendanceRecords(records)
 }
 
 // Phase 9c-2: anon SELECT 撤廃 → /api/attendance-records 経由。
@@ -328,32 +291,10 @@ export async function loadAttendanceRecords(universityCode?: string, testSession
   return listAttendanceRecords({ universityCode, testSessionId })
 }
 
+// Phase 9c-4: anon UPSERT 撤廃 → /api/evaluation-results 経由。
 export async function saveEvaluationResults(results: EvaluationResult[]) {
-  const supabase = createClient()
-
-  const evaluationData = results.map((r) => ({
-    student_id: r.studentId,
-    room_number: r.roomNumber,
-    evaluator_email: r.evaluatorId,
-    evaluator_type: r.evaluatorType,
-    evaluations: r.answers,
-    total_score: r.totalScore,
-    is_completed: r.isCompleted,
-    has_alert: r.hasAlert || false,
-    university_code: r.universityCode || null,
-    test_session_id: r.testSessionId || null,
-  }))
-
-  const { error } = await supabase.from("exam_results").upsert(evaluationData, {
-    onConflict: "student_id,evaluator_email,evaluator_type,room_number,test_session_id",
-  })
-
-  if (error) {
-    console.error("[v0] Error saving evaluation results:", error)
-    return { success: false, error }
-  }
-
-  return { success: true }
+  const { upsertEvaluationResults } = await import("./api/evaluation-results")
+  return upsertEvaluationResults(results)
 }
 
 // Phase 9c-2: anon SELECT 撤廃 → /api/evaluation-results 経由。
@@ -362,26 +303,10 @@ export async function loadEvaluationResults(universityCode?: string, testSession
   return listEvaluationResults({ universityCode, testSessionId })
 }
 
+// Phase 9c-4: anon UPSERT 撤廃 → /api/rooms 経由。
 export async function saveRooms(rooms: Room[]) {
-  const supabase = createClient()
-
-  const roomsData = rooms.map((r) => ({
-    room_number: r.roomNumber,
-    room_name: r.roomName,
-    created_at: r.createdAt,
-    university_code: r.universityCode || null,
-    subject_code: r.subjectCode || null,
-    test_session_id: r.testSessionId || null,
-  }))
-
-  const { error } = await supabase.from("rooms").upsert(roomsData, { onConflict: "room_number,test_session_id" })
-
-  if (error) {
-    console.error("[v0] Error saving rooms:", error)
-    return { success: false, error }
-  }
-
-  return { success: true }
+  const { upsertRooms } = await import("./api/rooms")
+  return upsertRooms(rooms)
 }
 
 // ルームデータの読み込み
@@ -392,172 +317,17 @@ export async function loadRooms(universityCode?: string, subjectCode?: string, t
 }
 
 // テストデータの削除（カスケードで sheets/categories/questions も削除）
+// Phase 9c-4: anon DELETE 撤廃 → /api/tests/[id] 経由。
 export async function deleteTest(testId: string) {
-  const supabase = createClient()
-
-  // sheets -> categories -> questions をカスケード削除
-  const { data: sheets } = await supabase.from("sheets").select("id").eq("test_id", testId)
-  if (sheets) {
-    for (const sheet of sheets) {
-      const { data: categories } = await supabase.from("categories").select("id").eq("sheet_id", sheet.id)
-      if (categories) {
-        for (const cat of categories) {
-          await supabase.from("questions").delete().eq("category_id", cat.id)
-        }
-        await supabase.from("categories").delete().eq("sheet_id", sheet.id)
-      }
-    }
-    await supabase.from("sheets").delete().eq("test_id", testId)
-  }
-
-  const { error } = await supabase.from("tests").delete().eq("id", testId)
-  if (error) {
-    console.error("[v0] Error deleting test:", error.message)
-    throw error
-  }
+  const { deleteTestApi } = await import("./api/tests")
+  return deleteTestApi(testId)
 }
 
 // テストデータの保存（削除された問題・カテゴリ・シートもDB上から削除）
+// Phase 9c-4: anon UPSERT(複雑なカスケード)撤廃 → /api/tests POST 経由。
 export async function saveTests(tests: Test[]) {
-  const supabase = createClient()
-
-  for (const test of tests) {
-    const { data: testData, error: testError } = await supabase
-      .from("tests")
-      .upsert(
-        {
-          id: test.id,
-          title: test.title,
-          test_session_id: test.testSessionId || null,
-          created_at: test.createdAt,
-          updated_at: test.updatedAt,
-          university_code: test.universityCode || null,
-          subject_code: test.subjectCode || null,
-          role_type: test.roleType || "teacher",
-        },
-        { onConflict: "id" },
-      )
-      .select()
-
-    if (testError) {
-      console.error("[v0] Error saving test:", testError.message)
-      throw testError
-    }
-
-    // 現在のローカルのIDセットを収集
-    const localSheetIds = test.sheets.map((s) => s.id)
-    const localCategoryIds = test.sheets.flatMap((s) => s.categories.map((c) => c.id))
-    const localQuestionIds = test.sheets.flatMap((s) =>
-      s.categories.flatMap((c) => c.questions.map((q) => q.id))
-    )
-
-    // DB上の既存データを取得
-    const { data: dbSheets } = await supabase.from("sheets").select("id").eq("test_id", test.id)
-    const dbSheetIds = (dbSheets || []).map((s: any) => s.id)
-
-    if (dbSheetIds.length > 0) {
-      const { data: dbCategories } = await supabase.from("categories").select("id, sheet_id").in("sheet_id", dbSheetIds)
-      const dbCategoryIds = (dbCategories || []).map((c: any) => c.id)
-
-      if (dbCategoryIds.length > 0) {
-        const { data: dbQuestions } = await supabase.from("questions").select("id, category_id").in("category_id", dbCategoryIds)
-        const dbQuestionIds = (dbQuestions || []).map((q: any) => q.id)
-
-        // ローカルにないquestionsをDBから削除
-        const questionsToDelete = dbQuestionIds.filter((id: string) => !localQuestionIds.includes(id))
-        if (questionsToDelete.length > 0) {
-          await supabase.from("questions").delete().in("id", questionsToDelete)
-        }
-      }
-
-      // ローカルにないcategoriesをDBから削除（子のquestionsもカスケード）
-      const categoriesToDelete = dbCategoryIds.filter((id: string) => !localCategoryIds.includes(id))
-      if (categoriesToDelete.length > 0) {
-        // まずカテゴリに属するquestionsを削除
-        await supabase.from("questions").delete().in("category_id", categoriesToDelete)
-        await supabase.from("categories").delete().in("id", categoriesToDelete)
-      }
-    }
-
-    // ローカルにないsheetsをDBから削除（子のcategories/questionsもカスケード）
-    const sheetsToDelete = dbSheetIds.filter((id: string) => !localSheetIds.includes(id))
-    if (sheetsToDelete.length > 0) {
-      for (const sheetId of sheetsToDelete) {
-        const { data: cats } = await supabase.from("categories").select("id").eq("sheet_id", sheetId)
-        if (cats && cats.length > 0) {
-          const catIds = cats.map((c: any) => c.id)
-          await supabase.from("questions").delete().in("category_id", catIds)
-          await supabase.from("categories").delete().in("id", catIds)
-        }
-      }
-      await supabase.from("sheets").delete().in("id", sheetsToDelete)
-    }
-
-    // Upsertで残りのデータを保存
-    for (const sheet of test.sheets) {
-      const { data: sheetData, error: sheetError } = await supabase
-        .from("sheets")
-        .upsert(
-          {
-            id: sheet.id,
-            test_id: test.id,
-            title: sheet.title,
-          },
-          { onConflict: "id" },
-        )
-        .select()
-
-      if (sheetError) {
-        console.error("[v0] Error saving sheet:", sheetError)
-        continue
-      }
-
-      for (const category of sheet.categories) {
-        const { data: categoryData, error: categoryError } = await supabase
-          .from("categories")
-          .upsert(
-            {
-              id: category.id,
-              sheet_id: sheet.id,
-              title: category.title,
-              number: category.number,
-            },
-            { onConflict: "id" },
-          )
-          .select()
-
-        if (categoryError) {
-          console.error("[v0] Error saving category:", categoryError)
-          continue
-        }
-
-        for (const question of category.questions) {
-          const { error: questionError } = await supabase.from("questions").upsert(
-            {
-              id: question.id,
-              category_id: category.id,
-              number: question.number,
-              text: question.text,
-              option1: question.option1,
-              option2: question.option2,
-              option3: question.option3,
-              option4: question.option4,
-              option5: question.option5,
-              is_alert_target: question.isAlertTarget,
-              alert_options: question.alertOptions || [],
-            },
-            { onConflict: "id" },
-          )
-
-          if (questionError) {
-            console.error("[v0] Error saving question:", questionError)
-          }
-        }
-      }
-    }
-  }
-
-  return { success: true }
+  const { upsertTests } = await import("./api/tests")
+  return upsertTests(tests)
 }
 
 // テストデータの読み込み
@@ -578,25 +348,10 @@ export interface Subject {
   updatedAt: string
 }
 
+// Phase 9c-4: anon UPSERT 撤廃 → /api/subjects 経由。
 export async function saveSubjects(subjects: Subject[]) {
-  const supabase = createClient()
-
-  const subjectsData = subjects.map((s) => ({
-    subject_code: s.subjectCode,
-    subject_name: s.subjectName,
-    university_code: s.universityCode,
-    description: s.description || null,
-    is_active: s.isActive,
-  }))
-
-  const { error } = await supabase.from("subjects").upsert(subjectsData, { onConflict: "subject_code" })
-
-  if (error) {
-    console.error("[v0] Error saving subjects:", error.message)
-    throw error
-  }
-
-  return { success: true }
+  const { upsertSubjects } = await import("./api/subjects")
+  return upsertSubjects(subjects)
 }
 
 // Phase 9c-2: anon SELECT 撤廃 → /api/subjects 経由(既存 API)。
@@ -605,18 +360,8 @@ export async function loadSubjects(universityCode?: string): Promise<Subject[]> 
   return listSubjects({ universityCode })
 }
 
+// Phase 9c-4: anon DELETE 撤廃 → /api/teachers/[id] DELETE 経由。
 export async function deleteTeacher(teacherId: string) {
-  const supabase = createClient()
-
-  console.log("[v0] Deleting teacher from database:", teacherId)
-
-  const { error } = await supabase.from("teachers").delete().eq("id", teacherId)
-
-  if (error) {
-    console.error("[v0] Error deleting teacher:", error.message)
-    throw error
-  }
-
-  console.log("[v0] Teacher deleted successfully from database")
-  return { success: true }
+  const { deleteTeacherApi } = await import("./api/teachers")
+  return deleteTeacherApi(teacherId)
 }

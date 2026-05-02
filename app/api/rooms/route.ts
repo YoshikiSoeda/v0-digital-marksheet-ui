@@ -1,9 +1,9 @@
 /**
  * Phase 9c-2: GET /api/rooms
- * フィルタ: universityCode, subjectCode, testSessionId
+ * Phase 9c-4: POST /api/rooms(upsert)
  */
 import { type NextRequest, NextResponse } from "next/server"
-import { getServiceClient, parseListQuery } from "@/lib/api/_shared"
+import { getServiceClient, parseListQuery, requireAdmin } from "@/lib/api/_shared"
 
 export async function GET(request: NextRequest) {
   const filters = parseListQuery(request, ["universityCode", "subjectCode", "testSessionId"] as const)
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query
   if (error) {
-    console.error("[api/rooms] error:", error)
+    console.error("[api/rooms] GET error:", error)
     return NextResponse.json({ error: "Failed to load rooms" }, { status: 500 })
   }
   const items = (data || []).map((row: Record<string, unknown>) => ({
@@ -29,4 +29,40 @@ export async function GET(request: NextRequest) {
     testSessionId: row.test_session_id as string | undefined,
   }))
   return NextResponse.json({ items }, { status: 200 })
+}
+
+interface UpsertRoom {
+  roomNumber: string
+  roomName: string
+  createdAt?: string
+  universityCode?: string
+  subjectCode?: string
+  testSessionId?: string
+}
+
+export async function POST(request: NextRequest) {
+  const guard = requireAdmin(request)
+  if (guard) return guard
+  let body: { items?: UpsertRoom[] }
+  try { body = await request.json() } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }) }
+  const items = Array.isArray(body.items) ? body.items : []
+  if (items.length === 0) return NextResponse.json({ ok: true, upserted: 0 })
+
+  const rows = items.map((r) => ({
+    room_number: r.roomNumber,
+    room_name: r.roomName,
+    created_at: r.createdAt,
+    university_code: r.universityCode || null,
+    subject_code: r.subjectCode || null,
+    test_session_id: r.testSessionId || null,
+  }))
+  const supabase = getServiceClient()
+  const { error } = await supabase
+    .from("rooms")
+    .upsert(rows as never, { onConflict: "room_number,test_session_id" })
+  if (error) {
+    console.error("[api/rooms] POST error:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true, upserted: rows.length })
 }

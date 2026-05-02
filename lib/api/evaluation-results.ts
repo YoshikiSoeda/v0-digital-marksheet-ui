@@ -19,3 +19,18 @@ export async function listEvaluationResults(params: ListEvaluationResultsParams 
   const json = await res.json()
   return Array.isArray(json?.items) ? (json.items as EvaluationResult[]) : []
 }
+
+export async function upsertEvaluationResults(items: EvaluationResult[]): Promise<{ ok: boolean; upserted: number }> {
+  const res = await fetch("/api/evaluation-results", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `upsertEvaluationResults failed: ${res.status}`)
+  }
+  const json = await res.json()
+  return { ok: true, upserted: (json?.upserted as number) || 0 }
+}

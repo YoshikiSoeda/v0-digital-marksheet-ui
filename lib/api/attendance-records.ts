@@ -19,3 +19,18 @@ export async function listAttendanceRecords(params: ListAttendanceRecordsParams 
   const json = await res.json()
   return Array.isArray(json?.items) ? (json.items as AttendanceRecord[]) : []
 }
+
+export async function upsertAttendanceRecords(items: AttendanceRecord[]): Promise<{ ok: boolean; upserted: number }> {
+  const res = await fetch("/api/attendance-records", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `upsertAttendanceRecords failed: ${res.status}`)
+  }
+  const json = await res.json()
+  return { ok: true, upserted: (json?.upserted as number) || 0 }
+}

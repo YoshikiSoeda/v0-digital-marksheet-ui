@@ -40,3 +40,15 @@ export async function getTeacher(id: string): Promise<Teacher | null> {
   const json = await res.json()
   return (json?.item ?? null) as Teacher | null
 }
+
+export async function deleteTeacherApi(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/teachers/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `deleteTeacher failed: ${res.status}`)
+  }
+  return { ok: true }
+}

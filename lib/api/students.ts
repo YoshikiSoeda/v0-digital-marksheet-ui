@@ -38,3 +38,18 @@ export async function getStudent(id: string): Promise<Student | null> {
   const json = await res.json()
   return (json?.item ?? null) as Student | null
 }
+
+export async function upsertStudents(items: Student[]): Promise<{ ok: boolean; upserted: number }> {
+  const res = await fetch("/api/students", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `upsertStudents failed: ${res.status}`)
+  }
+  const json = await res.json()
+  return { ok: true, upserted: (json?.upserted as number) || 0 }
+}
