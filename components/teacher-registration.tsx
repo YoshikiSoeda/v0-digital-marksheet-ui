@@ -55,7 +55,9 @@ export function TeacherRegistration() {
         setAccountType(storedAccountType)
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
-        const [teachersData, roomsData, subjectsData] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
+        // Phase 9 Y-2 fix: subject_admin は自教科のみロード(全教科ロードすると保存時に Y-2 で 403)
+        const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
+        const [teachersData, roomsData, subjectsData] = await Promise.all([loadTeachers(undefined, subjectScope, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
 
 
         const sortedTeachers = Array.isArray(teachersData)
@@ -299,7 +301,9 @@ export function TeacherRegistration() {
       alert(`${teachers.length}名の教員情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      alert("教員情報の保存に失敗しました")
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[teacher-registration] save failed:", msg, error)
+      alert(`教員情報の保存に失敗しました: ${msg}`)
     }
   }
 
