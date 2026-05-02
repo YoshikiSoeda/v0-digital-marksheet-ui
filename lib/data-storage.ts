@@ -218,49 +218,10 @@ export async function saveStudents(students: Student[]) {
 }
 
 // 学生データの読み込み
+// Phase 9c-1: anon SELECT を撤廃し、サーバ /api/students 経由に統一。
 export async function loadStudents(universityCode?: string, subjectCode?: string, testSessionId?: string): Promise<Student[]> {
-  const supabase = createClient()
-
-  let query = supabase.from("students").select("*").order("created_at", { ascending: true })
-
-  if (testSessionId) {
-    query = query.eq("test_session_id", testSessionId)
-  }
-
-  if (universityCode) {
-    query = query.eq("university_code", universityCode)
-  }
-
-  if (subjectCode) {
-    query = query.eq("subject_code", subjectCode)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading students:", error)
-    return []
-  }
-
-  console.log("[v0] Loaded students data:", data)
-
-  if (!data || !Array.isArray(data)) {
-    console.error("[v0] Students data is not an array:", data)
-    return []
-  }
-
-  return data.map((row) => ({
-    id: row.id,
-    studentId: row.student_id,
-    name: row.name,
-    email: row.email,
-    department: row.department,
-    roomNumber: row.room_number || "",
-    createdAt: row.created_at,
-    universityCode: row.university_code,
-    subjectCode: row.subject_code,
-    testSessionId: row.test_session_id,
-  }))
+  const { listStudents } = await import("./api/students")
+  return listStudents({ universityCode, subjectCode, testSessionId })
 }
 
 // 教員データの保存
@@ -305,54 +266,12 @@ export async function saveTeachers(teachers: Teacher[]) {
 }
 
 // 教員データの読み込み
+// Phase 9c-1: anon SELECT を撤廃し、サーバ /api/teachers 経由(service role)に統一。
+// Phase 9 RLS 有効化に向けた地ならし。
 export async function loadTeachers(universityCode?: string, subjectCode?: string, testSessionId?: string): Promise<Teacher[]> {
-  const supabase = createClient()
-
-  let query = supabase
-    .from("teachers")
-    .select("*")
-    .order("assigned_room_number", { ascending: true, nullsFirst: false })
-
-  if (testSessionId) {
-    query = query.eq("test_session_id", testSessionId)
-  }
-
-  if (universityCode) {
-    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
-  }
-
-  if (subjectCode) {
-    query = query.eq("subject_code", subjectCode)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    console.error("[v0] Error loading teachers:", error)
-    return []
-  }
-
-  console.log("[v0] Loaded teachers data:", data)
-
-  if (!data || !Array.isArray(data)) {
-    console.error("[v0] Teachers data is not an array:", data)
-    return []
-  }
-
-  return data.map((row) => ({
-    id: row.id,
-    teacherId: row.id,
-    name: row.name,
-    email: row.email,
-    password: row.password,
-    role: row.role,
-    assignedRoomNumber: row.assigned_room_number || "",
-    createdAt: row.created_at,
-  universityCode: row.university_code,
-  subjectCode: row.subject_code,
-  testSessionId: row.test_session_id,
-  }))
-  }
+  const { listTeachers } = await import("./api/teachers")
+  return listTeachers({ universityCode, subjectCode, testSessionId })
+}
   
   // 患者役データの保存
 // Phase 8c (2026-04-26 以降): /api/admin/register-patients 経由でサーバーサイド bcrypt 化。
@@ -396,52 +315,10 @@ export async function savePatients(patients: Patient[]) {
 }
 
 // 患者役データの読み込み
+// Phase 9c-1: anon SELECT を撤廃し、サーバ /api/patients 経由に統一。
 export async function loadPatients(universityCode?: string, subjectCode?: string, testSessionId?: string): Promise<Patient[]> {
-  const supabase = createClient()
-
-  let query = supabase
-    .from("patients")
-    .select("*")
-    .order("assigned_room_number", { ascending: true, nullsFirst: false })
-
-  if (testSessionId) {
-    query = query.eq("test_session_id", testSessionId)
-  }
-
-  if (universityCode) {
-    query = query.or(`university_code.eq.${universityCode},university_code.is.null`)
-  }
-  
-  if (subjectCode) {
-    query = query.eq("subject_code", subjectCode)
-  }
-  
-  const { data, error } = await query
-  
-  if (error) {
-  console.error("[v0] Error loading patients:", error)
-    return []
-  }
-
-  if (!data || !Array.isArray(data)) {
-    console.error("[v0] Patients data is not an array:", data)
-    return []
-  }
-
-  return data.map((row) => ({
-    id: row.id,
-    patientId: row.id,
-    name: row.name,
-    email: row.email,
-    password: row.password,
-    role: row.role,
-    assignedRoomNumber: row.assigned_room_number || "",
-    createdAt: row.created_at,
-    universityCode: row.university_code,
-    accountType: row.account_type,
-    subjectCode: row.subject_code,
-    testSessionId: row.test_session_id,
-  }))
+  const { listPatients } = await import("./api/patients")
+  return listPatients({ universityCode, subjectCode, testSessionId })
 }
 
 export async function saveAttendanceRecords(records: AttendanceRecord[]) {
