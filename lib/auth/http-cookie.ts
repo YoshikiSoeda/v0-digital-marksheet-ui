@@ -11,6 +11,10 @@ export interface ServerLoginInfo {
   role: string
   userId: string
   userName?: string
+  /** Phase 9b-β2b: consumer 側で teacher/patient 検索の代わりに使用するため追加 */
+  email?: string
+  /** Phase 9b-β2b: exam-tabs 等が直接必要とするため追加 */
+  assignedRoomNumber?: string
   universityCodes?: string[]
   universityCode?: string
   subjectCode?: string

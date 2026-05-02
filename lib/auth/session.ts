@@ -16,6 +16,8 @@ export interface Session {
   role: string
   userId: string
   userName: string
+  email: string
+  assignedRoomNumber: string
   universityCode: string
   universityCodes: string[]
   subjectCode: string
@@ -44,6 +46,8 @@ export async function getServerSession(): Promise<Session | null> {
       role,
       userId: typeof decoded.userId === "string" ? decoded.userId : "",
       userName: typeof decoded.userName === "string" ? decoded.userName : "",
+      email: typeof decoded.email === "string" ? decoded.email : "",
+      assignedRoomNumber: typeof decoded.assignedRoomNumber === "string" ? decoded.assignedRoomNumber : "",
       universityCode: typeof decoded.universityCode === "string" ? decoded.universityCode : "",
       universityCodes: Array.isArray(decoded.universityCodes) ? decoded.universityCodes : [],
       subjectCode: typeof decoded.subjectCode === "string" ? decoded.subjectCode : "",

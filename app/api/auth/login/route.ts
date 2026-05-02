@@ -108,6 +108,8 @@ export async function POST(request: NextRequest) {
     role: user.role,
     userId: user.id,
     userName: user.name,
+    email: user.email,
+    assignedRoomNumber: user.assignedRoomNumber,
     universityCode: user.universityCode,
     universityCodes: user.universityCodes,
     subjectCode: user.subjectCode,

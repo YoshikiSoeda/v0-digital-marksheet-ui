@@ -3,41 +3,25 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import PatientExamTabs from "@/components/patient-exam-tabs"
+import { useSession } from "@/lib/auth/use-session"
 
+/**
+ * Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換。
+ *
+ * テスト ID(patient_selected_test)は test-selection-screen で書かれた UI 状態のため
+ * sessionStorage から読み続ける。
+ */
 export default function PatientExamPage() {
   const router = useRouter()
-  const [loginInfo, setLoginInfo] = useState<{ email: string; assignedRoomNumber: string } | null>(null)
-  const [testId, setTestId] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { session, isLoading } = useSession()
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null)
 
   useEffect(() => {
-    const storedLoginInfo = sessionStorage.getItem("loginInfo")
-    const storedTestId = sessionStorage.getItem("patient_selected_test")
+    const id = sessionStorage.getItem("patient_selected_test")
+    setSelectedTestId(id)
+  }, [])
 
-
-    if (!storedLoginInfo) {
-      router.push("/patient/login")
-      return
-    }
-
-    const info = JSON.parse(storedLoginInfo)
-
-    if (!info.email || !info.assignedRoomNumber) {
-      router.push("/patient/login")
-      return
-    }
-
-    if (!storedTestId) {
-      router.push("/patient/exam-info")
-      return
-    }
-
-    setLoginInfo(info)
-    setTestId(storedTestId)
-    setIsLoading(false)
-  }, [router])
-
-  if (isLoading || !loginInfo || !testId) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">認証確認中...</p>
@@ -45,7 +29,31 @@ export default function PatientExamPage() {
     )
   }
 
+  if (!session) {
+    if (typeof window !== "undefined") router.push("/patient/login")
+    return null
+  }
+
+  if (session.loginType !== "patient") {
+    if (typeof window !== "undefined") router.push("/patient/login")
+    return null
+  }
+
+  if (!selectedTestId) {
+    if (typeof window !== "undefined") router.push("/patient/exam-info")
+    return null
+  }
+
+  if (!session.email || !session.assignedRoomNumber) {
+    if (typeof window !== "undefined") router.push("/patient/login")
+    return null
+  }
+
   return (
-    <PatientExamTabs patientEmail={loginInfo.email} patientRoomNumber={loginInfo.assignedRoomNumber} testId={testId} />
+    <PatientExamTabs
+      patientEmail={session.email}
+      patientRoomNumber={session.assignedRoomNumber}
+      testId={selectedTestId}
+    />
   )
 }

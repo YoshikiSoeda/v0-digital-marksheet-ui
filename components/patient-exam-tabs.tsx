@@ -16,6 +16,7 @@ import {
   loadEvaluationResults,
   saveEvaluationResults,
 } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 interface PatientExamTabsProps {
   patientEmail: string
@@ -53,21 +54,19 @@ export default function PatientExamTabs({
   const [elapsedTime, setElapsedTime] = useState<number>(0)
   const [patientName, setPatientName] = useState<string>("")
 
-  const getUniversityCode = (): string => {
-    try {
-      const loginInfo = sessionStorage.getItem("loginInfo")
-      return loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
-    } catch { return "" }
-  }
+  // Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
 
   const getTestSessionId = (): string => {
+    // testSessionId は test-selection-screen が UI 状態として書き込むため sessionStorage 残置
     return sessionStorage.getItem("testSessionId") || ""
   }
 
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
       try {
-        const universityCode = getUniversityCode()
+        const universityCode = session.universityCode || ""
         const testSessionId = getTestSessionId()
         const [testsData, roomsData, attendanceData, resultsData] = await Promise.all([
           loadTests(),
@@ -181,7 +180,7 @@ export default function PatientExamTabs({
     // 教員側の出席変更をポーリングで反映（10秒ごと）
     const pollAttendance = setInterval(async () => {
       try {
-        const attendanceData = await loadAttendanceRecords(getUniversityCode(), getTestSessionId())
+        const attendanceData = await loadAttendanceRecords((session?.universityCode || ""), getTestSessionId())
         if (Array.isArray(attendanceData)) {
           setAttendanceStatus((prev) => {
             const updated = { ...prev }
@@ -230,7 +229,7 @@ export default function PatientExamTabs({
       hasAlert,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      universityCode: getUniversityCode(),
+      universityCode: (session?.universityCode || ""),
       testSessionId: getTestSessionId(),
     }
 
@@ -272,7 +271,7 @@ export default function PatientExamTabs({
       hasAlert,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      universityCode: getUniversityCode(),
+      universityCode: (session?.universityCode || ""),
       testSessionId: getTestSessionId(),
     }
 

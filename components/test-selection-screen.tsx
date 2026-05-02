@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronRight, Shield, Filter, AlertTriangle } from "lucide-react"
 import { loadTests, loadTestSessions, type Test, type TestSession, type TestSessionStatus } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import Link from "next/link"
 
 interface TestSelectionScreenProps {
@@ -37,13 +38,18 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const [filterTestDate, setFilterTestDate] = useState<string>("")
   const [filterCreatedDate, setFilterCreatedDate] = useState<string>("")
 
-  useEffect(() => {
-    let subjectCode = ""
+  // Phase 9b-β2b: sessionStorage 認可キーを useSession() 経由に置換
+  const { session, isLoading: isSessionLoading } = useSession()
 
+  useEffect(() => {
+    if (isSessionLoading) return
+    if (!session) return
+
+    let subjectCode = ""
     if (userType === "teacher") {
-      const role = sessionStorage.getItem("teacherRole") || "general"
+      const role = session.role || "general"
       setTeacherRole(role)
-      subjectCode = sessionStorage.getItem("subjectCode") || ""
+      subjectCode = session.subjectCode || ""
       setTeacherSubjectCode(subjectCode)
       if (subjectCode) {
         setFilterSubject(subjectCode)
@@ -64,7 +70,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
         }
 
         // Fetch test sessions
-        const universityCode = sessionStorage.getItem("universityCode") || undefined
+        const universityCode = session.universityCode || undefined
         try {
           const sessions = await loadTestSessions(universityCode)
           setTestSessions(sessions)
@@ -84,7 +90,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       }
     }
     fetchData()
-  }, [userType])
+  }, [userType, session, isSessionLoading])
 
   const getStatusLabel = (status: TestSessionStatus) => {
     switch (status) {
