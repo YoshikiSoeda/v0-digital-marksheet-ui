@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Building2, DoorOpen, BookOpen, ArrowLeft } from "lucide-react"
 import { useSession } from "@/lib/auth/use-session"
-import { AppShell } from "@/components/app-shell"
 
 /**
  * Phase 9b-γ: AppShell をラップして共通ヘッダー(ロゴ + ロール表示 + ログアウト)を表示。
@@ -24,8 +23,7 @@ export default function MasterManagementPage() {
   const accountType = session.accountType
 
   return (
-    <AppShell loginPath="/admin/login">
-      <div className="container mx-auto p-6">
+    <div className="container mx-auto p-6">
         <div className="mb-6 flex items-center gap-4">
           <Button onClick={() => router.push("/admin/dashboard")} variant="outline" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -121,7 +119,6 @@ export default function MasterManagementPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </AppShell>
+    </div>
   )
 }
