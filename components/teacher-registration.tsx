@@ -20,6 +20,7 @@ import {
   type Room,
   type Subject,
 } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import { createClient } from "@/lib/supabase/client"
 import { Table, TableCell, TableHead, TableRow } from "@/components/ui/table"
 
@@ -43,10 +44,14 @@ export function TeacherRegistration() {
   })
   const [isDragging, setIsDragging] = useState(false)
 
+  // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
       try {
-        const storedAccountType = sessionStorage.getItem("accountType") || ""
+        const storedAccountType = session.accountType || ""
         setAccountType(storedAccountType)
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
@@ -93,7 +98,7 @@ export function TeacherRegistration() {
     }
 
     fetchData()
-  }, [])
+  }, [session, isSessionLoading])
 
   const handleAddTeacher = () => {
 
