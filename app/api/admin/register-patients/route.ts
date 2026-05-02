@@ -7,7 +7,7 @@
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { requireAdmin } from "@/lib/auth/api-guard"
+import { requireAdmin, rejectIfOutsideSubjectScope } from "@/lib/auth/api-guard"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,6 +51,13 @@ export async function POST(request: NextRequest) {
   if (patients.length === 0) {
     return NextResponse.json({ upserted: 0 }, { status: 200 })
   }
+
+  // Y-2: subject_admin は自教科のみ登録可
+  const subjectScopeCheck = rejectIfOutsideSubjectScope(
+    request,
+    patients.map((p) => p.subjectCode || null),
+  )
+  if (subjectScopeCheck) return subjectScopeCheck
 
   const payload = patients.map((p) => ({
     name: p.name,

@@ -4,6 +4,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server"
 import { getServiceClient, requireAdmin } from "@/lib/api/_shared"
+import { getSubjectScope } from "@/lib/auth/api-guard"
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -36,6 +37,24 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (guard) return guard
   const { id } = await params
   const supabase = getServiceClient()
+
+  // Y-2: subject_admin は自教科の row のみ削除可
+  const scope = getSubjectScope(request)
+  if (scope) {
+    const { data: target } = await supabase
+      .from("teachers")
+      .select("subject_code")
+      .eq("id", id)
+      .maybeSingle()
+    const targetCode = (target as Record<string, unknown> | null)?.subject_code as string | undefined
+    if (!targetCode || targetCode !== scope) {
+      return NextResponse.json(
+        { error: `Forbidden — subject_admin は自教科 (${scope}) の教員のみ削除可能です` },
+        { status: 403 },
+      )
+    }
+  }
+
   const { error } = await supabase.from("teachers").delete().eq("id", id)
   if (error) {
     console.error("[api/teachers/:id] DELETE error:", error)
