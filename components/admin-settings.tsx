@@ -9,6 +9,7 @@ import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSession } from "@/lib/auth/use-session"
 
 export function AdminSettings() {
   const [autoSave, setAutoSave] = useState(true)
@@ -22,8 +23,12 @@ export function AdminSettings() {
   const [passingScores, setPassingScores] = useState<Record<string, string>>({})
   const [savingPassingScore, setSavingPassingScore] = useState<string | null>(null)
 
+  // Phase 9b-β2c: sessionStorage("accountType"|"universityCode") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const accountType = sessionStorage.getItem("accountType")
+    if (isSessionLoading || !session) return
+    const accountType = session.accountType
     setIsSpecialMaster(accountType === "special_master")
 
     if (accountType === "special_master") {
@@ -41,8 +46,7 @@ export function AdminSettings() {
         })
         .catch((err) => {})
     } else {
-      const universityCode = sessionStorage.getItem("universityCode") || ""
-      setSelectedUniversity(universityCode)
+      setSelectedUniversity(session.universityCode || "")
     }
 
     // 試験セッション取得
@@ -59,7 +63,7 @@ export function AdminSettings() {
         setPassingScores(scores)
       })
       .catch((err) => {})
-  }, [])
+  }, [session, isSessionLoading])
 
   const handleSavePassingScore = async (sessionId: string) => {
     setSavingPassingScore(sessionId)

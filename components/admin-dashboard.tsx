@@ -18,6 +18,7 @@ import {
 } from "@/lib/data-storage"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSession } from "@/lib/auth/use-session"
 
 interface RoleStats {
   completedCount: number
@@ -116,43 +117,37 @@ const AdminDashboard = () => {
     return testSessions.find((s) => s.id === sid)?.passingScore
   })()
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const loginInfo = sessionStorage.getItem("loginInfo")
+  // Phase 9b-β2c: sessionStorage 認可キーを useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
 
-      if (!loginInfo) {
+  useEffect(() => {
+    if (isSessionLoading) return
+    const fetchData = async () => {
+      if (!session) {
         router.push("/admin/login")
         return
       }
 
-      const parsedLoginInfo = JSON.parse(loginInfo)
-      const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
+      const universityCodes = session.universityCodes && session.universityCodes.length > 0
+        ? session.universityCodes
+        : ["dentshowa"]
       const isMasterAdmin = universityCodes.includes("ALL")
       let fetchedSessions: TestSession[] = []
 
       // userRole は "admin" を設定（ダッシュボードのアクセス許可用）
-      // loginType が admin/teacher_admin、または role が admin/master_admin/university_admin/subject_admin
       setUserRole("admin")
 
-      const storedAccountType = sessionStorage.getItem("accountType")
+      const storedAccountType = session.accountType
       setAccountType(storedAccountType || "admin")
 
-      // teacherRole を取得（教員ログインからの管理画面アクセス時に使用）
-      const storedTeacherRole = sessionStorage.getItem("teacherRole") || ""
-      const storedTeacherId = sessionStorage.getItem("teacherId") || ""
-      if (storedTeacherId) {
+      // teacherRole 相当: session.role を直接使う(教員ログイン経由の admin 画面アクセス判定用)
+      // teacherId は session.userId を流用
+      if (session.loginType === "teacher") {
         setIsTeacherLogin(true)
-      }
-      // subject_admin の場合、subjectCode でフィルタリング
-      if (storedTeacherRole === "subject_admin") {
-        const subjectCode = sessionStorage.getItem("subjectCode") || ""
-        if (subjectCode) {
-          sessionStorage.setItem("filterSubjectCode", subjectCode)
-        }
       }
 
       // アカウントに割り当てられた教科名を取得
-      const mySubjectCode = sessionStorage.getItem("subjectCode") || ""
+      const mySubjectCode = session.subjectCode || ""
       if (mySubjectCode) {
         try {
           const allSubjects = await loadSubjects()
@@ -429,7 +424,7 @@ const AdminDashboard = () => {
     }
 
     fetchData()
-  }, [router])
+  }, [session, isSessionLoading, router])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -443,11 +438,10 @@ const AdminDashboard = () => {
       setEvaluations([])
       setTests([])
 
-      const loginInfo = sessionStorage.getItem("loginInfo")
-      if (!loginInfo) return
-
-      const parsedLoginInfo = JSON.parse(loginInfo)
-      const universityCodes = parsedLoginInfo.universityCodes || ["dentshowa"]
+      if (!session) return
+      const universityCodes = session.universityCodes && session.universityCodes.length > 0
+        ? session.universityCodes
+        : ["dentshowa"]
       const isMasterAdmin = universityCodes.includes("ALL")
       const universityCode = isMasterAdmin ? undefined : universityCodes[0]
 

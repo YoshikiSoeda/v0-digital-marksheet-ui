@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, LogOut, Clock, Target, Users, AlertTriangle, ArrowLeft } from "lucide-react"
 import { loadEvaluationResults, loadStudents, loadAttendanceRecords } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 export function ExamResultsScreen() {
   const router = useRouter()
@@ -23,17 +24,18 @@ export function ExamResultsScreen() {
     averageScore: 0,
   })
 
+  // Phase 9b-β2c: sessionStorage("loginInfo") parse を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const loginInfo = sessionStorage.getItem("loginInfo")
+    if (isSessionLoading || !session) return
+
+    setRoomNumber(session.assignedRoomNumber || "")
+    const isTeacherRole = session.loginType === "teacher" || session.role === "teacher" || session.role === "subject_admin" || session.role === "university_admin"
+    setEvaluatorType(isTeacherRole ? "teacher" : "patient")
+
+    // examStartTime は UI 状態だが、現状どこからも書き込まれていない(dead path)。互換のため読込のみ残置
     const startTime = sessionStorage.getItem("examStartTime")
-
-    if (loginInfo) {
-      const info = JSON.parse(loginInfo)
-      setRoomNumber(info.assignedRoomNumber || "")
-      const isTeacherRole = info.loginType === "teacher" || info.role === "teacher" || info.role === "subject_admin" || info.role === "university_admin"
-      setEvaluatorType(isTeacherRole ? "teacher" : "patient")
-    }
-
     if (startTime) {
       const elapsed = Date.now() - Number(startTime)
       const minutes = Math.floor(elapsed / 60000)
@@ -42,16 +44,13 @@ export function ExamResultsScreen() {
     }
 
     loadRoomStatistics()
-  }, [])
+  }, [session, isSessionLoading])
 
   const loadRoomStatistics = async () => {
     try {
-      const loginInfo = sessionStorage.getItem("loginInfo")
-      if (!loginInfo) return
-
-      const info = JSON.parse(loginInfo)
-      const currentRoomNumber = info.assignedRoomNumber
-      const universityCode = info.universityCode || ""
+      if (!session) return
+      const currentRoomNumber = session.assignedRoomNumber
+      const universityCode = session.universityCode || ""
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
       const [students, evaluations, attendanceRecords] = await Promise.all([
@@ -62,7 +61,7 @@ export function ExamResultsScreen() {
 
       const roomStudents = students.filter((s) => s.roomNumber === currentRoomNumber)
       // loginType is "teacher" or "patient", role can be "teacher", "subject_admin", "university_admin", etc.
-      const isTeacher = info.loginType === "teacher" || info.role === "teacher" || info.role === "subject_admin" || info.role === "university_admin"
+      const isTeacher = session.loginType === "teacher" || session.role === "teacher" || session.role === "subject_admin" || session.role === "university_admin"
       const expectedEvaluatorType = isTeacher ? "teacher" : "patient"
       const roomEvaluations = evaluations.filter(
         (e) =>
