@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
 import { loadPatients, savePatients, loadRooms, loadSubjects, type Patient, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 export default function PatientsListPage() {
   const [patients, setPatients] = useState<Patient[]>([])
@@ -32,9 +33,13 @@ export default function PatientsListPage() {
     subjectCode: "",
   })
 
+  // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
-      const storedAccountType = sessionStorage.getItem("accountType") || ""
+      const storedAccountType = session.accountType || ""
       setAccountType(storedAccountType)
 
       if (storedAccountType === "special_master") {
@@ -62,7 +67,7 @@ export default function PatientsListPage() {
       setSubjects(Array.isArray(loadedSubjects) ? loadedSubjects : [])
     }
     fetchData()
-  }, [])
+  }, [session, isSessionLoading])
 
   const filteredPatients = patients.filter((p) => {
     const matchesSearch =

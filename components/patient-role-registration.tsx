@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
 import { savePatients, loadPatients, loadRooms, loadSubjects, type Patient, type Room, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import { Table, TableHead, TableRow, TableCell } from "@/components/ui/table"
 
 export function PatientRoleRegistration() {
@@ -32,10 +33,14 @@ export function PatientRoleRegistration() {
   })
   const [isDragging, setIsDragging] = useState(false)
 
+  // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
       try {
-        const storedAccountType = sessionStorage.getItem("accountType") || ""
+        const storedAccountType = session.accountType || ""
         setAccountType(storedAccountType)
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
@@ -80,7 +85,7 @@ export function PatientRoleRegistration() {
       }
     }
     fetchData()
-  }, [])
+  }, [session, isSessionLoading])
 
   const handleAddPatient = () => {
     if (!formData.name || !formData.email || !formData.password) {
