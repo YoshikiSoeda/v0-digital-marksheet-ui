@@ -27,6 +27,13 @@ interface NavItem {
 
 const ALL_ADMIN_ACCOUNTS = new Set(["special_master", "university_master", "subject_admin", "admin"])
 const HIGHER_ADMIN_ACCOUNTS = new Set(["special_master", "university_master", "admin"])
+// 案 Y(2026-05-02 確定): subject_admin はアカウント管理・設定にも自教科スコープでアクセス可
+const SUBJECT_ADMIN_ACCOUNTS = new Set([
+  "special_master",
+  "university_master",
+  "subject_admin",
+  "admin",
+])
 
 const NAV_ITEMS: NavItem[] = [
   {
@@ -63,7 +70,7 @@ const NAV_ITEMS: NavItem[] = [
       "/admin/register-teachers",
       "/admin/register-patients",
     ],
-    visibleFor: HIGHER_ADMIN_ACCOUNTS,
+    visibleFor: SUBJECT_ADMIN_ACCOUNTS,
   },
   {
     href: "/admin/question-management",
@@ -77,7 +84,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "設定",
     icon: Settings,
     matchPrefixes: ["/admin/settings"],
-    visibleFor: HIGHER_ADMIN_ACCOUNTS,
+    visibleFor: SUBJECT_ADMIN_ACCOUNTS,
   },
 ]
 
@@ -92,7 +99,7 @@ export function AdminTopNav() {
   if (isLoading || !session) return null
   // 教員ログインからの admin 兼任(subject_admin/university_admin) 含めて表示
   const accountType = session.accountType
-  if (!accountType || (!ALL_ADMIN_ACCOUNTS.has(accountType) && !HIGHER_ADMIN_ACCOUNTS.has(accountType))) {
+  if (!accountType || (!ALL_ADMIN_ACCOUNTS.has(accountType) && !HIGHER_ADMIN_ACCOUNTS.has(accountType) && !SUBJECT_ADMIN_ACCOUNTS.has(accountType))) {
     return null
   }
 

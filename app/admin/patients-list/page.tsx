@@ -61,7 +61,13 @@ export default function PatientsListPage() {
       }
 
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
-      const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([loadPatients(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
+      // 案 Y: subject_admin は自教科のみ表示
+      const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
+      const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([
+        loadPatients(undefined, subjectScope, testSessionId),
+        loadRooms(undefined, undefined, testSessionId),
+        loadSubjects(),
+      ])
       setPatients(Array.isArray(loadedPatients) ? loadedPatients : [])
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
       setSubjects(Array.isArray(loadedSubjects) ? loadedSubjects : [])
