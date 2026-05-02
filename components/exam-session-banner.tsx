@@ -45,6 +45,13 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
+function formatRemaining(seconds: number): string {
+  if (seconds <= 0) return "0:00"
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
 function formatDate(iso?: string): string {
   if (!iso) return ""
   try {
@@ -142,12 +149,50 @@ export function ExamSessionBanner({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-background border">
-          <Clock className="w-4 h-4 text-primary" />
-          <span className="text-sm font-mono font-semibold tabular-nums">
-            {formatElapsed(elapsedSeconds)}
-          </span>
-        </div>
+        {(() => {
+          const totalSec = (session?.durationMinutes ?? 0) * 60
+          const hasLimit = totalSec > 0
+          const remaining = hasLimit ? Math.max(0, totalSec - elapsedSeconds) : 0
+          const progress = hasLimit ? Math.min(100, (elapsedSeconds / totalSec) * 100) : 0
+          const isOverHalf = hasLimit && progress >= 50
+          const isOverThreeFourth = hasLimit && progress >= 75
+          const isOver = hasLimit && remaining <= 0
+          const barColor = isOver
+            ? "bg-destructive"
+            : isOverThreeFourth
+              ? "bg-amber-500"
+              : isOverHalf
+                ? "bg-blue-500"
+                : "bg-primary"
+
+          return (
+            <div className="flex items-center gap-2 min-w-[180px]">
+              <Clock className={`w-4 h-4 ${isOver ? "text-destructive" : "text-primary"}`} />
+              {hasLimit ? (
+                <div className="flex-1">
+                  <div className="flex items-center justify-between text-xs mb-0.5">
+                    <span className="text-muted-foreground">
+                      {formatElapsed(elapsedSeconds)} / {session?.durationMinutes}:00
+                    </span>
+                    <span className={`font-mono font-semibold ${isOver ? "text-destructive" : ""}`}>
+                      残り {formatRemaining(remaining)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${barColor}`}
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="text-sm font-mono font-semibold tabular-nums">
+                  {formatElapsed(elapsedSeconds)}
+                </span>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
