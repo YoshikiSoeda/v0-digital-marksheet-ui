@@ -25,18 +25,24 @@ export default function AccountManagementPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-primary">
               <Plus className="w-5 h-5" />
-              ユーザー追加(教員・患者役)
+              ユーザー追加・一覧(教員・患者役)
             </CardTitle>
             <CardDescription>
-              役割(一般教員 / 教科責任者 / 患者役)を選んで 1 件ずつ追加します。
+              ユーザー追加(役割選択)、一覧の横断確認はこちら。
               CSV まとめ登録は下の専用ページから。
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid sm:grid-cols-2 gap-4">
             <Link href="/admin/users/new">
               <Button className="w-full h-16">
                 <Plus className="w-5 h-5 mr-2" />
                 ユーザーを追加する
+              </Button>
+            </Link>
+            <Link href="/admin/users">
+              <Button variant="outline" className="w-full h-16 bg-transparent">
+                <List className="w-5 h-5 mr-2" />
+                ユーザー一覧(教員・患者役)
               </Button>
             </Link>
           </CardContent>
