@@ -210,6 +210,7 @@ export function AdminSettings() {
           <CardContent className="space-y-4">
             {testSessions
               .filter((s) => !selectedUniversity || s.university_code === selectedUniversity)
+              .filter((s) => session?.accountType !== "subject_admin" || s.subject_code === session.subjectCode)
               .map((session) => (
                 <div key={session.id} className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
                   <div className="flex-1 min-w-0">
@@ -250,6 +251,7 @@ export function AdminSettings() {
           <CardContent className="space-y-4">
             {testSessions
               .filter((s) => !selectedUniversity || s.university_code === selectedUniversity)
+              .filter((s) => session?.accountType !== "subject_admin" || s.subject_code === session.subjectCode)
               .map((session) => (
                 <div key={session.id} className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
                   <div className="flex-1 min-w-0">
