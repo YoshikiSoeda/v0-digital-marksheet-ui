@@ -50,7 +50,7 @@ export function RoomManagement() {
           setUniversities(universityMap)
           setUniversitiesList(universityList)
         })
-        .catch((err) => console.error("[v0] Failed to fetch universities:", err))
+        .catch((err) => {})
     }
 
     const fetchRooms = async () => {

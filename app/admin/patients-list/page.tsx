@@ -35,16 +35,13 @@ export default function PatientsListPage() {
   useEffect(() => {
     const fetchData = async () => {
       const storedAccountType = sessionStorage.getItem("accountType") || ""
-      console.log("[v0] PatientsListPage: accountType =", storedAccountType)
       setAccountType(storedAccountType)
 
       if (storedAccountType === "special_master") {
         try {
-          console.log("[v0] PatientsListPage: Fetching universities for special master...")
           const response = await fetch("/api/universities")
           if (response.ok) {
             const data = await response.json()
-            console.log("[v0] PatientsListPage: Universities data:", data)
             setUniversitiesList(Array.isArray(data) ? data : [])
             const universityMap: Record<string, string> = {}
             if (Array.isArray(data)) {
@@ -53,10 +50,8 @@ export default function PatientsListPage() {
               })
             }
             setUniversities(universityMap)
-            console.log("[v0] PatientsListPage: University map set:", universityMap)
           }
         } catch (error) {
-          console.error("[v0] PatientsListPage: Error fetching universities:", error)
         }
       }
 

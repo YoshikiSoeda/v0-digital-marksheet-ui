@@ -67,7 +67,6 @@ export default function StudentsDetailPage() {
         setTests(Array.isArray(testsData) ? testsData : [])
         setTestSessions(Array.isArray(testSessionsData) ? testSessionsData : [])
       } catch (error) {
-        console.error("[v0] Error loading data:", error)
       } finally {
         setIsLoading(false)
       }
@@ -175,10 +174,8 @@ export default function StudentsDetailPage() {
           prev.map((s) => (s.id === currentSessionId ? { ...s, status: "completed" } : s))
         )
       } else {
-        console.error("[v0] Failed to end test session")
       }
     } catch (error) {
-      console.error("[v0] Error ending test:", error)
     } finally {
       setIsEndingTest(false)
     }

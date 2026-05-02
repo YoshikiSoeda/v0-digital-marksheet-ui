@@ -77,20 +77,17 @@ export default function PatientExamTabs({
         ])
 
         if (!Array.isArray(testsData)) {
-          console.error("[v0] Tests is not an array:", testsData)
           router.push("/patient/exam-info")
           return
         }
 
         const test = testsData.find((t) => t.id === testId)
         if (!test) {
-          console.error("[v0] Test not found")
           router.push("/patient/exam-info")
           return
         }
 
         if (!test.sheets || !Array.isArray(test.sheets)) {
-          console.error("[v0] Test sheets is not valid:", test)
           router.push("/patient/exam-info")
           return
         }
@@ -128,22 +125,18 @@ export default function PatientExamTabs({
           const loadedStudents = await loadStudents(universityCode, undefined, testSessionId)
 
           if (!Array.isArray(loadedStudents)) {
-            console.error("[v0] Students is not an array:", loadedStudents)
             students = []
           } else {
             // 部屋番号でフィルタ
             students = loadedStudents.filter((s) => s.roomNumber === patientRoomNumber)
-            console.log("[v0] Filtered students for room", patientRoomNumber, ":", students.length, "out of", loadedStudents.length)
           }
         } catch (error) {
-          console.error("[v0] Error loading students:", error)
           students = []
         }
 
         setAssignedStudents(students)
 
         if (students.length === 0) {
-          console.log("[v0] No students found for room:", patientRoomNumber)
           setAttendanceStatus({})
           setStudentAnswers({})
           setCompletionStatus({})
@@ -161,7 +154,6 @@ export default function PatientExamTabs({
 
         students.forEach((student) => {
           if (!student || !student.id) {
-            console.error("[v0] Invalid student:", student)
             return
           }
 
@@ -180,7 +172,6 @@ export default function PatientExamTabs({
         setCompletionStatus(initialCompletionStatus)
         setAlertTriggers(initialAlertTriggers)
       } catch (error) {
-        console.error("[v0] Error loading data:", error)
         router.push("/patient/exam-info")
       }
     }
@@ -245,9 +236,7 @@ export default function PatientExamTabs({
 
     try {
       await saveEvaluationResults([evaluationResult])
-      console.log("[v0] Saved evaluation result:", student.id)
     } catch (error) {
-      console.error("[v0] Error saving evaluation:", error)
     }
   }
 
@@ -289,9 +278,7 @@ export default function PatientExamTabs({
 
     try {
       await saveEvaluationResults([evaluationResult])
-      console.log("[v0] Marked student as completed:", studentId)
     } catch (error) {
-      console.error("[v0] Error marking completion:", error)
     }
   }
 

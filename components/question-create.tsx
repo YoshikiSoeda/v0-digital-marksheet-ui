@@ -77,7 +77,7 @@ export function QuestionCreate() {
           })
           setUniversities(universityList)
         })
-        .catch((err) => console.error("[v0] Failed to fetch universities:", err))
+        .catch((err) => {})
     } else if (userUniversityCode) {
       setSelectedUniversity(userUniversityCode)
     }
@@ -98,7 +98,6 @@ export function QuestionCreate() {
         setSubjects(mapped)
       }
     } catch (err) {
-      console.error("[v0] Failed to fetch subjects:", err)
     }
   }
 
@@ -106,7 +105,7 @@ export function QuestionCreate() {
     fetch("/api/test-sessions")
       .then((res) => res.json())
       .then((data) => setTestSessions(data))
-      .catch((err) => console.error("[v0] Failed to fetch test sessions:", err))
+      .catch((err) => {})
   }
 
   // YYYYMMDD形式の日付文字列を生成
@@ -163,7 +162,6 @@ export function QuestionCreate() {
       setShowNewTestForm(false)
       alert("試験セッションを登録しました")
     } catch (error) {
-      console.error("[v0] Error creating test session:", error)
       alert("試験セッションの登録に失敗しました")
     }
   }
@@ -502,7 +500,6 @@ export function QuestionCreate() {
           }),
         })
       } catch (e) {
-        console.error("[v0] Error saving passing score:", e)
       }
     }
 

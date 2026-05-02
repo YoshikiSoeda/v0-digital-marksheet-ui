@@ -40,13 +40,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      console.error("[v0] Test sessions API error:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json(data || [])
   } catch (error: any) {
-    console.error("[v0] Test sessions API exception:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
@@ -87,13 +85,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error("[v0] Create test session error:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error("[v0] Create test session exception:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

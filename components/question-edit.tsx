@@ -77,7 +77,6 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           }
         }
       } catch (error) {
-        console.error("[v0] Error loading test:", error)
         alert("テストの読み込みに失敗しました")
         router.push("/admin/question-management")
       } finally {
@@ -318,14 +317,12 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
             }),
           })
         } catch (e) {
-          console.error("[v0] Error saving passing score:", e)
         }
       }
 
       alert("テストを更新しました")
       router.push("/admin/question-management")
     } catch (error) {
-      console.error("[v0] Error saving test:", error)
       setIsSaving(false)
       alert("テストの更新に失敗しました")
     }

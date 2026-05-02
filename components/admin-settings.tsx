@@ -39,7 +39,7 @@ export function AdminSettings() {
             setSelectedUniversity(universityList[0].code)
           }
         })
-        .catch((err) => console.error("[v0] Failed to fetch universities:", err))
+        .catch((err) => {})
     } else {
       const universityCode = sessionStorage.getItem("universityCode") || ""
       setSelectedUniversity(universityCode)
@@ -58,7 +58,7 @@ export function AdminSettings() {
         })
         setPassingScores(scores)
       })
-      .catch((err) => console.error("[v0] Failed to fetch test sessions:", err))
+      .catch((err) => {})
   }, [])
 
   const handleSavePassingScore = async (sessionId: string) => {
@@ -78,7 +78,6 @@ export function AdminSettings() {
         alert("保存に失敗しました")
       }
     } catch (err) {
-      console.error("[v0] Error saving passing score:", err)
       alert("エラーが発生しました")
     } finally {
       setSavingPassingScore(null)

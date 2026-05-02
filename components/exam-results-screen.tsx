@@ -148,7 +148,6 @@ export function ExamResultsScreen() {
       })
       setStudentDetails(details)
     } catch (error) {
-      console.error("[v0] Error loading room statistics:", error)
     }
   }
 

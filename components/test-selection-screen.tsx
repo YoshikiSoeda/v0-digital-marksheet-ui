@@ -61,7 +61,6 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
             setSubjects(subjectsData)
           }
         } catch (err) {
-          console.error("[v0] Error loading subjects:", err)
         }
 
         // Fetch test sessions
@@ -70,7 +69,6 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
           const sessions = await loadTestSessions(universityCode)
           setTestSessions(sessions)
         } catch (err) {
-          console.error("[v0] Error loading test sessions:", err)
         }
 
         // Fetch all tests (no subject filter, to check per-session availability)
@@ -81,7 +79,6 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
           setTests([])
         }
       } catch (error) {
-        console.error("[v0] Error loading data:", error)
       } finally {
         setIsLoading(false)
       }

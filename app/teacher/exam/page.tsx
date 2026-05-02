@@ -17,27 +17,21 @@ export default function TeacherExamPage() {
     const loginInfo = sessionStorage.getItem("loginInfo")
     const selectedTestId = sessionStorage.getItem("teacher_selected_test")
 
-    console.log("[v0] Teacher exam page - loginInfo:", loginInfo)
-    console.log("[v0] Teacher exam page - selectedTestId:", selectedTestId)
 
     if (!loginInfo) {
-      console.error("[v0] Missing login info, redirecting to login")
       router.push("/teacher/login")
       return
     }
 
     if (!selectedTestId) {
-      console.error("[v0] No test selected, redirecting to test selection")
       router.push("/teacher/exam-info")
       return
     }
 
     try {
       const info = JSON.parse(loginInfo)
-      console.log("[v0] Parsed teacher info:", info)
 
       if (!info.email || !info.assignedRoomNumber) {
-        console.error("[v0] Missing email or room number in login info")
         router.push("/teacher/login")
         return
       }
@@ -48,7 +42,6 @@ export default function TeacherExamPage() {
         testId: selectedTestId,
       })
     } catch (error) {
-      console.error("[v0] Error parsing login info:", error)
       router.push("/teacher/login")
       return
     } finally {

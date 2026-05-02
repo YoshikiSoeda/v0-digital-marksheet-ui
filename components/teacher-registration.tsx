@@ -44,20 +44,14 @@ export function TeacherRegistration() {
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    console.log("[v0] TeacherRegistration: useEffect TRIGGERED")
     const fetchData = async () => {
-      console.log("[v0] TeacherRegistration: Starting to load data")
       try {
         const storedAccountType = sessionStorage.getItem("accountType") || ""
-        console.log("[v0] TeacherRegistration: accountType from sessionStorage =", storedAccountType)
         setAccountType(storedAccountType)
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
         const [teachersData, roomsData, subjectsData] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
 
-        console.log("[v0] TeacherRegistration: Loaded teachers count:", teachersData?.length)
-        console.log("[v0] TeacherRegistration: Loaded rooms count:", roomsData?.length)
-        console.log("[v0] TeacherRegistration: Loaded subjects count:", subjectsData?.length)
 
         const sortedTeachers = Array.isArray(teachersData)
           ? teachersData.sort((a, b) => {
@@ -71,52 +65,30 @@ export function TeacherRegistration() {
         setRooms(Array.isArray(roomsData) ? roomsData : [])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
 
-        console.log("[v0] TeacherRegistration: Attempting to fetch universities...")
         try {
           const response = await fetch("/api/universities")
-          console.log("[v0] TeacherRegistration: Universities API response status:", response.status)
-          console.log("[v0] TeacherRegistration: Universities API response ok:", response.ok)
 
           if (response.ok) {
             const universitiesData = await response.json()
-            console.log("[v0] TeacherRegistration: Universities data received:", universitiesData)
-            console.log(
-              "[v0] TeacherRegistration: Universities data type:",
-              typeof universitiesData,
-              "isArray:",
-              Array.isArray(universitiesData),
-            )
 
             const universityMap: Record<string, string> = {}
             if (Array.isArray(universitiesData)) {
               universitiesData.forEach((uni: any) => {
                 universityMap[uni.university_code] = uni.university_name
-                console.log("[v0] TeacherRegistration: Mapped", uni.university_code, "->", uni.university_name)
               })
             }
-            console.log("[v0] TeacherRegistration: Final university map:", universityMap)
-            console.log("[v0] TeacherRegistration: University map keys:", Object.keys(universityMap))
             setUniversities(universityMap)
           } else {
             const errorText = await response.text()
-            console.error(
-              "[v0] TeacherRegistration: Failed to fetch universities, status:",
-              response.status,
-              "error:",
-              errorText,
-            )
           }
         } catch (error) {
-          console.error("[v0] TeacherRegistration: Error fetching universities:", error)
         }
       } catch (error) {
-        console.error("[v0] TeacherRegistration: Error loading data:", error)
         setTeachers([])
         setRooms([])
         setSubjects([])
       } finally {
         setIsLoading(false)
-        console.log("[v0] TeacherRegistration: Loading complete")
       }
     }
 
@@ -124,7 +96,6 @@ export function TeacherRegistration() {
   }, [])
 
   const handleAddTeacher = () => {
-    console.log("[v0] handleAddTeacher called with formData:", formData)
 
     if (!formData.name || !formData.email || !formData.password) {
       alert("氏名、メールアドレス、パスワードは必須です")
@@ -153,12 +124,9 @@ export function TeacherRegistration() {
       testSessionId: sessionStorage.getItem("testSessionId") || "",
     }
 
-    console.log("[v0] New teacher object created:", newTeacher)
-    console.log("[v0] Current teachers before adding:", teachers.length)
 
     setTeachers([...teachers, newTeacher])
 
-    console.log("[v0] Teacher added to list")
 
     setFormData({
       name: "",
@@ -315,9 +283,6 @@ export function TeacherRegistration() {
   }
 
   const handleConfirmRegistration = async () => {
-    console.log("[v0] handleConfirmRegistration called")
-    console.log("[v0] Teachers to register:", teachers)
-    console.log("[v0] Teachers count:", teachers.length)
 
     if (teachers.length === 0) {
       alert("登録する教員がいません")
@@ -325,14 +290,10 @@ export function TeacherRegistration() {
     }
 
     try {
-      console.log("[v0] Calling saveTeachers with data:", teachers)
       await saveTeachers(teachers)
-      console.log("[v0] saveTeachers completed successfully")
       alert(`${teachers.length}名の教員情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      console.error("[v0] Error saving teachers:", error)
-      console.error("[v0] Error details:", JSON.stringify(error, null, 2))
       alert("教員情報の保存に失敗しました")
     }
   }
@@ -347,7 +308,6 @@ export function TeacherRegistration() {
       const { error } = await supabase.from("teachers").delete().eq("id", id)
 
       if (error) {
-        console.error("[v0] Error deleting teacher:", error)
         alert("教員の削除に失敗しました")
         return
       }
@@ -356,7 +316,6 @@ export function TeacherRegistration() {
       setTeachers(updatedTeachers)
       alert("教員を削除しました")
     } catch (error) {
-      console.error("[v0] Error deleting teacher:", error)
       alert("教員の削除に失敗しました")
     }
   }
@@ -373,14 +332,7 @@ export function TeacherRegistration() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      {(() => { console.log(
-        "[v0] TeacherRegistration: RENDERING, accountType=",
-        accountType,
-        "universities=",
-        universities,
-        "subjects=",
-        subjects,
-      ); return null })()}
+      {(() => {  return null })()}
       <div className="max-w-7xl mx-auto space-y-6">
         <Card className="mx-auto max-w-6xl">
           <CardHeader>
