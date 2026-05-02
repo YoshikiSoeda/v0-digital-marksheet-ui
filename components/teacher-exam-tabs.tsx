@@ -128,13 +128,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     fetchData()
   }, [teacherEmail, teacherRoomNumber, testId])
 
-  const getUniversityCode = (): string => {
-    try {
-      const loginInfo = sessionStorage.getItem("loginInfo")
-      return loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
-    } catch { return "" }
-  }
-
+  // Phase 9b-β2f1: (session?.universityCode || "") を session 経由に統合
   const getTestSessionId = (): string => {
     return sessionStorage.getItem("testSessionId") || ""
   }
@@ -156,7 +150,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     }
     setStudentAnswers(updatedAnswers)
 
-    const universityCode = getUniversityCode()
+    const universityCode = (session?.universityCode || "")
     const testSessionId = getTestSessionId()
     const studentAnswersData: Record<number, number> = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
@@ -186,7 +180,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
     setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
 
-    const universityCode = getUniversityCode()
+    const universityCode = (session?.universityCode || "")
     const testSessionId = getTestSessionId()
 
     const newRecord: AttendanceRecord = {
@@ -211,7 +205,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       setCompletionStatus((prev) => ({ ...prev, [studentId]: true }))
       setEditMode((prev) => ({ ...prev, [studentId]: false }))
 
-      const universityCode = getUniversityCode()
+      const universityCode = (session?.universityCode || "")
       const testSessionId = getTestSessionId()
 
       const completedResult: EvaluationResult = {

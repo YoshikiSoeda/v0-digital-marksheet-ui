@@ -334,15 +334,12 @@ export default function PatientExamTabs({
     return () => clearInterval(timer)
   }, [])
 
+  // Phase 9b-β2f1: sessionStorage("loginInfo") を session.userName に置換
   useEffect(() => {
-    try {
-      const loginInfo = sessionStorage.getItem("loginInfo")
-      if (loginInfo) {
-        const info = JSON.parse(loginInfo)
-        setPatientName(info.name || "")
-      }
-    } catch {}
-  }, [])
+    if (session?.userName) {
+      setPatientName(session.userName)
+    }
+  }, [session])
 
   const handleEnableEdit = (studentId: string) => {
     setCompletionStatus((prev) => ({
