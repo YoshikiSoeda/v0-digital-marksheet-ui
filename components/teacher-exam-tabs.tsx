@@ -15,6 +15,7 @@ import {
   loadTeachers,
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { ExamSessionBanner } from "@/components/exam-session-banner"
 
 interface TeacherExamTabsProps {
   teacherEmail: string
@@ -295,7 +296,15 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   }, [])
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
+    <div className="space-y-4">
+      <ExamSessionBanner
+        testSessionId={typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") || "" : ""}
+        roomNumber={teacherRoomNumber}
+        subjectCode={selectedTest?.subjectCode}
+        universityCode={session?.universityCode}
+        elapsedSeconds={elapsedTime}
+      />
+      <div className="container mx-auto px-4 space-y-4">
       <header className="py-0 px-2 bg-background border-b">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -498,6 +507,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
           </>
         )}
       </div>
+    </div>
     </div>
   )
 }

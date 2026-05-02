@@ -17,6 +17,7 @@ import {
   saveEvaluationResults,
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { ExamSessionBanner } from "@/components/exam-session-banner"
 
 interface PatientExamTabsProps {
   patientEmail: string
@@ -349,7 +350,15 @@ export default function PatientExamTabs({
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
+    <div className="space-y-4">
+      <ExamSessionBanner
+        testSessionId={typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") || "" : ""}
+        roomNumber={patientRoomNumber}
+        subjectCode={selectedTest?.subjectCode}
+        universityCode={session?.universityCode}
+        elapsedSeconds={elapsedTime}
+      />
+      <div className="container mx-auto px-4 space-y-4">
       <header className="py-0 px-2 bg-background border-b">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
@@ -533,6 +542,7 @@ export default function PatientExamTabs({
           </>
         )}
       </div>
+    </div>
     </div>
   )
 }
