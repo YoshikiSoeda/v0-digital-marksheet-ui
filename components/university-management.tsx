@@ -106,12 +106,21 @@ export function UniversityManagement() {
           description: "大学を削除しました",
         })
         loadUniversities()
+      } else {
+        // バックエンドからの詳細エラー(FK 制約等)を表示
+        const errorBody = await response.json().catch(() => null)
+        toast({
+          title: "削除できません",
+          description: errorBody?.error || `大学の削除に失敗しました (status ${response.status})`,
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error("Failed to delete university:", error)
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("Failed to delete university:", msg)
       toast({
         title: "エラー",
-        description: "大学の削除に失敗しました",
+        description: `大学の削除に失敗しました: ${msg}`,
         variant: "destructive",
       })
     }

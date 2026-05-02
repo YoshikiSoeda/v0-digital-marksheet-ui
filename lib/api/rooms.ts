@@ -35,3 +35,16 @@ export async function upsertRooms(items: Room[]): Promise<{ ok: boolean; upserte
   const json = await res.json()
   return { ok: true, upserted: (json?.upserted as number) || 0 }
 }
+
+
+export async function deleteRoomApi(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/rooms/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `deleteRoom failed: ${res.status}`)
+  }
+  return { ok: true }
+}

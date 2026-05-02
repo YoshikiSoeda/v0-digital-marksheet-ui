@@ -145,9 +145,14 @@ export function RoomManagement() {
   const handleDelete = async (roomId: string) => {
     if (!confirm("この部屋を削除してもよろしいですか？")) return
 
-    const updatedRooms = rooms.filter((room) => room.id !== roomId)
-    setRooms(updatedRooms)
-    await saveRooms(updatedRooms)
+    try {
+      const { deleteRoomApi } = await import("@/lib/api/rooms")
+      await deleteRoomApi(roomId)
+      setRooms((prev) => prev.filter((room) => room.id !== roomId))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "削除に失敗しました"
+      alert(`部屋の削除に失敗しました: ${msg}`)
+    }
   }
 
   const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {

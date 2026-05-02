@@ -329,7 +329,9 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
       router.push("/admin/question-management")
     } catch (error) {
       setIsSaving(false)
-      alert("テストの更新に失敗しました")
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[question-edit] save failed:", msg, error)
+      alert(`テストの更新に失敗しました: ${msg}`)
     }
   }
 

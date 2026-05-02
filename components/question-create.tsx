@@ -460,56 +460,63 @@ export function QuestionCreate() {
       return
     }
 
-    const existingTests = await loadTests()
-    const newTests: Test[] = []
+    try {
+      const existingTests = await loadTests()
+      const newTests: Test[] = []
 
-    for (const test of tests) {
-      if (!test.title.trim()) {
-        alert("すべてのテスト名を入力してください")
-        return
+      for (const test of tests) {
+        if (!test.title.trim()) {
+          alert("すべてのテスト名を入力してください")
+          return
+        }
+
+        if (test.sheets.length === 0 || !test.sheets[0].title.trim()) {
+          alert("各テストに少なくとも1つのシートを作成してください")
+          return
+        }
+
+        const newTest: Test = {
+          id: crypto.randomUUID(),
+          title: test.title,
+          sheets: test.sheets,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          testSessionId: testSession.id,
+          universityCode: selectedUniversity,
+          subjectCode: selectedSubject || null,
+          roleType: roleType,
+        } as Test
+
+        newTests.push(newTest)
       }
 
-      if (test.sheets.length === 0 || !test.sheets[0].title.trim()) {
-        alert("各テストに少なくとも1つのシートを作成してください")
-        return
+      await saveTests([...existingTests, ...newTests])
+
+      // 合格基準点をセッションに保存
+      if (passingScore !== "") {
+        try {
+          await fetch(`/api/test-sessions/${testSession.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              test_date: testSession.test_date,
+              description: testSession.description,
+              university_code: testSession.university_code,
+              passing_score: parseInt(passingScore, 10),
+            }),
+          })
+        } catch (e) {
+          console.error("[question-create] passing_score save failed:", e)
+        }
       }
 
-      const newTest: Test = {
-        id: crypto.randomUUID(),
-        title: test.title,
-        sheets: test.sheets,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        testSessionId: testSession.id,
-        universityCode: selectedUniversity,
-        subjectCode: selectedSubject || null,
-        roleType: roleType,
-      } as Test
-
-      newTests.push(newTest)
+      alert(`${newTests.length}件のテストを保存しました`)
+      router.push("/admin/question-management")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      console.error("[question-create] save failed:", msg, err)
+      alert(`保存に失敗しました: ${msg}`)
     }
-
-    await saveTests([...existingTests, ...newTests])
-
-    // 合格基準点をセッションに保存
-    if (passingScore !== "") {
-      try {
-        await fetch(`/api/test-sessions/${testSession.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            test_date: testSession.test_date,
-            description: testSession.description,
-            university_code: testSession.university_code,
-            passing_score: parseInt(passingScore, 10),
-          }),
-        })
-      } catch (e) {
-      }
-    }
-
-    alert(`${newTests.length}件のテストを保存しました`)
-    router.push("/admin/question-management")
   }
 
   const downloadCSVTemplate = () => {
