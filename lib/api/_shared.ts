@@ -35,3 +35,11 @@ export function parseListQuery(
   }
   return out
 }
+
+
+/**
+ * Phase 9c-4: write API 用の認可ヘルパ。
+ * middleware で Cookie 必須は担保済みなので、ここでは admin role の確認だけ追加。
+ */
+import { requireAdmin } from "@/lib/auth/api-guard"
+export { requireAdmin }

@@ -2,8 +2,8 @@
  * Phase 9c-1: GET /api/teachers/[id]
  * レスポンス: 200 { item: Teacher } | 404
  */
-import { NextResponse } from "next/server"
-import { getServiceClient } from "@/lib/api/_shared"
+import { NextResponse, type NextRequest } from "next/server"
+import { getServiceClient, requireAdmin } from "@/lib/api/_shared"
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -29,4 +29,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     testSessionId: row.test_session_id as string | undefined,
   }
   return NextResponse.json({ item }, { status: 200 })
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = requireAdmin(request)
+  if (guard) return guard
+  const { id } = await params
+  const supabase = getServiceClient()
+  const { error } = await supabase.from("teachers").delete().eq("id", id)
+  if (error) {
+    console.error("[api/teachers/:id] DELETE error:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  return new NextResponse(null, { status: 204 })
 }

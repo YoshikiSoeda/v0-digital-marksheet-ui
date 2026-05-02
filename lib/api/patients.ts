@@ -38,3 +38,15 @@ export async function getPatient(id: string): Promise<Patient | null> {
   const json = await res.json()
   return (json?.item ?? null) as Patient | null
 }
+
+export async function deletePatientApi(id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/patients/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  })
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `deletePatient failed: ${res.status}`)
+  }
+  return { ok: true }
+}

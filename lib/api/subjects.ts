@@ -28,3 +28,18 @@ export async function listSubjects(params: ListSubjectsParams = {}): Promise<Sub
     updatedAt: row.updated_at as string | undefined,
   })) as Subject[]
 }
+
+export async function upsertSubjects(items: Subject[]): Promise<{ ok: boolean; upserted: number }> {
+  const res = await fetch("/api/subjects", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `upsertSubjects failed: ${res.status}`)
+  }
+  const json = await res.json()
+  return { ok: true, upserted: (json?.upserted as number) || 0 }
+}
