@@ -14,6 +14,7 @@ import {
   saveEvaluationResults,
   loadTeachers,
 } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 interface TeacherExamTabsProps {
   teacherEmail: string
@@ -35,11 +36,14 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [teacherName, setTeacherName] = useState("")
   const [elapsedTime, setElapsedTime] = useState<number>(0)
 
+  // Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
       try {
-        const loginInfo = sessionStorage.getItem("loginInfo")
-        const universityCode = loginInfo ? JSON.parse(loginInfo).universityCode || "" : ""
+        const universityCode = session.universityCode || ""
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
         const fetchedTeachers = await loadTeachers(universityCode, undefined, testSessionId)
