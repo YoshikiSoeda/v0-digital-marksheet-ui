@@ -23,10 +23,6 @@ const PUBLIC_API_PATHS: string[] = [
 const PUBLIC_PAGES_PREFIX = [
   // Phase 9d-1: 共通ログイン
   "/login",
-  // 旧 URL(next.config.mjs の redirects で /login へ転送、middleware で 401 になる前に通す必要あり)
-  "/admin/login",
-  "/teacher/login",
-  "/patient/login",
   "/reset-password",
   "/privacy",
   "/terms",
@@ -40,11 +36,9 @@ function isPublicPage(pathname: string): boolean {
   return PUBLIC_PAGES_PREFIX.some((p) => pathname === p || pathname.startsWith(p))
 }
 
-function getLoginRedirect(pathname: string): string {
-  if (pathname.startsWith("/teacher/")) return "/teacher/login"
-  if (pathname.startsWith("/patient/")) return "/patient/login"
-  if (pathname.startsWith("/admin/")) return "/admin/login"
-  return "/"
+function getLoginRedirect(_pathname: string): string {
+  // Phase 9d-cleanup-1: ログインは /login に統一
+  return "/login"
 }
 
 export function middleware(request: NextRequest) {
