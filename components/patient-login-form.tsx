@@ -12,6 +12,42 @@ import { GraduationCap, ArrowLeft, Calendar } from "lucide-react"
 import Link from "next/link"
 import { loadTestSessions, type Patient, type TestSession } from "@/lib/data-storage"
 
+/**
+ * Phase 9b-β1: 統合 /api/auth/login へ切替。
+ * - sessionStorage 書き込みは consumer 互換のため残置(β2 で順次撤去)
+ * - 患者役以外がここから入ってきた場合は 401 として扱う
+ */
+
+interface UnifiedLoginUser {
+  source: "admins" | "teachers" | "patients"
+  id: string
+  name: string
+  email: string
+  role: string
+  accountType: string
+  universityCode: string
+  universityCodes: string[]
+  subjectCode: string
+  testSessionId: string
+  assignedRoomNumber: string
+}
+
+interface UnifiedLoginResponse {
+  user?: UnifiedLoginUser
+  redirectTo?: string
+  needsSessionSelection?: boolean
+  source?: "teachers" | "patients"
+  candidates?: Array<{
+    source: "teachers" | "patients"
+    id: string
+    name: string
+    assignedRoomNumber: string
+    universityCode: string
+    subjectCode: string
+  }>
+  error?: string
+}
+
 export function PatientLoginForm() {
   const router = useRouter()
   const [patientId, setPatientId] = useState("")
@@ -21,6 +57,25 @@ export function PatientLoginForm() {
   const [step, setStep] = useState<"credentials" | "session">("credentials")
   const [matchedPatients, setMatchedPatients] = useState<Patient[]>([])
   const [sessions, setSessions] = useState<TestSession[]>([])
+
+  const callUnifiedLogin = async (testSessionId?: string): Promise<UnifiedLoginResponse | null> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginId: patientId, password, testSessionId }),
+      })
+      const result = (await res.json()) as UnifiedLoginResponse
+      if (!res.ok) {
+        setError(result?.error || "認証エラーが発生しました")
+        return null
+      }
+      return result
+    } catch {
+      setError("ログイン処理中にエラーが発生しました")
+      return null
+    }
+  }
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,128 +88,97 @@ export function PatientLoginForm() {
       return
     }
 
-    try {
-      // Phase 8: 認証はサーバー側 API で実施(bcrypt 照合 + HttpOnly cookie 発行)
-      const res = await fetch("/api/auth/patient/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: patientId, password }),
-      })
-      const result = await res.json()
-
-      if (!res.ok) {
-        setError(result?.error || "認証エラーが発生しました")
-        setIsLoading(false)
-        return
-      }
-
-      // 複数セッション持ちの場合: API は needsSessionSelection を返す
-      if (result?.needsSessionSelection && Array.isArray(result.sessions)) {
-        // 既存のセッション選択 UI を再利用するため、loadTestSessions で詳細を取得
-        const universityCode = result.sessions[0]?.universityCode || "dentshowa"
-        const allSessions = await loadTestSessions(universityCode)
-        const sessionIds = new Set(result.sessions.map((s: { id: string | null }) => s.id).filter(Boolean))
-        const availableSessions = allSessions.filter((s) => sessionIds.has(s.id))
-
-        // matchedPatients は再ログイン時に session 選択するためのキャッシュ。
-        // API 呼び直しで対応するため、ここでは session 一覧と email/password だけ覚えておく。
-        // 既存の matchedPatients 型に合わせるため、最低限のフィールドで埋める。
-        const placeholder: Patient[] = result.sessions.map((s: {
-          id: string | null
-          name: string
-          assignedRoomNumber: string | null
-          universityCode: string | null
-          subjectCode: string | null
-        }) => ({
-          id: "", // API 再呼び出しで埋める
-          email: patientId,
-          password: "", // 既に検証済みのため保持しない(Phase 8: 平文を保持しない)
-          name: s.name,
-          role: "general",
-          assignedRoomNumber: s.assignedRoomNumber || "",
-          createdAt: new Date().toISOString(),
-          universityCode: s.universityCode || "dentshowa",
-          subjectCode: s.subjectCode || "",
-          testSessionId: s.id || "",
-        }))
-        setMatchedPatients(placeholder)
-        setSessions(availableSessions)
-        setStep("session")
-        setIsLoading(false)
-        return
-      }
-
-      // 単一セッション or testSessionId 指定済み: completeLogin に相当する処理
-      completeLoginFromApi(result)
-    } catch (error) {
-      setError("ログイン処理中にエラーが発生しました")
+    const result = await callUnifiedLogin()
+    if (!result) {
       setIsLoading(false)
+      return
     }
+
+    if (result.needsSessionSelection && result.candidates && result.source === "patients") {
+      const universityCode = result.candidates[0]?.universityCode || "dentshowa"
+      const allSessions = await loadTestSessions(universityCode)
+      const sessionIds = new Set(result.candidates.map((c) => c.id).filter(Boolean))
+      const availableSessions = allSessions.filter((s) => sessionIds.has(s.id))
+
+      const placeholder: Patient[] = result.candidates.map((c) => ({
+        id: "",
+        patientId: "",
+        email: patientId,
+        password: "",
+        name: c.name,
+        role: "general",
+        assignedRoomNumber: c.assignedRoomNumber || "",
+        createdAt: new Date().toISOString(),
+        universityCode: c.universityCode || "dentshowa",
+        subjectCode: c.subjectCode || "",
+        testSessionId: c.id || "",
+      }))
+      setMatchedPatients(placeholder)
+      setSessions(availableSessions)
+      setStep("session")
+      setIsLoading(false)
+      return
+    }
+
+    if (!result.user) {
+      setError("認証エラーが発生しました")
+      setIsLoading(false)
+      return
+    }
+
+    if (result.user.source !== "patients") {
+      setError("患者担当者アカウントではありません。正しいログイン画面をご利用ください")
+      setIsLoading(false)
+      return
+    }
+
+    completeLogin(result.user, result.redirectTo)
   }
 
-  // セッション選択時に再度 API を呼ぶ(testSessionId を渡してログインを完了させる)
   const handleSessionSelectViaApi = async (sessionId: string) => {
     setError("")
     setIsLoading(true)
-    try {
-      const res = await fetch("/api/auth/patient/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: patientId, password, testSessionId: sessionId }),
-      })
-      const result = await res.json()
-      if (!res.ok) {
-        setError(result?.error || "認証エラーが発生しました")
-        setIsLoading(false)
-        return
-      }
-      completeLoginFromApi(result)
-    } catch (error) {
-      setError("ログイン処理中にエラーが発生しました")
+    const result = await callUnifiedLogin(sessionId)
+    if (!result || !result.user) {
       setIsLoading(false)
+      return
     }
+    if (result.user.source !== "patients") {
+      setError("患者担当者アカウントではありません")
+      setIsLoading(false)
+      return
+    }
+    completeLogin(result.user, result.redirectTo)
   }
 
-  // API レスポンスを受けて sessionStorage を埋め、画面遷移する
-  const completeLoginFromApi = (apiResult: {
-    patientId: string
-    patientName: string
-    patientEmail: string
-    patientRoom: string
-    universityCode: string
-    subjectCode: string
-    testSessionId: string
-    userRole: string
-    accountType: string
-  }) => {
+  // β1: sessionStorage 書き込みは consumer 互換のため維持。β2 で撤去予定。
+  const completeLogin = (user: UnifiedLoginUser, redirectTo?: string) => {
     sessionStorage.setItem(
       "loginInfo",
       JSON.stringify({
-        id: apiResult.patientId,
+        id: user.id,
         loginType: "patient",
-        name: apiResult.patientName,
-        email: apiResult.patientEmail,
-        assignedRoomNumber: apiResult.patientRoom,
-        role: apiResult.userRole,
-        universityCode: apiResult.universityCode,
-        subjectCode: apiResult.subjectCode,
-        testSessionId: apiResult.testSessionId,
+        name: user.name,
+        email: user.email,
+        assignedRoomNumber: user.assignedRoomNumber,
+        role: user.role,
+        universityCode: user.universityCode,
+        subjectCode: user.subjectCode,
+        testSessionId: user.testSessionId,
       }),
     )
-    sessionStorage.setItem("patientId", apiResult.patientId)
-    sessionStorage.setItem("patientName", apiResult.patientName)
-    sessionStorage.setItem("patientEmail", apiResult.patientEmail)
-    sessionStorage.setItem("patientRoom", apiResult.patientRoom)
-    sessionStorage.setItem("userRole", apiResult.userRole)
-    sessionStorage.setItem("universityCode", apiResult.universityCode)
-    sessionStorage.setItem("subjectCode", apiResult.subjectCode)
-    sessionStorage.setItem("testSessionId", apiResult.testSessionId)
-    sessionStorage.setItem("accountType", apiResult.accountType)
+    sessionStorage.setItem("patientId", user.id)
+    sessionStorage.setItem("patientName", user.name)
+    sessionStorage.setItem("patientEmail", user.email)
+    sessionStorage.setItem("patientRoom", user.assignedRoomNumber)
+    sessionStorage.setItem("userRole", user.role)
+    sessionStorage.setItem("universityCode", user.universityCode)
+    sessionStorage.setItem("subjectCode", user.subjectCode)
+    sessionStorage.setItem("testSessionId", user.testSessionId)
+    sessionStorage.setItem("accountType", user.accountType)
 
-    window.location.href = "/patient/exam-info"
+    window.location.href = redirectTo || "/patient/exam-info"
   }
-
-  // 旧 handleSessionSelect/completeLogin は handleSessionSelectViaApi/completeLoginFromApi に統合済み
 
   if (step === "session") {
     return (

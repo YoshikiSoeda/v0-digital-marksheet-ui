@@ -12,16 +12,70 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { UserCircle, ArrowLeft, Calendar } from "lucide-react"
 import Link from "next/link"
 
+/**
+ * Phase 9b-β1: 統合 /api/auth/login へ切替。
+ * - sessionStorage 書き込みは consumer 互換のため残置(β2 で順次撤去)
+ * - 教員以外がここに入ってきた場合は 401 として扱う(form-side gating)
+ */
+
+interface UnifiedLoginUser {
+  source: "admins" | "teachers" | "patients"
+  id: string
+  name: string
+  email: string
+  role: string
+  accountType: string
+  universityCode: string
+  universityCodes: string[]
+  subjectCode: string
+  testSessionId: string
+  assignedRoomNumber: string
+}
+
+interface UnifiedLoginResponse {
+  user?: UnifiedLoginUser
+  redirectTo?: string
+  needsSessionSelection?: boolean
+  source?: "teachers" | "patients"
+  candidates?: Array<{
+    source: "teachers" | "patients"
+    id: string
+    name: string
+    assignedRoomNumber: string
+    universityCode: string
+    subjectCode: string
+  }>
+  error?: string
+}
+
 export function TeacherLoginForm() {
   const router = useRouter()
   const [teacherId, setTeacherId] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  // Session selection state
   const [step, setStep] = useState<"credentials" | "session">("credentials")
   const [matchedTeachers, setMatchedTeachers] = useState<Teacher[]>([])
   const [sessions, setSessions] = useState<TestSession[]>([])
+
+  const callUnifiedLogin = async (testSessionId?: string): Promise<UnifiedLoginResponse | null> => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginId: teacherId, password, testSessionId }),
+      })
+      const result = (await res.json()) as UnifiedLoginResponse
+      if (!res.ok) {
+        setError(result?.error || "認証エラーが発生しました")
+        return null
+      }
+      return result
+    } catch {
+      setError("ログイン処理中にエラーが発生しました")
+      return null
+    }
+  }
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,121 +88,99 @@ export function TeacherLoginForm() {
       return
     }
 
-    try {
-      // Phase 8: 認証はサーバー側 API で実施(bcrypt 照合 + HttpOnly cookie 発行)
-      const res = await fetch("/api/auth/teacher/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: teacherId, password }),
-      })
-      const result = await res.json()
-
-      if (!res.ok) {
-        setError(result?.error || "認証エラーが発生しました")
-        setIsLoading(false)
-        return
-      }
-
-      if (result?.needsSessionSelection && Array.isArray(result.sessions)) {
-        const universityCode = result.sessions[0]?.universityCode || "dentshowa"
-        const allSessions = await loadTestSessions(universityCode)
-        const sessionIds = new Set(result.sessions.map((s: { id: string | null }) => s.id).filter(Boolean))
-        const availableSessions = allSessions.filter((s) => sessionIds.has(s.id))
-
-        const placeholder: Teacher[] = result.sessions.map((s: {
-          id: string | null
-          name: string
-          assignedRoomNumber: string | null
-          universityCode: string | null
-          subjectCode: string | null
-        }) => ({
-          id: "",
-          teacherId: "",
-          email: teacherId,
-          password: "", // Phase 8: 平文を保持しない
-          name: s.name,
-          role: "general",
-          assignedRoomNumber: s.assignedRoomNumber || "",
-          createdAt: new Date().toISOString(),
-          universityCode: s.universityCode || "dentshowa",
-          subjectCode: s.subjectCode || "",
-          testSessionId: s.id || "",
-        }))
-        setMatchedTeachers(placeholder)
-        setSessions(availableSessions)
-        setStep("session")
-        setIsLoading(false)
-        return
-      }
-
-      completeLoginFromApi(result)
-    } catch (error) {
-      setError("ログイン処理中にエラーが発生しました")
+    const result = await callUnifiedLogin()
+    if (!result) {
       setIsLoading(false)
+      return
     }
+
+    // 複数セッション持ち
+    if (result.needsSessionSelection && result.candidates && result.source === "teachers") {
+      const universityCode = result.candidates[0]?.universityCode || "dentshowa"
+      const allSessions = await loadTestSessions(universityCode)
+      const sessionIds = new Set(result.candidates.map((c) => c.id).filter(Boolean))
+      const availableSessions = allSessions.filter((s) => sessionIds.has(s.id))
+
+      const placeholder: Teacher[] = result.candidates.map((c) => ({
+        id: "",
+        teacherId: "",
+        email: teacherId,
+        password: "",
+        name: c.name,
+        role: "general",
+        assignedRoomNumber: c.assignedRoomNumber || "",
+        createdAt: new Date().toISOString(),
+        universityCode: c.universityCode || "dentshowa",
+        subjectCode: c.subjectCode || "",
+        testSessionId: c.id || "",
+      }))
+      setMatchedTeachers(placeholder)
+      setSessions(availableSessions)
+      setStep("session")
+      setIsLoading(false)
+      return
+    }
+
+    if (!result.user) {
+      setError("認証エラーが発生しました")
+      setIsLoading(false)
+      return
+    }
+
+    // form-side gating: teacher 以外がここから入ってきた場合は拒否
+    if (result.user.source !== "teachers") {
+      setError("教員アカウントではありません。正しいログイン画面をご利用ください")
+      setIsLoading(false)
+      return
+    }
+
+    completeLogin(result.user, result.redirectTo)
   }
 
   const handleSessionSelectViaApi = async (sessionId: string) => {
     setError("")
     setIsLoading(true)
-    try {
-      const res = await fetch("/api/auth/teacher/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: teacherId, password, testSessionId: sessionId }),
-      })
-      const result = await res.json()
-      if (!res.ok) {
-        setError(result?.error || "認証エラーが発生しました")
-        setIsLoading(false)
-        return
-      }
-      completeLoginFromApi(result)
-    } catch (error) {
-      setError("ログイン処理中にエラーが発生しました")
+    const result = await callUnifiedLogin(sessionId)
+    if (!result || !result.user) {
       setIsLoading(false)
+      return
     }
+    if (result.user.source !== "teachers") {
+      setError("教員アカウントではありません")
+      setIsLoading(false)
+      return
+    }
+    completeLogin(result.user, result.redirectTo)
   }
 
-  const completeLoginFromApi = (apiResult: {
-    teacherId: string
-    teacherName: string
-    teacherEmail: string
-    teacherRole: string
-    teacherRoom: string
-    universityCode: string
-    subjectCode: string
-    testSessionId: string
-    accountType: string
-  }) => {
+  // β1: sessionStorage 書き込みは consumer 互換のため維持。β2 で撤去予定。
+  const completeLogin = (user: UnifiedLoginUser, redirectTo?: string) => {
     sessionStorage.setItem(
       "loginInfo",
       JSON.stringify({
         loginType: "teacher",
-        role: apiResult.teacherRole,
-        userId: apiResult.teacherId,
-        userName: apiResult.teacherName,
-        email: apiResult.teacherEmail,
-        assignedRoomNumber: apiResult.teacherRoom,
-        universityCode: apiResult.universityCode,
-        subjectCode: apiResult.subjectCode,
-        testSessionId: apiResult.testSessionId,
+        role: user.role,
+        userId: user.id,
+        userName: user.name,
+        email: user.email,
+        assignedRoomNumber: user.assignedRoomNumber,
+        universityCode: user.universityCode,
+        subjectCode: user.subjectCode,
+        testSessionId: user.testSessionId,
       }),
     )
-    sessionStorage.setItem("teacherId", apiResult.teacherId)
-    sessionStorage.setItem("teacherName", apiResult.teacherName)
-    sessionStorage.setItem("teacherEmail", apiResult.teacherEmail)
-    sessionStorage.setItem("teacherRole", apiResult.teacherRole)
-    sessionStorage.setItem("teacherRoom", apiResult.teacherRoom)
-    sessionStorage.setItem("universityCode", apiResult.universityCode)
-    sessionStorage.setItem("subjectCode", apiResult.subjectCode)
-    sessionStorage.setItem("testSessionId", apiResult.testSessionId)
-    sessionStorage.setItem("accountType", apiResult.accountType)
+    sessionStorage.setItem("teacherId", user.id)
+    sessionStorage.setItem("teacherName", user.name)
+    sessionStorage.setItem("teacherEmail", user.email)
+    sessionStorage.setItem("teacherRole", user.role)
+    sessionStorage.setItem("teacherRoom", user.assignedRoomNumber)
+    sessionStorage.setItem("universityCode", user.universityCode)
+    sessionStorage.setItem("subjectCode", user.subjectCode)
+    sessionStorage.setItem("testSessionId", user.testSessionId)
+    sessionStorage.setItem("accountType", user.accountType)
 
-    window.location.href = "/teacher/exam-info"
+    window.location.href = redirectTo || "/teacher/exam-info"
   }
-
-  // 旧 handleSessionSelect/completeLogin は handleSessionSelectViaApi/completeLoginFromApi に統合済み
 
   if (step === "session") {
     return (
