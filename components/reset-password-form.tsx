@@ -152,20 +152,13 @@ export function ResetPasswordForm() {
             {submitting ? "変更中..." : "パスワードを変更"}
           </Button>
 
-          <div className="text-center space-y-2">
+          <div className="text-center">
             <Link
-              href="/teacher/login"
-              className="text-sm text-primary hover:underline flex items-center justify-center gap-1"
+              href="/login"
+              className="text-sm text-primary hover:underline inline-flex items-center justify-center gap-1"
             >
               <ArrowLeft className="w-4 h-4" />
-              教員ログインに戻る
-            </Link>
-            <Link
-              href="/patient/login"
-              className="text-sm text-primary hover:underline flex items-center justify-center gap-1"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              患者担当者ログインに戻る
+              ログインに戻る
             </Link>
           </div>
         </form>
