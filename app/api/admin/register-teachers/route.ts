@@ -7,7 +7,7 @@
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { requireAdmin } from "@/lib/auth/api-guard"
+import { requireAdmin, rejectIfOutsideSubjectScope } from "@/lib/auth/api-guard"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,6 +51,13 @@ export async function POST(request: NextRequest) {
   if (teachers.length === 0) {
     return NextResponse.json({ upserted: 0 }, { status: 200 })
   }
+
+  // Y-2: subject_admin は自教科の subjectCode を持つ row のみ登録可
+  const subjectScopeCheck = rejectIfOutsideSubjectScope(
+    request,
+    teachers.map((t) => t.subjectCode || null),
+  )
+  if (subjectScopeCheck) return subjectScopeCheck
 
   // RPC が受け取る jsonb 配列形式に変換 (snake_case)
   const payload = teachers.map((t) => ({
