@@ -14,11 +14,8 @@ export default function PatientExamPage() {
     const storedLoginInfo = sessionStorage.getItem("loginInfo")
     const storedTestId = sessionStorage.getItem("patient_selected_test")
 
-    console.log("[v0] Patient exam page - loginInfo:", storedLoginInfo)
-    console.log("[v0] Patient exam page - selectedTestId:", storedTestId)
 
     if (!storedLoginInfo) {
-      console.log("[v0] No login info, redirecting to login")
       router.push("/patient/login")
       return
     }
@@ -26,13 +23,11 @@ export default function PatientExamPage() {
     const info = JSON.parse(storedLoginInfo)
 
     if (!info.email || !info.assignedRoomNumber) {
-      console.log("[v0] Incomplete login info, redirecting to login")
       router.push("/patient/login")
       return
     }
 
     if (!storedTestId) {
-      console.log("[v0] No test selected, redirecting to test selection")
       router.push("/patient/exam-info")
       return
     }

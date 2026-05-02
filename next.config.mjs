@@ -8,7 +8,21 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
- 
-}
+  // ADR-001 Phase 9a: V0 由来のスタブルートを削除し、機能ページに redirect
+  async redirects() {
+    return [
+      {
+        source: "/admin/students",
+        destination: "/admin/students-list",
+        permanent: true,
+      },
+      {
+        source: "/admin/questions",
+        destination: "/admin/question-management",
+        permanent: true,
+      },
+    ];
+  },
+};
 
 export default nextConfig

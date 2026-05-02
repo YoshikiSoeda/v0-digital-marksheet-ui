@@ -32,68 +32,41 @@ export function StudentRegistration() {
   const [universities, setUniversities] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    console.log("[v0] StudentRegistration: useEffect TRIGGERED")
     const loadData = async () => {
-      console.log("[v0] StudentRegistration: Starting to load data")
       setIsLoading(true)
       try {
         const accountType = sessionStorage.getItem("accountType") || ""
-        console.log("[v0] StudentRegistration: accountType from sessionStorage =", accountType)
         setAccountType(accountType as any)
 
-        console.log("[v0] StudentRegistration: Attempting to fetch universities...")
         try {
           const response = await fetch("/api/universities")
-          console.log("[v0] StudentRegistration: Universities API response status:", response.status)
-          console.log("[v0] StudentRegistration: Universities API response ok:", response.ok)
 
           if (response.ok) {
             const data = await response.json()
-            console.log("[v0] StudentRegistration: Universities data received:", data)
-            console.log(
-              "[v0] StudentRegistration: Universities data type:",
-              typeof data,
-              "isArray:",
-              Array.isArray(data),
-            )
 
             const universityMap: Record<string, string> = {}
             if (Array.isArray(data)) {
               data.forEach((uni: any) => {
                 universityMap[uni.university_code] = uni.university_name
-                console.log("[v0] StudentRegistration: Mapped", uni.university_code, "->", uni.university_name)
               })
             }
-            console.log("[v0] StudentRegistration: Final university map:", universityMap)
-            console.log("[v0] StudentRegistration: University map keys:", Object.keys(universityMap))
             setUniversities(universityMap)
           } else {
             const errorText = await response.text()
-            console.error(
-              "[v0] StudentRegistration: Failed to fetch universities, status:",
-              response.status,
-              "error:",
-              errorText,
-            )
           }
         } catch (error) {
-          console.error("[v0] StudentRegistration: Error fetching universities:", error)
         }
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
         const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
-        console.log("[v0] StudentRegistration: Loaded students count:", studentsData?.length)
-        console.log("[v0] StudentRegistration: Loaded rooms count:", roomsData?.length)
         setStudents(Array.isArray(studentsData) ? studentsData : [])
         setRooms(Array.isArray(roomsData) ? roomsData : [])
       } catch (error) {
-        console.error("[v0] StudentRegistration: Error loading data:", error)
         setStudents([])
         setRooms([])
       } finally {
         setIsLoading(false)
-        console.log("[v0] StudentRegistration: Loading complete")
       }
     }
 
@@ -270,7 +243,6 @@ export function StudentRegistration() {
       alert(`${students.length}名の学生情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      console.error("[v0] StudentRegistration: Error saving students:", error)
       alert("学生情報の保存中にエラーが発生しました")
     }
   }
@@ -287,7 +259,7 @@ export function StudentRegistration() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      {(() => { console.log("[v0] StudentRegistration: RENDERING, accountType=", accountType, "universities=", universities); return null })()}
+      {(() => {  return null })()}
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

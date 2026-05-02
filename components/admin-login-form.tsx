@@ -111,7 +111,6 @@ export function AdminLoginForm() {
         setFilterUniversity(universityCode)
       }
     } catch (err) {
-      console.error("[v0] Error loading filter data:", err)
     }
   }, [])
 

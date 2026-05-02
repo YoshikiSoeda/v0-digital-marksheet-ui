@@ -33,20 +33,15 @@ export function PatientRoleRegistration() {
   const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
-    console.log("[v0] PatientRoleRegistration: useEffect TRIGGERED")
     const fetchData = async () => {
-      console.log("[v0] PatientRoleRegistration: Starting to load data")
       try {
         const storedAccountType = sessionStorage.getItem("accountType") || ""
-        console.log("[v0] PatientRoleRegistration: accountType from sessionStorage =", storedAccountType)
         setAccountType(storedAccountType)
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
         const [patientsData, roomsData, subjectsData] = await Promise.all([loadPatients(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
 
-        console.log("[v0] PatientRoleRegistration: Loaded patients count:", patientsData?.length)
-        console.log("[v0] PatientRoleRegistration: Loaded rooms count:", roomsData?.length)
 
         const sortedPatients = Array.isArray(patientsData)
           ? patientsData.sort((a, b) => {
@@ -59,51 +54,29 @@ export function PatientRoleRegistration() {
         setPatients(sortedPatients)
         setRooms(Array.isArray(roomsData) ? roomsData : [])
 
-        console.log("[v0] PatientRoleRegistration: Attempting to fetch universities...")
         try {
           const response = await fetch("/api/universities")
-          console.log("[v0] PatientRoleRegistration: Universities API response status:", response.status)
-          console.log("[v0] PatientRoleRegistration: Universities API response ok:", response.ok)
 
           if (response.ok) {
             const universitiesData = await response.json()
-            console.log("[v0] PatientRoleRegistration: Universities data received:", universitiesData)
-            console.log(
-              "[v0] PatientRoleRegistration: Universities data type:",
-              typeof universitiesData,
-              "isArray:",
-              Array.isArray(universitiesData),
-            )
 
             const universityMap: Record<string, string> = {}
             if (Array.isArray(universitiesData)) {
               universitiesData.forEach((uni: any) => {
                 universityMap[uni.university_code] = uni.university_name
-                console.log("[v0] PatientRoleRegistration: Mapped", uni.university_code, "->", uni.university_name)
               })
             }
-            console.log("[v0] PatientRoleRegistration: Final university map:", universityMap)
-            console.log("[v0] PatientRoleRegistration: University map keys:", Object.keys(universityMap))
             setUniversities(universityMap)
           } else {
             const errorText = await response.text()
-            console.error(
-              "[v0] PatientRoleRegistration: Failed to fetch universities, status:",
-              response.status,
-              "error:",
-              errorText,
-            )
           }
         } catch (error) {
-          console.error("[v0] PatientRoleRegistration: Error fetching universities:", error)
         }
       } catch (error) {
-        console.error("[v0] PatientRoleRegistration: Error loading data:", error)
         setPatients([])
         setRooms([])
       } finally {
         setIsLoading(false)
-        console.log("[v0] PatientRoleRegistration: Loading complete")
       }
     }
     fetchData()
@@ -154,7 +127,6 @@ export function PatientRoleRegistration() {
       await savePatients(updatedPatients)
       alert(`${patient.name} を削除しました`)
     } catch (error) {
-      console.error("[v0] Error deleting patient:", error)
       alert("削除中にエラーが発生しました")
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
       const data = await loadPatients(undefined, undefined, testSessionId)
@@ -288,7 +260,6 @@ export function PatientRoleRegistration() {
       alert(`${patients.length}名の患者役情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      console.error("[v0] Error saving patients:", error)
       alert("保存中にエラーが発生しました")
     }
   }
@@ -305,7 +276,7 @@ export function PatientRoleRegistration() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      {(() => { console.log("[v0] PatientRoleRegistration: RENDERING, accountType=", accountType, "universities=", universities); return null })()}
+      {(() => {  return null })()}
       <div className="max-w-7xl mx-auto space-y-6">
         <Card className="mx-auto max-w-6xl">
           <CardHeader>

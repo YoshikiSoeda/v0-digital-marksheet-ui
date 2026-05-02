@@ -83,7 +83,6 @@ export function TeacherLoginForm() {
 
       completeLoginFromApi(result)
     } catch (error) {
-      console.error("[v0] Error during login:", error)
       setError("ログイン処理中にエラーが発生しました")
       setIsLoading(false)
     }
@@ -106,7 +105,6 @@ export function TeacherLoginForm() {
       }
       completeLoginFromApi(result)
     } catch (error) {
-      console.error("[v0] Error during teacher session select:", error)
       setError("ログイン処理中にエラーが発生しました")
       setIsLoading(false)
     }

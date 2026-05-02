@@ -73,7 +73,7 @@ export function QuestionManagement() {
           })
           setUniversities(universityList)
         })
-        .catch((err) => console.error("[v0] Failed to fetch universities:", err))
+        .catch((err) => {})
     }
 
     fetchSubjects(userUniversityCode)
@@ -87,7 +87,6 @@ export function QuestionManagement() {
       const data = await res.json()
       setTestSessions(data)
     } catch (err) {
-      console.error("[v0] Failed to fetch test sessions:", err)
     }
   }
 
@@ -126,7 +125,6 @@ export function QuestionManagement() {
         alert("試験セッションの登録に失敗しました")
       }
     } catch (err) {
-      console.error("[v0] Failed to create test session:", err)
       alert("エラーが発生しました")
     }
   }
@@ -143,7 +141,6 @@ export function QuestionManagement() {
         setSubjects(mapped)
       }
     } catch (err) {
-      console.error("[v0] Failed to fetch subjects:", err)
     }
   }
 
@@ -272,7 +269,6 @@ export function QuestionManagement() {
         setTestSessions([...testSessions, newSession])
         targetSessionId = newSession.id
       } catch (error) {
-        console.error("[v0] Error creating test session for duplicate:", error)
         alert("新規テストの作成に失敗しました")
         return
       }
@@ -312,7 +308,6 @@ export function QuestionManagement() {
       setShowDuplicateDialog(false)
       setDuplicateSourceId(null)
     } catch (err) {
-      console.error("[v0] Error duplicating test:", err)
       setDuplicateLoading(false)
       alert("テストの複製に失敗しました")
     }
@@ -325,7 +320,6 @@ export function QuestionManagement() {
       await deleteTest(testId)
       setTests(tests.filter((t) => t.id !== testId))
     } catch (err) {
-      console.error("[v0] Error deleting test:", err)
       alert("テストの削除に失敗しました")
     }
   }

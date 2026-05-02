@@ -87,7 +87,6 @@ export function PatientLoginForm() {
       // 単一セッション or testSessionId 指定済み: completeLogin に相当する処理
       completeLoginFromApi(result)
     } catch (error) {
-      console.error("[v0] Error during patient login:", error)
       setError("ログイン処理中にエラーが発生しました")
       setIsLoading(false)
     }
@@ -111,7 +110,6 @@ export function PatientLoginForm() {
       }
       completeLoginFromApi(result)
     } catch (error) {
-      console.error("[v0] Error during patient session select:", error)
       setError("ログイン処理中にエラーが発生しました")
       setIsLoading(false)
     }

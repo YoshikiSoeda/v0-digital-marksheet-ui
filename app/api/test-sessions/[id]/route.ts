@@ -27,13 +27,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .single()
 
     if (error) {
-      console.error("[v0] Update test session error:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json(data)
   } catch (error: any) {
-    console.error("[v0] Update test session exception:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
@@ -48,13 +46,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const { error } = await supabase.from("test_sessions").delete().eq("id", (await params).id)
 
     if (error) {
-      console.error("[v0] Delete test session error:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error("[v0] Delete test session exception:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
