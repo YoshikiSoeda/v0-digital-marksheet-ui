@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import TeacherExamTabs from "@/components/teacher-exam-tabs"
 import { useSession } from "@/lib/auth/use-session"
+import { useState } from "react"
 
 /**
  * Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換。
+ * HOTFIX-2: selectedTestId を useState の lazy init で同期読込にし、useSession の
+ * cache 即時返却に対して redirect が先行する race condition を解消。
  *
  * テスト ID(teacher_selected_test)は test-selection-screen で書かれた UI 状態のため
  * sessionStorage から読み続ける(β2 の対象外、UI 状態として残置)。
@@ -14,12 +16,11 @@ import { useSession } from "@/lib/auth/use-session"
 export default function TeacherExamPage() {
   const router = useRouter()
   const { session, isLoading } = useSession()
-  const [selectedTestId, setSelectedTestId] = useState<string | null>(null)
-
-  useEffect(() => {
-    const id = sessionStorage.getItem("teacher_selected_test")
-    setSelectedTestId(id)
-  }, [])
+  // HOTFIX-2: 同期読込で redirect 先行を防ぐ
+  const [selectedTestId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return sessionStorage.getItem("teacher_selected_test")
+  })
 
   if (isLoading) {
     return (
@@ -32,13 +33,12 @@ export default function TeacherExamPage() {
   }
 
   if (!session) {
-    if (typeof window !== "undefined") router.push("/teacher/login")
+    if (typeof window !== "undefined") router.push("/login")
     return null
   }
 
   if (session.loginType !== "teacher") {
-    // 別ロールがここに到達したら教員ログインへ戻す
-    if (typeof window !== "undefined") router.push("/teacher/login")
+    if (typeof window !== "undefined") router.push("/login")
     return null
   }
 
@@ -49,7 +49,7 @@ export default function TeacherExamPage() {
 
   if (!session.email || !session.assignedRoomNumber) {
     // 必須情報が揃っていない場合(古い cookie)はログインに戻す
-    if (typeof window !== "undefined") router.push("/teacher/login")
+    if (typeof window !== "undefined") router.push("/login")
     return null
   }
 

@@ -1,25 +1,22 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import PatientExamTabs from "@/components/patient-exam-tabs"
 import { useSession } from "@/lib/auth/use-session"
+import { useState } from "react"
 
 /**
  * Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換。
- *
- * テスト ID(patient_selected_test)は test-selection-screen で書かれた UI 状態のため
- * sessionStorage から読み続ける。
+ * HOTFIX-2: selectedTestId を useState の lazy init で同期読込にし、useSession の
+ * cache 即時返却に対して redirect が先行する race condition を解消。
  */
 export default function PatientExamPage() {
   const router = useRouter()
   const { session, isLoading } = useSession()
-  const [selectedTestId, setSelectedTestId] = useState<string | null>(null)
-
-  useEffect(() => {
-    const id = sessionStorage.getItem("patient_selected_test")
-    setSelectedTestId(id)
-  }, [])
+  const [selectedTestId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return sessionStorage.getItem("patient_selected_test")
+  })
 
   if (isLoading) {
     return (
@@ -30,12 +27,12 @@ export default function PatientExamPage() {
   }
 
   if (!session) {
-    if (typeof window !== "undefined") router.push("/patient/login")
+    if (typeof window !== "undefined") router.push("/login")
     return null
   }
 
   if (session.loginType !== "patient") {
-    if (typeof window !== "undefined") router.push("/patient/login")
+    if (typeof window !== "undefined") router.push("/login")
     return null
   }
 
@@ -45,7 +42,7 @@ export default function PatientExamPage() {
   }
 
   if (!session.email || !session.assignedRoomNumber) {
-    if (typeof window !== "undefined") router.push("/patient/login")
+    if (typeof window !== "undefined") router.push("/login")
     return null
   }
 
