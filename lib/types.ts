@@ -12,6 +12,7 @@ export interface Student {
   name: string // 氏名
   email?: string // メールアドレス
   department: string // 学部・学科
+  grade?: string // 学年(例: "4年" "5年")。Phase 9 B-1 で追加。
   roomNumber: string // 部屋番号
   createdAt: string
   universityCode?: string // 大学コード

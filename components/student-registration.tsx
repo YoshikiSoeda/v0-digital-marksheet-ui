@@ -24,6 +24,7 @@ export function StudentRegistration() {
     studentId: "",
     email: "",
     department: "",
+    grade: "",
     roomNumber: "",
     university_code: "",
     subjectCode: "",
@@ -96,6 +97,7 @@ export function StudentRegistration() {
   name: formData.name,
   email: formData.email || undefined,
   department: formData.department,
+  grade: formData.grade || undefined,
   roomNumber: formData.roomNumber,
   universityCode: formData.university_code,
   testSessionId: sessionStorage.getItem("testSessionId") || "",
@@ -103,7 +105,7 @@ export function StudentRegistration() {
   }
 
     setStudents([...students, newStudent])
-    setFormData({ name: "", studentId: "", email: "", department: "", roomNumber: "", university_code: "", subjectCode: "" })
+    setFormData({ name: "", studentId: "", email: "", department: "", grade: "", roomNumber: "", university_code: "", subjectCode: "" })
   }
 
   const handleDeleteStudent = (id: string) => {
@@ -117,7 +119,7 @@ export function StudentRegistration() {
     const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
     for (let i = 1; i < lines.length; i++) {
-      const [studentId, name, email, department, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
+      const [studentId, name, email, department, grade, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
       if (studentId && name && department && roomNumber) {
         const roomExists = rooms.some((r) => r.roomNumber === roomNumber)
         if (!roomExists) {
@@ -130,6 +132,7 @@ export function StudentRegistration() {
           name,
           email: email || undefined,
           department,
+          grade: grade || undefined,
           roomNumber,
           universityCode: university_code || "",
           testSessionId,
@@ -205,16 +208,16 @@ export function StudentRegistration() {
     let csvContent
     if (accountType === "special_master") {
       csvContent =
-        "No.,学籍番号,大学名,氏名,メールアドレス,学部・学科,部屋番号\n" +
+        "No.,学籍番号,大学名,氏名,メールアドレス,学部・学科,学年,部屋番号\n" +
         students
           .map(
             (s, index) =>
-              `${index + 1},${s.studentId},${universities[s.universityCode || ""] || ""},${s.name},${s.email || ""},${s.department},${s.roomNumber}`,
+              `${index + 1},${s.studentId},${universities[s.universityCode || ""] || ""},${s.name},${s.email || ""},${s.department},${s.grade || ""},${s.roomNumber}`,
           )
           .join("\n")
     } else {
       csvContent =
-        "No.,学籍番号,氏名,メールアドレス,学部・学科,部屋番号\n" +
+        "No.,学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号\n" +
         students
           .map((s, index) => `${index + 1},${s.studentId},${s.name},${s.email || ""},${s.department},${s.roomNumber}`)
           .join("\n")
@@ -229,7 +232,7 @@ export function StudentRegistration() {
 
   const handleDownloadTemplate = () => {
     const template =
-      "学籍番号,氏名,メールアドレス,学部・学科,部屋番号,大学コード\n2024001,山田太郎,yamada@example.com,医学部医学科,1,UNI001\n2024002,佐藤花子,,看護学部看護学科,2,UNI002"
+      "学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号,大学コード\n2024001,山田太郎,yamada@example.com,医学部医学科,4年,1,UNI001\n2024002,佐藤花子,,看護学部看護学科,5年,2,UNI002"
     const blob = new Blob(["\uFEFF" + template], { type: "text/csv;charset=utf-8;" })
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -340,6 +343,15 @@ export function StudentRegistration() {
                       placeholder="医学部医学科"
                       value={formData.department}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="grade">学年</Label>
+                    <Input
+                      id="grade"
+                      placeholder="例: 4年"
+                      value={formData.grade}
+                      onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
