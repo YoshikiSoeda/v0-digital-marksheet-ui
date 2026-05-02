@@ -65,8 +65,9 @@ function deriveAccountType(source: LoginSource, role: string): string {
     if (role === "subject_admin") return "subject_admin"
     return "general"
   }
-  // patients
-  return role === "admin" ? "admin" : "general"
+  // patients(ADR-001 §7-2(b) で role は "general" のみ。互換のため引数 role は受けるが値は無視)
+  void role
+  return "general"
 }
 
 export async function verifyCredentials(
