@@ -151,32 +151,10 @@ export function PatientLoginForm() {
     completeLogin(result.user, result.redirectTo)
   }
 
-  // β1: sessionStorage 書き込みは consumer 互換のため維持。β2 で撤去予定。
+  // Phase 9b-β2f2: 認可情報は HttpOnly Cookie に集約済み。testSessionId のみ
+  // UI 状態として残置(test-selection-screen が上書き)。
   const completeLogin = (user: UnifiedLoginUser, redirectTo?: string) => {
-    sessionStorage.setItem(
-      "loginInfo",
-      JSON.stringify({
-        id: user.id,
-        loginType: "patient",
-        name: user.name,
-        email: user.email,
-        assignedRoomNumber: user.assignedRoomNumber,
-        role: user.role,
-        universityCode: user.universityCode,
-        subjectCode: user.subjectCode,
-        testSessionId: user.testSessionId,
-      }),
-    )
-    sessionStorage.setItem("patientId", user.id)
-    sessionStorage.setItem("patientName", user.name)
-    sessionStorage.setItem("patientEmail", user.email)
-    sessionStorage.setItem("patientRoom", user.assignedRoomNumber)
-    sessionStorage.setItem("userRole", user.role)
-    sessionStorage.setItem("universityCode", user.universityCode)
-    sessionStorage.setItem("subjectCode", user.subjectCode)
     sessionStorage.setItem("testSessionId", user.testSessionId)
-    sessionStorage.setItem("accountType", user.accountType)
-
     window.location.href = redirectTo || "/patient/exam-info"
   }
 
