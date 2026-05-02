@@ -35,6 +35,7 @@ export default function StudentsListPage() {
     name: "",
     email: "",
     department: "",
+    grade: "",
     roomNumber: "",
     university_code: "",
     subjectCode: "",
@@ -92,6 +93,7 @@ export default function StudentsListPage() {
       name: student.name,
       email: student.email || "",
       department: student.department,
+      grade: student.grade || "",
       roomNumber: student.roomNumber,
       university_code: student.universityCode || "",
       subjectCode: student.subjectCode || "",
@@ -109,6 +111,7 @@ export default function StudentsListPage() {
             name: editForm.name,
             email: editForm.email,
             department: editForm.department,
+            grade: editForm.grade || undefined,
             roomNumber: editForm.roomNumber,
             universityCode: editForm.university_code,
           }
@@ -138,8 +141,8 @@ export default function StudentsListPage() {
   const handleExportCSV = () => {
     const headers =
       accountType === "special_master"
-        ? ["No.", "学籍番号", "大学名", "氏名", "メールアドレス", "学部・学科", "部屋番号"]
-        : ["No.", "学籍番号", "氏名", "メールアドレス", "学部・学科", "部屋番号"]
+        ? ["No.", "学籍番号", "大学名", "氏名", "メールアドレス", "学部・学科", "学年", "部屋番号"]
+        : ["No.", "学籍番号", "氏名", "メールアドレス", "学部・学科", "学年", "部屋番号"]
 
     const rows = students.map((s, index) => {
       const baseRow = [
@@ -149,6 +152,7 @@ export default function StudentsListPage() {
         s.name,
         s.email || "",
         s.department,
+        s.grade || "",
         s.roomNumber,
       ]
       return baseRow
@@ -240,6 +244,7 @@ export default function StudentsListPage() {
                     <th className="text-left p-2">氏名</th>
                     <th className="text-left p-2">メールアドレス</th>
                     <th className="text-left p-2">学部・学科</th>
+                    <th className="text-left p-2">学年</th>
                     <th className="text-left p-2">部屋番号</th>
                     <th className="text-center p-2">操作</th>
                   </tr>
@@ -267,6 +272,7 @@ export default function StudentsListPage() {
                           <td className="p-2">{student.name}</td>
                           <td className="p-2">{student.email || "-"}</td>
                           <td className="p-2">{student.department || "-"}</td>
+                          <td className="p-2">{student.grade || "-"}</td>
                           <td className="p-2">
                             <span className={!isValidRoom(student.roomNumber) ? "text-red-600 font-bold" : ""}>
                               {student.roomNumber}
@@ -356,6 +362,15 @@ export default function StudentsListPage() {
                 id="edit-department"
                 value={editForm.department}
                 onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-grade">学年</Label>
+              <Input
+                id="edit-grade"
+                placeholder="例: 4年"
+                value={editForm.grade}
+                onChange={(e) => setEditForm({ ...editForm, grade: e.target.value })}
               />
             </div>
             <div className="space-y-2">

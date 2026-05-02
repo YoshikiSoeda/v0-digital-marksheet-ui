@@ -20,6 +20,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     name: row.name as string,
     email: row.email as string | undefined,
     department: row.department as string | undefined,
+    grade: row.grade as string | undefined,
     roomNumber: (row.room_number as string) || "",
     createdAt: row.created_at as string,
     universityCode: row.university_code as string | undefined,

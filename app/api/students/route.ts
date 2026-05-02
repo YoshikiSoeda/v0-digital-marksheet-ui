@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     name: row.name as string,
     email: row.email as string | undefined,
     department: row.department as string | undefined,
+    grade: row.grade as string | undefined,
     roomNumber: (row.room_number as string) || "",
     createdAt: row.created_at as string,
     universityCode: row.university_code as string | undefined,
@@ -40,6 +41,7 @@ interface UpsertStudent {
   name: string
   email?: string
   department?: string
+  grade?: string
   roomNumber?: string
   universityCode?: string
   subjectCode?: string
@@ -64,6 +66,7 @@ export async function POST(request: NextRequest) {
     name: s.name,
     email: s.email || null,
     department: s.department,
+    grade: s.grade || null,
     room_number: s.roomNumber,
     university_code: s.universityCode || null,
     subject_code: s.subjectCode || null,
