@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Shield, Calendar, ArrowLeft, Plus, ChevronRight, Filter } from "lucide-react"
 import Link from "next/link"
 import { loadTeachers, loadSubjects, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 interface SessionData {
   id: string
@@ -64,20 +65,22 @@ export function AdminLoginForm() {
   const [createError, setCreateError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
+  // Phase 9b-β2f1: sessionStorage 認可キー読込を useSession() に置換
   // Auto-skip to session step if already authenticated (e.g. coming back from dashboard)
+  const { session, isLoading: isSessionLoading } = useSession()
   useEffect(() => {
-    const loginInfo = sessionStorage.getItem("loginInfo")
-    const role = sessionStorage.getItem("role") || ""
-    const universityCode = sessionStorage.getItem("universityCode") || ""
-    const subjectCode = sessionStorage.getItem("subjectCode") || ""
-    if (loginInfo && role) {
+    if (isSessionLoading || !session) return
+    if (session.role) {
+      const role = session.role
+      const universityCode = session.universityCode || ""
+      const subjectCode = session.subjectCode || ""
       setAuthRole(role)
       setAuthUniversityCode(universityCode)
       setAuthSubjectCode(subjectCode)
       loadFilterData(role, universityCode, subjectCode)
       setStep("session")
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, isSessionLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load filter data when entering session step
   const loadFilterData = useCallback(async (role: string, universityCode: string, subjectCode: string) => {

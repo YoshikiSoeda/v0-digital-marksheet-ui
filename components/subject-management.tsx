@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { useSession } from "@/lib/auth/use-session"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -58,9 +59,13 @@ export function SubjectManagement() {
     is_active: true,
   })
 
+  // Phase 9b-β2f1: sessionStorage 認可キーを useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const storedAccountType = sessionStorage.getItem("accountType")
-    const storedUniversityCode = sessionStorage.getItem("universityCode")
+    if (isSessionLoading || !session) return
+    const storedAccountType = session.accountType
+    const storedUniversityCode = session.universityCode
     setAccountType(storedAccountType)
     setUserUniversityCode(storedUniversityCode)
 
@@ -70,7 +75,7 @@ export function SubjectManagement() {
 
     loadUniversities()
     loadSubjects()
-  }, [])
+  }, [session, isSessionLoading])
 
   useEffect(() => {
     if (selectedUniversity !== "all") {
