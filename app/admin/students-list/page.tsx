@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
 import { loadStudents, saveStudents, loadRooms, loadSubjects, type Student, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import {
   Dialog,
   DialogContent,
@@ -39,9 +40,13 @@ export default function StudentsListPage() {
     subjectCode: "",
   })
 
+  // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
-      const storedAccountType = sessionStorage.getItem("accountType") || ""
+      const storedAccountType = session.accountType || ""
       setAccountType(storedAccountType)
 
       if (storedAccountType === "special_master") {
@@ -69,7 +74,7 @@ export default function StudentsListPage() {
       setSubjects(Array.isArray(fetchedSubjects) ? fetchedSubjects : [])
     }
     fetchData()
-  }, [])
+  }, [session, isSessionLoading])
 
   const filteredStudents = students.filter((s) => {
     const matchesSearch =
