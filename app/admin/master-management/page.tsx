@@ -1,27 +1,42 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Building2, DoorOpen, BookOpen, ArrowLeft } from "lucide-react"
+import { useSession } from "@/lib/auth/use-session"
 
+/**
+ * Phase 9b-β2a: sessionStorage("accountType") を useSession() に置換。
+ *
+ * 動作:
+ * - 未ログイン(session === null)→ /admin/login へリダイレクト
+ *   ※ middleware が /admin/master-management を Cookie ガードしているため
+ *      実際にはここに到達した時点で session ありが期待値だが、二重防御として残す
+ * - special_master のみ「大学マスター管理」カードを表示
+ *
+ * このファイルは β2 の最小先行サンプル。残りの consumer も順次同パターンで置換していく。
+ */
 export default function MasterManagementPage() {
   const router = useRouter()
-  const [accountType, setAccountType] = useState<string | null>(null)
+  const { session, isLoading } = useSession()
 
-  useEffect(() => {
-    const storedAccountType = sessionStorage.getItem("accountType")
-    setAccountType(storedAccountType)
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <p className="text-muted-foreground">読み込み中...</p>
+      </div>
+    )
+  }
 
-    if (!storedAccountType) {
+  if (!session) {
+    if (typeof window !== "undefined") {
       router.push("/admin/login")
     }
-  }, [router])
-
-  if (!accountType) {
     return null
   }
+
+  const accountType = session.accountType
 
   return (
     <div className="container mx-auto p-6">
