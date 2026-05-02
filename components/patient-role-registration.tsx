@@ -26,7 +26,7 @@ export function PatientRoleRegistration() {
     name: "",
     email: "",
     password: "",
-    role: "general" as "general" | "admin",
+    role: "general" as "general",
     roomNumber: "",
     university_code: "",
     subjectCode: "",
@@ -153,7 +153,7 @@ export function PatientRoleRegistration() {
           name,
           email,
           password,
-          role: "general" as "general" | "admin",
+          role: "general",
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
           universityCode: university_code || "",
@@ -227,7 +227,7 @@ export function PatientRoleRegistration() {
         patients
           .map((p) => {
             const universityName = universities[p.universityCode || ""] || ""
-            return `${universityName},${p.name},${p.email},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`
+            return `${universityName},${p.name},${p.email},一般,${p.assignedRoomNumber || ""}`
           })
           .join("\n")
     } else {
@@ -237,7 +237,7 @@ export function PatientRoleRegistration() {
         patients
           .map(
             (p) =>
-              `${p.name},${p.email},${p.role === "admin" ? "管理者" : "一般"},${p.assignedRoomNumber || ""}`,
+              `${p.name},${p.email},一般,${p.assignedRoomNumber || ""}`,
           )
           .join("\n")
     }
@@ -353,7 +353,7 @@ export function PatientRoleRegistration() {
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     />
                   </div>
-                  {/* 患者役は常に「一般」権限。セレクタは非表示 */}
+                  {/* ADR-001 §7-2(b): 患者役は role="general" のみ */}
                   <input type="hidden" value="general" />
                   <div className="space-y-2">
                     <Label htmlFor="roomNumber">担当部屋番号 *</Label>
@@ -517,10 +517,10 @@ export function PatientRoleRegistration() {
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded text-xs font-semibold ${
-                              patient.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                              "bg-blue-100 text-blue-800"
                             }`}
                           >
-                            {patient.role === "admin" ? "管理者" : "一般"}
+                            一般
                           </span>
                         </TableCell>
                         <TableCell>{patient.assignedRoomNumber || "-"}</TableCell>

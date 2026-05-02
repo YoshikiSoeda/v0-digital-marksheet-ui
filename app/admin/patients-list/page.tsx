@@ -27,7 +27,7 @@ export default function PatientsListPage() {
     name: "",
     email: "",
     password: "",
-    role: "general" as "general" | "admin",
+    role: "general",
     roomNumber: "",
     university_code: "",
     subjectCode: "",
@@ -105,7 +105,7 @@ export default function PatientsListPage() {
             name: editForm.name,
             email: editForm.email,
             password: editForm.password,
-            role: editForm.role,
+            role: editForm.role as "general",
             assignedRoomNumber: editForm.roomNumber,
             universityCode: editForm.university_code,
           }
@@ -146,7 +146,7 @@ export default function PatientsListPage() {
         p.name,
         p.email,
         p.password,
-        p.role === "admin" ? "管理者" : "一般",
+        "一般",
         p.assignedRoomNumber || "",
       ]
       return baseRow
@@ -270,10 +270,10 @@ export default function PatientsListPage() {
                           <td className="p-2">
                             <span
                               className={`px-2 py-1 rounded text-xs font-semibold ${
-                                patient.role === "admin" ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                                "bg-blue-100 text-blue-800"
                               }`}
                             >
-                              {patient.role === "admin" ? "管理者" : "一般"}
+                              一般
                             </span>
                           </td>
                           <td className="p-2">
@@ -374,11 +374,10 @@ export default function PatientsListPage() {
                 <select
                   id="edit-role"
                   value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "general" | "admin" })}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value as "general" })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="general">一般</option>
-                  <option value="admin">管理者</option>
                 </select>
               </div>
               <div className="space-y-2">

@@ -40,7 +40,7 @@ export interface Patient {
   name: string // 氏名
   email: string // メールアドレス（ログインID）
   password: string // ログインパスワード
-  role: "general" | "admin" // 権限（一般 or 管理者）
+  role: "general" // ADR-001 §7-2(b) で patient_admin は廃止、general のみ
   assignedRoomNumber: string // 担当部屋番号（単一）
   createdAt: string
   universityCode?: string // 大学コード
