@@ -12,6 +12,7 @@ import { ArrowLeft, Plus, Trash2, FileDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { loadTests, saveTests, type Test, type Sheet, type Question } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function QuestionCreate() {
@@ -53,14 +54,18 @@ export function QuestionCreate() {
 
   const [showPreview, setShowPreview] = useState(false)
 
+  // Phase 9b-β2e: sessionStorage 認可キーを useSession() に置換
+  // 旧 userType キーはどこからも書き込まれない dead 値だったため、session.loginType で代替
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const accountType = sessionStorage.getItem("accountType")
-    const userUniversityCode = sessionStorage.getItem("universityCode")
-    const subjectCode = sessionStorage.getItem("subjectCode")
-    const userType = sessionStorage.getItem("userType")
+    if (isSessionLoading || !session) return
+    const accountType = session.accountType || ""
+    const userUniversityCode = session.universityCode || ""
+    const subjectCode = session.subjectCode || ""
 
     setIsSpecialMaster(accountType === "special_master")
-    setIsTeacher(userType === "teacher")
+    setIsTeacher(session.loginType === "teacher")
 
     if (subjectCode) {
       setTeacherSubjectCode(subjectCode)
@@ -84,7 +89,7 @@ export function QuestionCreate() {
 
     fetchSubjects(userUniversityCode)
     fetchTestSessions()
-  }, [])
+  }, [session, isSessionLoading])
 
   const fetchSubjects = async (universityCode: string | null) => {
     try {
