@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { loadRooms, saveRooms, loadSubjects, type Room, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -33,8 +34,12 @@ export function RoomManagement() {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const router = useRouter()
 
+  // Phase 9b-β2e: sessionStorage 認可キーを useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const accountType = sessionStorage.getItem("accountType")
+    if (isSessionLoading || !session) return
+    const accountType = session.accountType || ""
     setIsSpecialMaster(accountType === "special_master")
 
     if (accountType === "special_master") {
@@ -65,7 +70,7 @@ export function RoomManagement() {
       setSubjects(loadedSubjects)
     }
     fetchSubjects()
-  }, [])
+  }, [session, isSessionLoading])
 
   const handleAddRoom = async () => {
     if (!newRoomNumber || !newRoomName) {
@@ -84,7 +89,7 @@ export function RoomManagement() {
       return
     }
 
-    const universityCode = isSpecialMaster ? newUniversityCode : sessionStorage.getItem("universityCode") || ""
+    const universityCode = isSpecialMaster ? newUniversityCode : (session?.universityCode || "")
 
     const testSessionId = sessionStorage.getItem("testSessionId") || ""
     const newRoom: Room = {
@@ -155,7 +160,7 @@ export function RoomManagement() {
       const lines = csvText.split("\n").filter((line) => line.trim())
       const importedRooms: Room[] = []
 
-      const defaultUniversityCode = isSpecialMaster ? "" : sessionStorage.getItem("universityCode") || ""
+      const defaultUniversityCode = isSpecialMaster ? "" : (session?.universityCode || "")
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
       for (let i = 1; i < lines.length; i++) {

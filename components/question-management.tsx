@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy, Hourglass } from "lucide-react"
 import Link from "next/link"
 import { loadTests, saveTests, deleteTest, type Test } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -44,12 +45,17 @@ export function QuestionManagement() {
   const [newUniversityCode, setNewUniversityCode] = useState("")
   const [newSubjectCode, setNewSubjectCode] = useState("")
 
+  // Phase 9b-β2e: sessionStorage 認可キーを useSession() に置換
+  // userType キーは dead 値だったため session.loginType で代替
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const accountType = sessionStorage.getItem("accountType")
-    const userUniversityCode = sessionStorage.getItem("universityCode")
-    const subjectCode = sessionStorage.getItem("subjectCode")
-    const userType = sessionStorage.getItem("userType") // "admin" or "teacher"
-    const role = sessionStorage.getItem("role") || ""
+    if (isSessionLoading || !session) return
+    const accountType = session.accountType || ""
+    const userUniversityCode = session.universityCode || ""
+    const subjectCode = session.subjectCode || ""
+    const userType = session.loginType // "admin" or "teacher" or "patient"
+    const role = session.role || ""
 
     setIsSpecialMaster(accountType === "special_master")
     setIsTeacher(userType === "teacher")
@@ -79,7 +85,7 @@ export function QuestionManagement() {
     fetchSubjects(userUniversityCode)
     fetchTestSessions()
     fetchTests()
-  }, [])
+  }, [session, isSessionLoading])
 
   const fetchTestSessions = async () => {
     try {
@@ -159,7 +165,7 @@ export function QuestionManagement() {
   // testSessionIdでグルーピング（通常ユーザー向け）
   // まずフィルタ条件に合うセッションを全て含める（テスト0件のセッションも表示）
   const groupedBySession: Record<string, Test[]> = {}
-  const userUniversityCode = typeof window !== "undefined" ? sessionStorage.getItem("universityCode") : null
+  const userUniversityCode = session?.universityCode || null
   testSessions.forEach((session) => {
     // 大学フィルタ
     if (userUniversityCode && !isSpecialMaster && session.university_code !== userUniversityCode) return
@@ -253,7 +259,7 @@ export function QuestionManagement() {
         return
       }
       try {
-        const universityCode = (original as any).universityCode || sessionStorage.getItem("universityCode") || ""
+        const universityCode = (original as any).universityCode || session?.universityCode || ""
         const res = await fetch("/api/test-sessions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

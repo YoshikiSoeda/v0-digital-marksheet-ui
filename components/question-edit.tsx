@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, Trash2, Hourglass } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { loadTests, saveTests, type Sheet, type Question } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface QuestionEditProps {
@@ -32,12 +33,16 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
   const [roleType, setRoleType] = useState<"teacher" | "patient">("teacher")
   const [passingScore, setPassingScore] = useState<string>("")
 
+  // Phase 9b-β2e: sessionStorage 認可キーを useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
-    const storedAccountType = sessionStorage.getItem("accountType") || ""
+    if (isSessionLoading || !session) return
+    const storedAccountType = session.accountType || ""
     setAccountType(storedAccountType)
 
     // 大学管理者の場合、大学コードを固定
-    const storedUniversityCode = sessionStorage.getItem("universityCode") || ""
+    const storedUniversityCode = session.universityCode || ""
 
     const fetchTest = async () => {
       try {
@@ -85,7 +90,7 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
     }
 
     fetchTest()
-  }, [testId, router])
+  }, [session, isSessionLoading, testId, router])
 
   const filteredSubjects = selectedUniversity
     ? subjects.filter((s) => s.university_code === selectedUniversity)
