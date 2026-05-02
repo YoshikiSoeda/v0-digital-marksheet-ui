@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
 import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, loadSubjects, type Teacher,
   type TeacherRole, type Subject } from "@/lib/data-storage"
+import { useSession } from "@/lib/auth/use-session"
 
 export default function TeachersListPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -33,9 +34,13 @@ export default function TeachersListPage() {
     subjectCode: "",
   })
 
+  // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
   useEffect(() => {
+    if (isSessionLoading || !session) return
     const fetchData = async () => {
-      const storedAccountType = sessionStorage.getItem("accountType") || ""
+      const storedAccountType = session.accountType || ""
       setAccountType(storedAccountType)
 
       if (storedAccountType === "special_master") {
@@ -65,7 +70,7 @@ export default function TeachersListPage() {
     }
 
     fetchData()
-  }, [])
+  }, [session, isSessionLoading])
 
   const filteredTeachers = teachers.filter((t) => {
     const matchesSearch =
