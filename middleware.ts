@@ -21,6 +21,9 @@ const PUBLIC_API_PATHS: string[] = [
 ]
 
 const PUBLIC_PAGES_PREFIX = [
+  // Phase 9d-1: 共通ログイン
+  "/login",
+  // 旧 URL(next.config.mjs の redirects で /login へ転送、middleware で 401 になる前に通す必要あり)
   "/admin/login",
   "/teacher/login",
   "/patient/login",
