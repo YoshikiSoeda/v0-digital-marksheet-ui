@@ -32,6 +32,7 @@ export async function listTestSessions(params: ListTestSessionsParams = {}): Pro
     universityCode: row.university_code as string | undefined,
     subjectCode: row.subject_code as string | undefined,
     passingScore: (row.passing_score as number | null) ?? null,
+    durationMinutes: (row.duration_minutes as number | null) ?? null,
     status: (row.status as "not_started" | "in_progress" | "completed") || "not_started",
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string | undefined,

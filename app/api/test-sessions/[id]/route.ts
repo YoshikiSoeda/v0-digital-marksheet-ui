@@ -19,6 +19,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (body.description !== undefined) updateData.description = body.description
     if (body.university_code !== undefined) updateData.university_code = body.university_code
     if (body.passing_score !== undefined) updateData.passing_score = body.passing_score ?? null
+    if (body.duration_minutes !== undefined) updateData.duration_minutes = body.duration_minutes ?? null
     if (body.status !== undefined) updateData.status = body.status
 
     const { data, error } = await supabase

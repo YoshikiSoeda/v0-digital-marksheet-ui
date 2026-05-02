@@ -22,6 +22,8 @@ export function AdminSettings() {
   const [testSessions, setTestSessions] = useState<any[]>([])
   const [passingScores, setPassingScores] = useState<Record<string, string>>({})
   const [savingPassingScore, setSavingPassingScore] = useState<string | null>(null)
+  const [durations, setDurations] = useState<Record<string, string>>({})
+  const [savingDuration, setSavingDuration] = useState<string | null>(null)
 
   // Phase 9b-β2c: sessionStorage("accountType"|"universityCode") を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
@@ -55,15 +57,43 @@ export function AdminSettings() {
       .then((data) => {
         setTestSessions(data || [])
         const scores: Record<string, string> = {}
+        const durs: Record<string, string> = {}
         ;(data || []).forEach((s: any) => {
           if (s.passing_score != null) {
             scores[s.id] = String(s.passing_score)
           }
+          if (s.duration_minutes != null) {
+            durs[s.id] = String(s.duration_minutes)
+          }
         })
         setPassingScores(scores)
+        setDurations(durs)
       })
       .catch((err) => {})
   }, [session, isSessionLoading])
+
+  const handleSaveDuration = async (sessionId: string) => {
+    setSavingDuration(sessionId)
+    try {
+      const minutes = durations[sessionId]
+      const res = await fetch(`/api/test-sessions/${sessionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          duration_minutes: minutes ? parseInt(minutes, 10) : null,
+        }),
+      })
+      if (res.ok) {
+        alert("制限時間を保存しました")
+      } else {
+        alert("保存に失敗しました")
+      }
+    } catch {
+      alert("エラーが発生しました")
+    } finally {
+      setSavingDuration(null)
+    }
+  }
 
   const handleSavePassingScore = async (sessionId: string) => {
     setSavingPassingScore(sessionId)
@@ -202,6 +232,46 @@ export function AdminSettings() {
                       disabled={savingPassingScore === session.id}
                     >
                       {savingPassingScore === session.id ? "..." : "保存"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            {testSessions.filter((s) => !selectedUniversity || s.university_code === selectedUniversity).length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">試験セッションが登録されていません</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>制限時間設定</CardTitle>
+            <CardDescription>試験セッションごとに制限時間(分)を設定します。未設定の場合は経過時間のみ表示されます。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {testSessions
+              .filter((s) => !selectedUniversity || s.university_code === selectedUniversity)
+              .map((session) => (
+                <div key={session.id} className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{session.description || "(名称未設定)"}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(session.test_date).toLocaleDateString("ja-JP")}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Input
+                      type="number"
+                      className="w-24 h-8 text-sm"
+                      placeholder="未設定"
+                      value={durations[session.id] || ""}
+                      onChange={(e) => setDurations({ ...durations, [session.id]: e.target.value })}
+                    />
+                    <span className="text-xs text-muted-foreground">分</span>
+                    <Button
+                      size="sm"
+                      className="h-8 bg-[#00417A] hover:bg-[#00417A]/90"
+                      onClick={() => handleSaveDuration(session.id)}
+                      disabled={savingDuration === session.id}
+                    >
+                      {savingDuration === session.id ? "..." : "保存"}
                     </Button>
                   </div>
                 </div>

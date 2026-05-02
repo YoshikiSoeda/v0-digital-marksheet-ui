@@ -151,6 +151,8 @@ export interface TestSession {
   universityCode: string
   subjectCode?: string
   passingScore?: number | null
+  /** 制限時間(分)。NULL/undefined は制限時間未設定。 */
+  durationMinutes?: number | null
   status: TestSessionStatus
   createdAt: string
   updatedAt: string

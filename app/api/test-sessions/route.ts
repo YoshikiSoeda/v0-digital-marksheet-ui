@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
         university_code: body.university_code,
         subject_code: body.subject_code || null,
         passing_score: body.passing_score ?? null,
+        duration_minutes: body.duration_minutes ?? null,
       } as never)
       .select()
       .single()
