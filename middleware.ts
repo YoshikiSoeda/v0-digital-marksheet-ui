@@ -15,10 +15,6 @@ const PUBLIC_API_PATHS: string[] = [
   // 認証エンドポイント自身は当然認証不要
   // 統合ログイン (Phase 9b-α)
   "/api/auth/login",
-  // 旧ログイン経路(Phase 9b-β で UI 移行、9d で削除予定)
-  "/api/auth/admin/login",
-  "/api/auth/teacher/login",
-  "/api/auth/patient/login",
   "/api/auth/logout",
   // パスワードリセット (Phase 8c) は未ログインで使う
   "/api/auth/reset-password",

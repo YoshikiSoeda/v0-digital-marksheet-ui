@@ -287,11 +287,8 @@ export function AdminLoginForm() {
   }
 
   const handleSessionSelect = (sessionId: string) => {
-    for (const [key, value] of Object.entries(pendingLoginInfo)) {
-      sessionStorage.setItem(key, value)
-    }
+    // Phase 9b-β2f2: 認可情報は HttpOnly Cookie に集約。testSessionId のみ UI 状態として書く。
     sessionStorage.setItem("testSessionId", sessionId)
-    // Phase 8: HttpOnly cookie は API 側で発行済みのため不要
     window.location.href = "/admin/dashboard"
   }
 

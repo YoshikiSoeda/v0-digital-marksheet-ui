@@ -153,32 +153,12 @@ export function TeacherLoginForm() {
     completeLogin(result.user, result.redirectTo)
   }
 
-  // β1: sessionStorage 書き込みは consumer 互換のため維持。β2 で撤去予定。
+  // Phase 9b-β2f2: 認可情報は HttpOnly Cookie に集約済み(/api/auth/login で発行)。
+  // ここで sessionStorage に書くのは testSessionId のみ(test-selection-screen が
+  // 上書きする UI 状態の初期値)。それ以外のキーは consumer 側で useSession() 経由で
+  // 取得するため不要。
   const completeLogin = (user: UnifiedLoginUser, redirectTo?: string) => {
-    sessionStorage.setItem(
-      "loginInfo",
-      JSON.stringify({
-        loginType: "teacher",
-        role: user.role,
-        userId: user.id,
-        userName: user.name,
-        email: user.email,
-        assignedRoomNumber: user.assignedRoomNumber,
-        universityCode: user.universityCode,
-        subjectCode: user.subjectCode,
-        testSessionId: user.testSessionId,
-      }),
-    )
-    sessionStorage.setItem("teacherId", user.id)
-    sessionStorage.setItem("teacherName", user.name)
-    sessionStorage.setItem("teacherEmail", user.email)
-    sessionStorage.setItem("teacherRole", user.role)
-    sessionStorage.setItem("teacherRoom", user.assignedRoomNumber)
-    sessionStorage.setItem("universityCode", user.universityCode)
-    sessionStorage.setItem("subjectCode", user.subjectCode)
     sessionStorage.setItem("testSessionId", user.testSessionId)
-    sessionStorage.setItem("accountType", user.accountType)
-
     window.location.href = redirectTo || "/teacher/exam-info"
   }
 
