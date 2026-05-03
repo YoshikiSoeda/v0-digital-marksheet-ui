@@ -19,6 +19,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSession } from "@/lib/auth/use-session"
+import { computePassResult } from "@/lib/passing"
 
 interface RoleStats {
   completedCount: number
@@ -39,7 +40,7 @@ interface RoomData {
   passCount: number
   teacherStats: RoleStats
   patientStats: RoleStats
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number; passResult?: "合格" | "不合格" | "" }>
   universityCode?: string
 }
 
@@ -358,19 +359,30 @@ const AdminDashboard = () => {
               }
             })
 
-            // Calculate pass count per student (sum teacher + patient scores)
+            // ADR-006: % 判定で合格者数を集計
             const currentSessionId = sessionStorage.getItem("testSessionId") || ""
             const currentSession = fetchedSessions.find((s) => s.id === currentSessionId)
             const passingScoreVal = currentSession?.passingScore
             let passCount = 0
             if (passingScoreVal != null && passingScoreVal > 0) {
-              const studentScoreSum = new Map<string, number>()
+              const studentEvalsMap = new Map<string, EvaluationResult[]>()
               roomEvaluations.forEach((e) => {
-                if (e.isCompleted) {
-                  studentScoreSum.set(e.studentId, (studentScoreSum.get(e.studentId) || 0) + (e.totalScore || 0))
-                }
+                if (!e.isCompleted) return
+                const arr = studentEvalsMap.get(e.studentId) || []
+                arr.push(e)
+                studentEvalsMap.set(e.studentId, arr)
               })
-              studentScoreSum.forEach((sum) => { if (sum >= passingScoreVal) passCount++ })
+              studentEvalsMap.forEach((evals) => {
+                const detail = computePassResult({
+                  evaluations: evals.map((e) => ({
+                    totalScore: e.totalScore,
+                    maxScore: (e as any).maxScore,
+                    isCompleted: e.isCompleted,
+                  })),
+                  passingScore: passingScoreVal,
+                })
+                if (detail.result === "合格") passCount++
+              })
             }
 
             const studentsWithStatus = roomStudents.map((student) => {
@@ -381,6 +393,15 @@ const AdminDashboard = () => {
               const totalScore = studentEvaluation?.totalScore || 0
               const studentEvals = roomEvaluations.filter((e) => e.studentId === student.id)
               const combinedScore = studentEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+              // ADR-006: 学生個別の % 判定
+              const passDetail = computePassResult({
+                evaluations: studentEvals.map((e) => ({
+                  totalScore: e.totalScore,
+                  maxScore: (e as any).maxScore,
+                  isCompleted: e.isCompleted,
+                })),
+                passingScore: passingScoreVal,
+              })
               return {
                 id: student.studentId,
                 name: student.name,
@@ -389,6 +410,7 @@ const AdminDashboard = () => {
                 totalScore: totalScore,
                 alertCount: studentAlertCountMap.get(student.id) || 0,
                 combinedScore,
+                passResult: passDetail.result,
               }
             })
 
@@ -568,18 +590,30 @@ const AdminDashboard = () => {
           })
 
           // Calculate pass count
+          // ADR-006: % 判定で合格者数を集計(refresh path)
           const currentSessionIdR = sessionStorage.getItem("testSessionId") || ""
           const currentSessionR = testSessions.find((s) => s.id === currentSessionIdR)
           const passingScoreValR = currentSessionR?.passingScore
           let passCountR = 0
           if (passingScoreValR != null && passingScoreValR > 0) {
-            const studentScoreSumR = new Map<string, number>()
+            const studentEvalsMapR = new Map<string, EvaluationResult[]>()
             roomEvaluations.forEach((e) => {
-              if (e.isCompleted) {
-                studentScoreSumR.set(e.studentId, (studentScoreSumR.get(e.studentId) || 0) + (e.totalScore || 0))
-              }
+              if (!e.isCompleted) return
+              const arr = studentEvalsMapR.get(e.studentId) || []
+              arr.push(e)
+              studentEvalsMapR.set(e.studentId, arr)
             })
-            studentScoreSumR.forEach((sum) => { if (sum >= passingScoreValR) passCountR++ })
+            studentEvalsMapR.forEach((evals) => {
+              const detail = computePassResult({
+                evaluations: evals.map((e) => ({
+                  totalScore: e.totalScore,
+                  maxScore: (e as any).maxScore,
+                  isCompleted: e.isCompleted,
+                })),
+                passingScore: passingScoreValR,
+              })
+              if (detail.result === "合格") passCountR++
+            })
           }
 
           const studentsWithStatus = roomStudents.map((student) => {
@@ -590,6 +624,15 @@ const AdminDashboard = () => {
             const totalScore = studentEvaluation?.totalScore || 0
             const studentEvalsR = roomEvaluations.filter((e) => e.studentId === student.id)
             const combinedScore = studentEvalsR.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+            // ADR-006: 学生個別の % 判定 (refresh path)
+            const passDetail = computePassResult({
+              evaluations: studentEvalsR.map((e) => ({
+                totalScore: e.totalScore,
+                maxScore: (e as any).maxScore,
+                isCompleted: e.isCompleted,
+              })),
+              passingScore: passingScoreValR,
+            })
             return {
               id: student.studentId,
               name: student.name,
@@ -598,6 +641,7 @@ const AdminDashboard = () => {
               totalScore: totalScore,
               alertCount: studentAlertCountMap.get(student.id) || 0,
               combinedScore,
+              passResult: passDetail.result,
             }
           })
 
@@ -1037,12 +1081,11 @@ const AdminDashboard = () => {
                               )}
                             </td>
                             <td className="text-center py-2 font-semibold">
-                              {currentPassingScore != null && currentPassingScore > 0 && student.isCompleted ? (
-                                student.combinedScore >= currentPassingScore ? (
-                                  <span className="text-red-600">合格</span>
-                                ) : (
-                                  <span className="text-blue-600">不合格</span>
-                                )
+                              {/* ADR-006: 個別合格表示は student.passResult を直接読む(map 段階で % 判定済み) */}
+                              {student.passResult === "合格" ? (
+                                <span className="text-red-600">合格</span>
+                              ) : student.passResult === "不合格" ? (
+                                <span className="text-blue-600">不合格</span>
                               ) : (
                                 <span className="text-gray-400">-</span>
                               )}
