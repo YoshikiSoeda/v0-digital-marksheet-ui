@@ -1,17 +1,78 @@
 /**
  * Phase 9c-1: GET /api/students
  * Phase 9c-4: POST /api/students(upsert)
+ *
+ * ADR-004 Phase B-2-b: testSessionId フィルタ時は student_test_session_assignments
+ * 経由で読む(canonical 化への移行)。フィルタなしのときは students を直接読む。
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { getServiceClient, parseListQuery, requireAdmin } from "@/lib/api/_shared"
+
+type StudentRow = {
+  id: string
+  student_id: string
+  name: string
+  email?: string | null
+  department?: string | null
+  grade?: string | null
+  room_number?: string | null
+  university_code?: string | null
+  subject_code?: string | null
+  test_session_id?: string | null
+  created_at: string
+}
+
+function mapStudent(
+  row: StudentRow,
+  override?: { test_session_id?: string | null; room_number?: string | null }
+) {
+  return {
+    id: row.id,
+    studentId: row.student_id,
+    name: row.name,
+    email: row.email ?? undefined,
+    department: row.department ?? undefined,
+    grade: row.grade ?? undefined,
+    roomNumber: (override?.room_number ?? row.room_number ?? "") as string,
+    createdAt: row.created_at,
+    universityCode: row.university_code ?? undefined,
+    subjectCode: row.subject_code ?? undefined,
+    testSessionId: (override?.test_session_id ?? row.test_session_id) ?? undefined,
+  }
+}
 
 export async function GET(request: NextRequest) {
   const filters = parseListQuery(request, ["universityCode", "subjectCode", "testSessionId"] as const)
   const supabase = getServiceClient()
 
-  let query = supabase.from("students").select("*").order("created_at", { ascending: true })
+  // ADR-004 Phase B-2-b: testSessionId フィルタは assignments 経由で読む
+  if (filters.testSessionId) {
+    let q = supabase
+      .from("student_test_session_assignments")
+      .select("test_session_id, room_number, students!inner(*)")
+      .eq("test_session_id", filters.testSessionId)
+      .order("created_at", { ascending: true })
 
-  if (filters.testSessionId) query = query.eq("test_session_id", filters.testSessionId)
+    if (filters.universityCode) q = q.eq("students.university_code", filters.universityCode)
+    if (filters.subjectCode) q = q.eq("students.subject_code", filters.subjectCode)
+
+    const { data, error } = await q
+    if (error) {
+      console.error("[api/students] GET (assignments) error:", error)
+      return NextResponse.json({ error: "Failed to load students" }, { status: 500 })
+    }
+    const items = (data || []).map((a: Record<string, unknown>) => {
+      const studentRel = a.students as StudentRow
+      return mapStudent(studentRel, {
+        test_session_id: a.test_session_id as string,
+        room_number: a.room_number as string | null,
+      })
+    })
+    return NextResponse.json({ items }, { status: 200 })
+  }
+
+  // testSessionId フィルタなしは students を直接(canonical view)
+  let query = supabase.from("students").select("*").order("created_at", { ascending: true })
   if (filters.universityCode) query = query.eq("university_code", filters.universityCode)
   if (filters.subjectCode) query = query.eq("subject_code", filters.subjectCode)
 
@@ -20,19 +81,7 @@ export async function GET(request: NextRequest) {
     console.error("[api/students] GET error:", error)
     return NextResponse.json({ error: "Failed to load students" }, { status: 500 })
   }
-  const items = (data || []).map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    studentId: row.student_id as string,
-    name: row.name as string,
-    email: row.email as string | undefined,
-    department: row.department as string | undefined,
-    grade: row.grade as string | undefined,
-    roomNumber: (row.room_number as string) || "",
-    createdAt: row.created_at as string,
-    universityCode: row.university_code as string | undefined,
-    subjectCode: row.subject_code as string | undefined,
-    testSessionId: row.test_session_id as string | undefined,
-  }))
+  const items = (data || []).map((row: Record<string, unknown>) => mapStudent(row as StudentRow))
   return NextResponse.json({ items }, { status: 200 })
 }
 
