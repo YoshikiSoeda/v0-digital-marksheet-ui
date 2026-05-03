@@ -27,6 +27,7 @@ import {
   type AttendanceRecord,
   type Test,
 } from "@/lib/data-storage"
+import { computePassResult } from "@/lib/passing"
 
 export default function StudentsDetailPage() {
   const [students, setStudents] = useState<Student[]>([])
@@ -80,10 +81,12 @@ export default function StudentsDetailPage() {
     : tests
 
   const getStudentData = (student: Student) => {
-    const studentAttendance = attendanceRecords.find((a) => a.studentId === student.id) // ADR-005 F5: UUID でマッチ
+    // ADR-005 F5: attendance_records.student_id / exam_results.student_id は students.id (UUID) を参照する。
+    // student.studentId(学籍番号 text)で比較していたため常に miss して全員「未受験」扱いになっていた。
+    const studentAttendance = attendanceRecords.find((a) => a.studentId === student.id)
 
     const studentEvaluations = evaluations.filter((e) => {
-      if (e.studentId !== student.id) return false // ADR-005 F5: UUID でマッチ
+      if (e.studentId !== student.id) return false
       if (!filterTestSessionId) return true
 
       // 試験セッションIDでフィルタ
@@ -104,16 +107,26 @@ export default function StudentsDetailPage() {
     const patientScore = patientEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     const combinedScore = teacherScore + patientScore
 
-    // Pass/fail check
+    // ADR-006: 合格判定を passing_score (% 0-100) で行う
     const currentSessionId = sessionStorage.getItem("testSessionId") || filterTestSessionId
     const currentSession = testSessions.find((s: any) => s.id === currentSessionId)
     const passingScore = currentSession?.passing_score
-    let passResult: "合格" | "不合格" | "" = ""
-    if (passingScore != null && passingScore > 0 && completedEvaluations.length > 0) {
-      passResult = combinedScore >= passingScore ? "合格" : "不合格"
-    }
+    const passDetail = computePassResult({
+      evaluations: completedEvaluations.map((e: any) => ({
+        totalScore: e.totalScore,
+        maxScore: e.maxScore,
+        isCompleted: e.isCompleted,
+        evaluatorType: e.evaluatorType,
+      })),
+      passingScore,
+    })
+    const passResult = passDetail.result
 
-    const testTitle = (currentSession || testSessions.find((s: any) => s.id === filterTestSessionId))?.description || "" // ADR-005 F5: 試験セッション名を表示
+    // ADR-005 F5: 旧実装は filteredTests[0].title を全行にコピーしていたため、
+    // testSessionId フィルタが効いていない場合は他大学の test 名がそのまま表示されていた。
+    // 試験セッション名(description)は学生横串で意味のある単一値なのでこれを採用する。
+    const sessionForRow = currentSession || testSessions.find((s: any) => s.id === filterTestSessionId)
+    const testTitle = sessionForRow?.description || ""
 
     let status = "未受験"
     if (studentAttendance?.status === "present") {
