@@ -137,7 +137,7 @@ export function ExamSessionBanner({
             <div className="flex items-center gap-1.5">
               <Target className="w-4 h-4 text-amber-600" />
               <span className="text-sm">
-                合格ライン <span className="font-semibold">{session.passingScore}</span> 点
+                合格ライン <span className="font-semibold">{session.passingScore}</span>%
               </span>
             </div>
           )}
