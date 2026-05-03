@@ -97,6 +97,13 @@ interface UpsertStudent {
   testSessionId?: string
 }
 
+/**
+ * ADR-004 Phase B-2-b: POST /api/students は RPC \`register_student_canonical\` を学生ごとに呼び出す。
+ * これにより:
+ *   - students は (university_code, student_id) で 1 行のみ (canonical)
+ *   - test_session 紐付けは student_test_session_assignments に追加
+ *   - 既存 students 行の name/email 等は最新値で更新、test_session_id / room_number 列は触らない
+ */
 export async function POST(request: NextRequest) {
   const guard = requireAdmin(request)
   if (guard) return guard
@@ -110,25 +117,26 @@ export async function POST(request: NextRequest) {
   const items = Array.isArray(body.items) ? body.items : []
   if (items.length === 0) return NextResponse.json({ ok: true, upserted: 0 })
 
-  const rows = items.map((s) => ({
-    student_id: s.studentId,
-    name: s.name,
-    email: s.email || null,
-    department: s.department,
-    grade: s.grade || null,
-    room_number: s.roomNumber,
-    university_code: s.universityCode || null,
-    subject_code: s.subjectCode || null,
-    test_session_id: s.testSessionId || null,
-  }))
-
   const supabase = getServiceClient()
-  const { error } = await supabase
-    .from("students")
-    .upsert(rows as never, { onConflict: "student_id,test_session_id" })
-  if (error) {
-    console.error("[api/students] POST error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+
+  let upserted = 0
+  for (const s of items) {
+    const { error } = await supabase.rpc("register_student_canonical", {
+      p_student_id: s.studentId,
+      p_name: s.name,
+      p_email: s.email || null,
+      p_department: s.department || null,
+      p_grade: s.grade || null,
+      p_university_code: s.universityCode || null,
+      p_subject_code: s.subjectCode || null,
+      p_test_session_id: s.testSessionId || null,
+      p_room_number: s.roomNumber || null,
+    })
+    if (error) {
+      console.error("[api/students] POST rpc error:", error, { studentId: s.studentId })
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    upserted += 1
   }
-  return NextResponse.json({ ok: true, upserted: rows.length })
+  return NextResponse.json({ ok: true, upserted })
 }
