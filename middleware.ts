@@ -9,7 +9,20 @@ import type { NextRequest } from "next/server"
  * 注意: この Cookie は HttpOnly ではなくクライアント発行のため完全な機密性はない。
  *      Supabase Auth へ移行するまでの暫定ガード。
  *      Row Level Security (Supabase 側)も別途検討すべき。
+ *
+ * ADR-005 hotfix #57 後追い: /admin/* は admin 権限ロールのみアクセス可能に絞る。
+ * 一般教員・患者役は /admin/* に到達できない (api-guard.ts ADMIN_ROLES と同じセット)。
  */
+
+// /admin/* に入れる role の集合 (api-guard.ts ADMIN_ROLES と同期)
+const ADMIN_ROLES = new Set([
+  "master_admin",
+  "university_admin",
+  "subject_admin",
+  "admin",
+  "special_master",
+  "university_master",
+])
 
 const PUBLIC_API_PATHS: string[] = [
   // 認証エンドポイント自身は当然認証不要
@@ -100,6 +113,25 @@ export function middleware(request: NextRequest) {
         url.pathname = getLoginRedirect(pathname)
         return NextResponse.redirect(url)
       }
+      // ADR-005 hotfix #57 後追い: /admin/* は admin 権限のみ。
+      // 一般教員 (role="general") / 患者役 (role="general") を弾き、各々の通常画面へ戻す。
+      if (pathname.startsWith("/admin/")) {
+        const role = String(info.role || "")
+        const accountType = String(info.accountType || "")
+        const isAdmin = ADMIN_ROLES.has(role) || ADMIN_ROLES.has(accountType)
+        if (!isAdmin) {
+          const url = request.nextUrl.clone()
+          // 教員/患者は各自の試験情報画面へ、それ以外はログインへ
+          if (info.loginType === "teacher") {
+            url.pathname = "/teacher/exam-info"
+          } else if (info.loginType === "patient") {
+            url.pathname = "/patient/exam-info"
+          } else {
+            url.pathname = "/login"
+          }
+          return NextResponse.redirect(url)
+        }
+      }
     } catch {
       const url = request.nextUrl.clone()
       url.pathname = getLoginRedirect(pathname)
@@ -125,3 +157,4 @@ export const config = {
     "/patient/:path*",
   ],
 }
+
