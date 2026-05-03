@@ -27,11 +27,12 @@ import { listSubjects } from "@/lib/api/subjects"
 import { listRooms } from "@/lib/api/rooms"
 import type { Subject, Room } from "@/lib/types"
 
-type RoleChoice = "teacher_general" | "teacher_subject_admin" | "patient"
+type RoleChoice = "teacher_general" | "teacher_subject_admin" | "teacher_university_admin" | "patient"
 
 const ROLE_LABELS: Record<RoleChoice, string> = {
   teacher_general: "一般教員",
   teacher_subject_admin: "教科責任者",
+  teacher_university_admin: "大学管理者(大学責任者)",
   patient: "患者役",
 }
 
@@ -56,8 +57,14 @@ export function UnifiedUserRegistrationForm() {
   const [success, setSuccess] = useState("")
 
   const isSpecialMaster = session?.accountType === "special_master"
+  // ADR-005 F3: 大学管理者(university_admin)を作成できるのは special_master と university_master のみ。
+  // teachers.role の昇格は teachers-list の編集ダイアログでも可能だが、新規作成時に直接 UI で
+  // 選べるほうが運用上自然なので本フォームに追加する。
+  const canCreateUniversityAdmin =
+    session?.accountType === "special_master" || session?.accountType === "university_master"
   const isPatient = roleChoice === "patient"
   const isSubjectAdmin = roleChoice === "teacher_subject_admin"
+  const isUniversityAdmin = roleChoice === "teacher_university_admin"
   const isTeacher = !isPatient
 
   // Load reference data (subjects/rooms/universities) once session arrives
@@ -112,7 +119,8 @@ export function UnifiedUserRegistrationForm() {
       setError("教科責任者の場合は担当教科を選択してください")
       return
     }
-    if (isTeacher && !roomNumber) {
+    // ADR-005 F3: 大学管理者は大学全体を担当するため担当部屋は任意。それ以外の役割では必須。
+    if (isTeacher && !isUniversityAdmin && !roomNumber) {
       setError("担当部屋を選択してください")
       return
     }
@@ -147,7 +155,12 @@ export function UnifiedUserRegistrationForm() {
           throw new Error(j?.error || `register-patients failed: ${res.status}`)
         }
       } else {
-        const role = isSubjectAdmin ? "subject_admin" : "general"
+        // ADR-005 F3: 役割選択 → teachers.role マッピング
+        const role = isUniversityAdmin
+          ? "university_admin"
+          : isSubjectAdmin
+            ? "subject_admin"
+            : "general"
         const res = await fetch("/api/admin/register-teachers", {
           method: "POST",
           credentials: "same-origin",
@@ -159,7 +172,7 @@ export function UnifiedUserRegistrationForm() {
                 email,
                 password,
                 role,
-                assignedRoomNumber: roomNumber,
+                assignedRoomNumber: roomNumber || undefined,
                 universityCode,
                 subjectCode: subjectCode || undefined,
               },
@@ -243,6 +256,9 @@ export function UnifiedUserRegistrationForm() {
                 <SelectContent>
                   <SelectItem value="teacher_general">一般教員</SelectItem>
                   <SelectItem value="teacher_subject_admin">教科責任者</SelectItem>
+                  {canCreateUniversityAdmin && (
+                    <SelectItem value="teacher_university_admin">大学管理者(大学責任者)</SelectItem>
+                  )}
                   <SelectItem value="patient">患者役</SelectItem>
                 </SelectContent>
               </Select>
@@ -305,7 +321,9 @@ export function UnifiedUserRegistrationForm() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="room">担当部屋</Label>
+              <Label htmlFor="room">
+                担当部屋{isUniversityAdmin ? "(任意 — 大学管理者は大学全体を担当)" : ""}
+              </Label>
               <Select value={roomNumber} onValueChange={setRoomNumber}>
                 <SelectTrigger id="room">
                   <SelectValue placeholder="担当する部屋を選択" />

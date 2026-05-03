@@ -97,7 +97,7 @@ export function RoomManagement() {
       roomNumber: newRoomNumber,
       roomName: newRoomName,
       universityCode: universityCode,
-      subjectCode: newSubjectCode || undefined,
+      subjectCode: newSubjectCode || session?.subjectCode || undefined, // ADR-005: 未設定時は セッションの subject_code を fallback
       testSessionId,
       createdAt: new Date().toISOString(),
     }

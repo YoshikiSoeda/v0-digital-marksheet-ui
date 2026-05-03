@@ -1,9 +1,14 @@
 # ADR-004: 学生の canonical 化と試験セッション割当の junction 化
 
-**Status:** Proposed
-**Date:** 2026-05-02
+**Status:** Accepted
+**Date:** 2026-05-02(Proposed) / 2026-05-03(Accepted)
+**Decided:** 2026-05-03(soeda@ediand.co.jp による承認)
 **Deciders:** soeda@ediand.co.jp(プロダクトオーナー)/ Claude(設計補助)
-**関連:** ADR-001 §1 / Phase 9 B-1(学年カラム追加、scripts/211)/ Phase 9 B-2 候補
+**関連:** ADR-001 §1 / Phase 9 B-1(学年カラム追加、scripts/211)/ ADR-005 F4(本 ADR の優先度を再評価)
+
+> **2026-05-03 追記(Accepted への昇格理由):** ADR-005 §2 F4 で確認した通り、 `teachers` / `patients` / `students` / `rooms` の `test_session_id` がすべて NOT NULL であることが、新規試験セッション作成のたびに全データを再登録するチキン&エッグ問題の根本原因となっている。Phase 9 RLS 完了済の現在、次に着手すべき最大の構造改善として本 ADR を Accepted に昇格し、Phase B-2-1 の最初の一歩(junction table 新設)を `scripts/213` で実施する。
+>
+> Phase B-2-2 以降(API 層更新 / UI 更新 / 旧列削除)は段階的に別 PR で進める。
 
 ---
 
@@ -168,12 +173,14 @@ students
 
 ### Phase B-2-1: 新スキーマ準備(DB のみ、UI 影響なし)
 
-- [ ] **scripts/212**: `student_test_session_assignments` 表新設
-- [ ] **scripts/213**: students の重複統合(同一 university_code + student_id を集約、最新の連絡先を採用)
+> **2026-05-03 番号繰下げ:** scripts/212 が ADR-005 F2(rooms_room_number_key DROP)で先取された。本 ADR の Phase B-2-1 は scripts/213 から始める。さらに scripts/214 は ADR-006 Phase R-2-F6-0(exam_results.max_score 追加)で予約済み。
+
+- [x] **scripts/213**: `student_test_session_assignments` 表新設(本 PR で実施)
+- [ ] **scripts/215**: students の重複統合(同一 university_code + student_id を集約、最新の連絡先を採用)
   - 注: 重複統合ルールはユーザーと合意の上で実行
-- [ ] **scripts/214**: `(university_code, student_id)` UNIQUE 制約追加
-- [ ] **scripts/215**: 既存 students の (id, test_session_id, room_number) を assignments テーブルに展開
-- [ ] **scripts/216**: students から `test_session_id` `room_number` 列削除(最後)
+- [ ] **scripts/216**: `(university_code, student_id)` UNIQUE 制約追加
+- [ ] **scripts/217**: 既存 students の (id, test_session_id, room_number) を assignments テーブルに展開
+- [ ] **scripts/218**: students から `test_session_id` `room_number` 列削除(最後)
 
 各 migration ごとに smoke test(API 動作 + UI データ表示)を入れる。
 
