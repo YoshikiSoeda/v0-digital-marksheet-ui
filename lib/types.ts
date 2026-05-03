@@ -79,6 +79,8 @@ export interface EvaluationResult {
   roomNumber: string
   answers: Record<number, number> // 問題番号: 回答値（1-5）
   totalScore: number
+  // ADR-006 R-2-F6-0: 評価上限点 (NULL = レガシー行 / 算出失敗。% 判定はスキップ)
+  maxScore?: number | null
   answeredCount: number
   isCompleted: boolean
   hasAlert?: boolean // Add hasAlert flag to track if any answer triggers an alert
