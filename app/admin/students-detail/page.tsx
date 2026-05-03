@@ -28,8 +28,26 @@ import {
   type Test,
 } from "@/lib/data-storage"
 import { computePassResult } from "@/lib/passing"
+import { useSession } from "@/lib/auth/use-session"
+
+// ADR-005 hotfix: テスト終了ボタンを表示できる accountType / role の集合
+// (api-guard.ts ADMIN_ROLES と意味的に対応)
+const TEST_END_ALLOWED_ROLES = new Set([
+  "master_admin",
+  "university_admin",
+  "subject_admin",
+  "admin",
+  "special_master",
+  "university_master",
+])
 
 export default function StudentsDetailPage() {
+  const { session } = useSession()
+  // ADR-005 hotfix: admin 権限がないユーザーには「テスト終了」ボタンを非表示
+  const canEndTest = !!session && (
+    TEST_END_ALLOWED_ROLES.has(session.role || "") ||
+    TEST_END_ALLOWED_ROLES.has(session.accountType || "")
+  )
   const [students, setStudents] = useState<Student[]>([])
   const [evaluations, setEvaluations] = useState<EvaluationResult[]>([])
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
@@ -174,7 +192,10 @@ export default function StudentsDetailPage() {
   }
 
   const handleEndTest = async () => {
-    if (!currentSessionId) return
+    if (!currentSessionId) {
+      alert("試験セッションが選択されていません。ダッシュボードから受験者一覧を開き直してください。")
+      return
+    }
     setIsEndingTest(true)
     try {
       const res = await fetch(`/api/test-sessions/${currentSessionId}`, {
@@ -187,8 +208,23 @@ export default function StudentsDetailPage() {
           prev.map((s) => (s.id === currentSessionId ? { ...s, status: "completed" } : s))
         )
       } else {
+        // ADR-005 hotfix: 旧実装は silent fail だったため何が起きているか不明だった
+        let detail = ""
+        try {
+          const j = await res.json()
+          detail = j?.error ? `: ${j.error}` : ""
+        } catch {}
+        if (res.status === 401) {
+          alert(`ログインセッションが切れている可能性があります。再度ログインしてください${detail}`)
+        } else if (res.status === 403) {
+          alert(`このアカウントには「テスト終了」操作の権限がありません(管理者・大学管理者のみ可能)${detail}`)
+        } else {
+          alert(`テスト終了に失敗しました (HTTP ${res.status})${detail}`)
+        }
       }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      alert(`テスト終了処理でネットワークエラー: ${msg}`)
     } finally {
       setIsEndingTest(false)
     }
@@ -261,7 +297,8 @@ export default function StudentsDetailPage() {
               CSV出力
             </Button>
 
-            {sessionStatus !== "completed" && (
+            {/* ADR-005 hotfix: admin 権限がないユーザー(教員一般 / 患者役)には非表示 */}
+            {canEndTest && sessionStatus !== "completed" && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="flex items-center gap-2" disabled={isEndingTest}>
@@ -362,3 +399,4 @@ export default function StudentsDetailPage() {
     </div>
   )
 }
+
