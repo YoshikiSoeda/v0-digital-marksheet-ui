@@ -321,11 +321,11 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
               <>
                 <div className="text-sm">
                   <span className="font-medium">進捗:</span>{" "}
-                  {Object.entries(studentAnswers[activeStudent] || {}).filter(([_, answer]) => answer !== null).length}/
+                  {Object.entries(studentAnswers[activeStudent.id] || {}).filter(([_, answer]) => answer !== null).length}/
                   {questions.length}
                 </div>
                 <div className="text-sm">
-                  <span className="font-medium">合計点:</span> {calculateScore(activeStudent)}点
+                  <span className="font-medium">合計点:</span> {calculateScore(activeStudent.id)}点
                 </div>
               </>
             )}
