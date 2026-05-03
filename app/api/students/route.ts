@@ -4,6 +4,11 @@
  *
  * ADR-004 Phase B-2-b: testSessionId フィルタ時は student_test_session_assignments
  * 経由で読む(canonical 化への移行)。フィルタなしのときは students を直接読む。
+ *
+ * ADR-004 Phase B-2-c (本 PR): students.test_session_id / students.room_number 列は
+ * application 層から **読まない** ようにした。testSessionId / roomNumber は assignment 経由
+ * (override 付き mapStudent) でしか populate されない。両列は次 PR 以降で RPC から書き込みも
+ * 外し、最終的に scripts/22x で DROP COLUMN する。
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { getServiceClient, parseListQuery, requireAdmin } from "@/lib/api/_shared"
@@ -15,11 +20,11 @@ type StudentRow = {
   email?: string | null
   department?: string | null
   grade?: string | null
-  room_number?: string | null
   university_code?: string | null
   subject_code?: string | null
-  test_session_id?: string | null
   created_at: string
+  // NOTE: test_session_id / room_number はまだ DB 列としては存在する(B-2-c 完遂後に DROP)。
+  // しかし application 層では参照しないため、本 type 定義からも除外している。
 }
 
 function mapStudent(
@@ -33,11 +38,13 @@ function mapStudent(
     email: row.email ?? undefined,
     department: row.department ?? undefined,
     grade: row.grade ?? undefined,
-    roomNumber: (override?.room_number ?? row.room_number ?? "") as string,
+    // ADR-004 Phase B-2-c: roomNumber / testSessionId は assignments 経由 (override) のみ。
+    // students 列の値は無視する(後続 PR で DROP COLUMN するため)。
+    roomNumber: (override?.room_number ?? "") as string,
     createdAt: row.created_at,
     universityCode: row.university_code ?? undefined,
     subjectCode: row.subject_code ?? undefined,
-    testSessionId: (override?.test_session_id ?? row.test_session_id) ?? undefined,
+    testSessionId: override?.test_session_id ?? undefined,
   }
 }
 
