@@ -118,10 +118,14 @@ export async function POST(request: NextRequest) {
   if (items.length === 0) return NextResponse.json({ ok: true, upserted: 0 })
 
   const supabase = getServiceClient()
+  // RPC \`register_student_canonical\` は Database 型に未登録 (lib/api/_shared.ts は generic
+  // SupabaseClient を返す) なので、型推論を回避するため as any でキャスト。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
 
   let upserted = 0
   for (const s of items) {
-    const { error } = await supabase.rpc("register_student_canonical", {
+    const { error } = await sb.rpc("register_student_canonical", {
       p_student_id: s.studentId,
       p_name: s.name,
       p_email: s.email || null,
