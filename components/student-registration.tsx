@@ -64,7 +64,9 @@ export function StudentRegistration() {
         }
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
-        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
+        // Phase 9 Y-2 fix: subject_admin は自教科のみロード(全教科ロードすると保存時に Y-2 で 403)
+        const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
+        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(undefined, subjectScope, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
         setStudents(Array.isArray(studentsData) ? studentsData : [])
         setRooms(Array.isArray(roomsData) ? roomsData : [])
@@ -251,7 +253,9 @@ export function StudentRegistration() {
       alert(`${students.length}名の学生情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      alert("学生情報の保存中にエラーが発生しました")
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[student-registration] save failed:", msg, error)
+      alert(`学生情報の保存に失敗しました: ${msg}`)
     }
   }
 

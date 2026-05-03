@@ -44,7 +44,9 @@ export function PatientRoleRegistration() {
         setAccountType(storedAccountType)
 
         const testSessionId = sessionStorage.getItem("testSessionId") || ""
-        const [patientsData, roomsData, subjectsData] = await Promise.all([loadPatients(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
+        // Phase 9 Y-2 fix: subject_admin は自教科のみロード(全教科ロードすると保存時に Y-2 で 403)
+        const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
+        const [patientsData, roomsData, subjectsData] = await Promise.all([loadPatients(undefined, subjectScope, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
 
 
@@ -134,7 +136,8 @@ export function PatientRoleRegistration() {
     } catch (error) {
       alert("削除中にエラーが発生しました")
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
-      const data = await loadPatients(undefined, undefined, testSessionId)
+      const subjectScope = session?.accountType === "subject_admin" ? session.subjectCode : undefined
+      const data = await loadPatients(undefined, subjectScope, testSessionId)
       setPatients(Array.isArray(data) ? data : [])
     }
   }
@@ -265,7 +268,9 @@ export function PatientRoleRegistration() {
       alert(`${patients.length}名の患者役情報を保存しました`)
       router.push("/admin/account-management")
     } catch (error) {
-      alert("保存中にエラーが発生しました")
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[patient-role-registration] save failed:", msg, error)
+      alert(`患者役情報の保存に失敗しました: ${msg}`)
     }
   }
 
