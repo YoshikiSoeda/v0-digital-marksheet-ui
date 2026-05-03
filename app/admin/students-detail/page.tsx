@@ -80,10 +80,10 @@ export default function StudentsDetailPage() {
     : tests
 
   const getStudentData = (student: Student) => {
-    const studentAttendance = attendanceRecords.find((a) => a.studentId === student.studentId)
+    const studentAttendance = attendanceRecords.find((a) => a.studentId === student.id) // ADR-005 F5: UUID でマッチ
 
     const studentEvaluations = evaluations.filter((e) => {
-      if (e.studentId !== student.studentId) return false
+      if (e.studentId !== student.id) return false // ADR-005 F5: UUID でマッチ
       if (!filterTestSessionId) return true
 
       // 試験セッションIDでフィルタ
@@ -113,7 +113,7 @@ export default function StudentsDetailPage() {
       passResult = combinedScore >= passingScore ? "合格" : "不合格"
     }
 
-    const testTitle = filteredTests.length > 0 ? filteredTests[0].title : ""
+    const testTitle = (currentSession || testSessions.find((s: any) => s.id === filterTestSessionId))?.description || "" // ADR-005 F5: 試験セッション名を表示
 
     let status = "未受験"
     if (studentAttendance?.status === "present") {
