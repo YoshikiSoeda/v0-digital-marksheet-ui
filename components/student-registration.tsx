@@ -647,8 +647,7 @@ export function StudentRegistration() {
                     <Label className="text-xs text-muted-foreground">教科</Label>
                     {accountType === "subject_admin" ? (
                       <div className="flex items-center h-9 px-3 bg-muted rounded-md text-sm">
-                        {subjects.find((s: any) => (s.subjectCode || s.subject_code) === canonicalSearchSubject)?.subjectName ||
-                          subjects.find((s: any) => (s.subjectCode || s.subject_code) === canonicalSearchSubject)?.subject_name ||
+                        {subjects.find((s) => s.subjectCode === canonicalSearchSubject)?.subjectName ||
                           canonicalSearchSubject ||
                           "未設定"}
                       </div>
@@ -659,15 +658,11 @@ export function StudentRegistration() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">すべて</SelectItem>
-                          {subjects.map((s: any) => {
-                            const code = s.subjectCode || s.subject_code
-                            const name = s.subjectName || s.subject_name
-                            return (
-                              <SelectItem key={code} value={code}>
-                                {name}
-                              </SelectItem>
-                            )
-                          })}
+                          {subjects.map((s) => (
+                            <SelectItem key={s.subjectCode} value={s.subjectCode}>
+                              {s.subjectName}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
@@ -717,8 +712,7 @@ export function StudentRegistration() {
                           {canonicalStudents.map((s) => {
                             const isAssigned = alreadyAssignedIds.has(s.id)
                             const subjName =
-                              subjects.find((sub: any) => (sub.subjectCode || sub.subject_code) === s.subjectCode)?.subjectName ||
-                              subjects.find((sub: any) => (sub.subjectCode || sub.subject_code) === s.subjectCode)?.subject_name ||
+                              subjects.find((sub) => sub.subjectCode === s.subjectCode)?.subjectName ||
                               s.subjectCode ||
                               "—"
                             return (
