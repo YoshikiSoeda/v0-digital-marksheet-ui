@@ -9,19 +9,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft, AlertTriangle } from "lucide-react"
+import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
 import {
   saveTeachers,
   loadTeachers,
   loadRooms,
   loadSubjects,
-  loadTestSessions,
   type Teacher,
   type TeacherRole,
   type Room,
   type Subject,
-  type TestSession,
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { createClient } from "@/lib/supabase/client"
@@ -47,19 +44,10 @@ export function TeacherRegistration() {
   })
   const [isDragging, setIsDragging] = useState(false)
 
-  // 2026-05-04: 試験セッション必須化 (teachers.test_session_id NOT NULL 対応)
-  const [testSessions, setTestSessions] = useState<TestSession[]>([])
-  const [selectedTestSessionId, setSelectedTestSessionId] = useState<string>(() => {
-    if (typeof window === "undefined") return ""
-    return sessionStorage.getItem("testSessionId") || ""
-  })
-
-  const onChangeSelectedSession = (v: string) => {
-    setSelectedTestSessionId(v)
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("testSessionId", v)
-    }
-  }
+  // ADR-007 Phase C-4: 試験セッション選択 UI を撤去
+  //   - teachers.test_session_id を NULLABLE 化済 (scripts/228)
+  //   - register_teachers_bulk RPC は canonical 化済 (scripts/226)
+  //   - 教員はマスター登録だけ。session 紐付けは試験セッション編集ウィザード (C-5) で行う
 
   // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
@@ -71,18 +59,14 @@ export function TeacherRegistration() {
         const storedAccountType = session.accountType || ""
         setAccountType(storedAccountType)
 
-        const testSessionId = selectedTestSessionId
+        // ADR-007 Phase C-4: testSessionId フィルタなしで canonical 一覧をロード
         // Phase 9 Y-2 fix: subject_admin は自教科のみロード(全教科ロードすると保存時に Y-2 で 403)
         const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
-        // 2026-05-04: 試験セッション一覧も読み込む(セッション選択 UI のため)
-        const universityCodeForSessions = session.universityCode || undefined
-        const [teachersData, roomsData, subjectsData, sessionsData] = await Promise.all([
-          loadTeachers(undefined, subjectScope, testSessionId),
-          loadRooms(undefined, undefined, testSessionId),
+        const [teachersData, roomsData, subjectsData] = await Promise.all([
+          loadTeachers(undefined, subjectScope, undefined),
+          loadRooms(undefined, undefined, undefined),
           loadSubjects(),
-          loadTestSessions(universityCodeForSessions),
         ])
-        setTestSessions(Array.isArray(sessionsData) ? sessionsData : [])
 
 
         const sortedTeachers = Array.isArray(teachersData)
@@ -125,15 +109,9 @@ export function TeacherRegistration() {
     }
 
     fetchData()
-  }, [session, isSessionLoading, selectedTestSessionId])
+  }, [session, isSessionLoading])
 
   const handleAddTeacher = () => {
-
-    if (!selectedTestSessionId) {
-      alert("先に試験セッションを選択してください")
-      return
-    }
-
     if (!formData.name || !formData.email || !formData.password) {
       alert("氏名、メールアドレス、パスワードは必須です")
       return
@@ -158,7 +136,7 @@ export function TeacherRegistration() {
       createdAt: new Date().toISOString(),
       universityCode: formData.university_code,
       subjectCode: formData.subjectCode,
-      testSessionId: selectedTestSessionId,
+      testSessionId: "", // ADR-007 C-4: canonical 登録、session 紐付けはウィザードで
     }
 
 
@@ -178,13 +156,9 @@ export function TeacherRegistration() {
   }
 
   const parseCSV = (text: string) => {
-    if (!selectedTestSessionId) {
-      alert("先に試験セッションを選択してください")
-      return
-    }
     const lines = text.split("\n").filter((line) => line.trim())
     const newTeachers: Teacher[] = []
-    const testSessionId = selectedTestSessionId
+    const testSessionId = "" // ADR-007 C-4: canonical 登録
 
     for (let i = 1; i < lines.length; i++) {
       const [name, email, password, role, roomNumber, university_code, subjectCode] = lines[i]
@@ -402,45 +376,6 @@ export function TeacherRegistration() {
               </div>
             </div>
           </CardHeader>
-        </Card>
-
-        {/* 2026-05-04: 試験セッション必須化 — teachers.test_session_id NOT NULL 対応 */}
-        <Card className="mx-auto max-w-6xl border-amber-200 bg-amber-50/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-              試験セッションを選択
-            </CardTitle>
-            <CardDescription>
-              教員アカウントは特定の試験セッションに紐づいて登録されます。先に対象の試験セッションを選択してください。
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedTestSessionId} onValueChange={onChangeSelectedSession}>
-              <SelectTrigger className="w-full md:w-[480px]">
-                <SelectValue placeholder="試験セッションを選択してください" />
-              </SelectTrigger>
-              <SelectContent>
-                {testSessions.length === 0 ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    登録可能な試験セッションがありません
-                  </div>
-                ) : (
-                  testSessions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.description || "(名称未設定)"}
-                      {s.testDate && ` — ${new Date(s.testDate).toLocaleDateString("ja-JP")}`}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            {!selectedTestSessionId && (
-              <p className="text-xs text-amber-700 mt-2">
-                ⚠ 試験セッションを選択するまで教員を登録できません。
-              </p>
-            )}
-          </CardContent>
         </Card>
 
         <Tabs defaultValue="manual" className="w-full">
