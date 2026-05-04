@@ -205,7 +205,7 @@ export function AdminSettings() {
         <Card>
           <CardHeader>
             <CardTitle>合格ライン設定</CardTitle>
-            <CardDescription>試験セッションごとに合格ライン（教員側＋患者役側の合計点）を設定します</CardDescription>
+            <CardDescription>試験セッションごとに合格ライン %(0-100) を設定します(教員側＋患者役側の合計に対する達成率)</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {testSessions
@@ -220,12 +220,14 @@ export function AdminSettings() {
                   <div className="flex items-center gap-2 shrink-0">
                     <Input
                       type="number"
+                      min="0"
+                      max="100"
                       className="w-24 h-8 text-sm"
-                      placeholder="未設定"
+                      placeholder="例: 70"
                       value={passingScores[session.id] || ""}
                       onChange={(e) => setPassingScores({ ...passingScores, [session.id]: e.target.value })}
                     />
-                    <span className="text-xs text-muted-foreground">点</span>
+                    <span className="text-xs text-muted-foreground">%</span>
                     <Button
                       size="sm"
                       className="h-8 bg-[#00417A] hover:bg-[#00417A]/90"

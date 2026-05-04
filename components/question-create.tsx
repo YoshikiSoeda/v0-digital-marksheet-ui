@@ -722,14 +722,16 @@ export function QuestionCreate() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">合格基準点</Label>
+                  {/* ADR-006 R-2-F6-2: passing_score は % 運用 (0-100)。ラベル/プレースホルダ/バリデーションを統一。 */}
+                  <Label className="text-xs text-muted-foreground">合格ライン %(0-100)</Label>
                   <Input
                     type="number"
                     min="0"
+                    max="100"
                     className="h-9 w-24"
                     value={passingScore}
                     onChange={(e) => setPassingScore(e.target.value)}
-                    placeholder="点"
+                    placeholder="例: 70"
                   />
                 </div>
 
