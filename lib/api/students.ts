@@ -7,6 +7,7 @@ export interface ListStudentsParams {
   universityCode?: string
   subjectCode?: string
   testSessionId?: string
+  grade?: string
   [k: string]: string | undefined
 }
 

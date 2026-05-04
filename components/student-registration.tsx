@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft, Search, Users } from "lucide-react"
 import { saveStudents, loadStudents, loadRooms, loadSubjects, type Student, type Room, type Subject } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 
@@ -35,6 +37,17 @@ export function StudentRegistration() {
 
   // Phase 9b-β2d: sessionStorage("accountType") を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
+
+  // ADR-004 Phase B-2-d: 過去学生から登録 (bulk assign from canonical) 用 state
+  const [canonicalSearchUniversity, setCanonicalSearchUniversity] = useState<string>("")
+  const [canonicalSearchGrade, setCanonicalSearchGrade] = useState<string>("all")
+  const [canonicalSearchSubject, setCanonicalSearchSubject] = useState<string>("all")
+  const [canonicalTargetRoom, setCanonicalTargetRoom] = useState<string>("")
+  const [canonicalStudents, setCanonicalStudents] = useState<Student[]>([])
+  const [selectedCanonicalIds, setSelectedCanonicalIds] = useState<Set<string>>(new Set())
+  const [searchingCanonical, setSearchingCanonical] = useState(false)
+  const [importingCanonical, setImportingCanonical] = useState(false)
+  const [canonicalImportResult, setCanonicalImportResult] = useState<{ imported: number; skipped: number } | null>(null)
 
   useEffect(() => {
     if (isSessionLoading || !session) return
@@ -70,6 +83,12 @@ export function StudentRegistration() {
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
         setStudents(Array.isArray(studentsData) ? studentsData : [])
         setRooms(Array.isArray(roomsData) ? roomsData : [])
+
+        // ADR-004 Phase B-2-d: 過去学生から登録タブの初期フィルタを session 文脈から設定
+        if (session.universityCode) setCanonicalSearchUniversity(session.universityCode)
+        if (session.accountType === "subject_admin" && session.subjectCode) {
+          setCanonicalSearchSubject(session.subjectCode)
+        }
       } catch (error) {
         setStudents([])
         setRooms([])
@@ -242,6 +261,98 @@ export function StudentRegistration() {
     link.click()
   }
 
+  // ADR-004 Phase B-2-d: 過去学生から条件で絞って bulk assign する一連のハンドラ
+  // 既存の testSessionId 範囲の students をベースに「すでに今セッションに登録済み」を識別する
+  const alreadyAssignedIds = new Set(students.map((s) => s.id))
+
+  const selectableCanonicalIds = canonicalStudents
+    .filter((s) => !alreadyAssignedIds.has(s.id))
+    .map((s) => s.id)
+  const allSelectableSelected =
+    selectableCanonicalIds.length > 0 &&
+    selectableCanonicalIds.every((id) => selectedCanonicalIds.has(id))
+
+  const handleSearchCanonicalStudents = async () => {
+    setSearchingCanonical(true)
+    setCanonicalImportResult(null)
+    try {
+      const univ = canonicalSearchUniversity || undefined
+      const subj = canonicalSearchSubject === "all" ? undefined : canonicalSearchSubject || undefined
+      const grade = canonicalSearchGrade === "all" ? undefined : canonicalSearchGrade || undefined
+      // testSessionId は undefined → canonical な学生一覧 (B-2-b 経路)
+      const data = await loadStudents(univ, subj, undefined, grade)
+      setCanonicalStudents(Array.isArray(data) ? data : [])
+      setSelectedCanonicalIds(new Set())
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[student-registration] canonical search failed:", msg, error)
+      alert(`過去学生の検索に失敗しました: ${msg}`)
+    } finally {
+      setSearchingCanonical(false)
+    }
+  }
+
+  const toggleCanonicalStudent = (id: string, checked: boolean) => {
+    setSelectedCanonicalIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const toggleCanonicalAll = (checked: boolean) => {
+    setSelectedCanonicalIds(checked ? new Set(selectableCanonicalIds) : new Set())
+  }
+
+  const handleBulkImportCanonical = async () => {
+    if (selectedCanonicalIds.size === 0) {
+      alert("登録する学生を選択してください")
+      return
+    }
+    if (!canonicalTargetRoom) {
+      alert("登録先の部屋番号を選択してください")
+      return
+    }
+    const testSessionId = sessionStorage.getItem("testSessionId") || ""
+    if (!testSessionId) {
+      alert("試験セッションが選択されていません。試験セッションを選んでから再度お試しください。")
+      return
+    }
+
+    setImportingCanonical(true)
+    try {
+      // 選択された canonical 学生を、現在のテストセッション + 指定された部屋に bulk assign
+      // すでに alreadyAssignedIds に入っているものは UI 側で disable しているので含まれない想定だが、
+      // 念のため再度フィルタしてスキップ件数を計算する
+      const selected = canonicalStudents.filter((s) => selectedCanonicalIds.has(s.id))
+      const toImport = selected.filter((s) => !alreadyAssignedIds.has(s.id))
+      const skipped = selected.length - toImport.length
+
+      const items = toImport.map((s) => ({
+        ...s,
+        roomNumber: canonicalTargetRoom,
+        testSessionId,
+      }))
+      if (items.length > 0) {
+        await saveStudents(items)
+      }
+      setCanonicalImportResult({ imported: items.length, skipped })
+
+      // 既存 students リストを再ロードして「すでに登録済み」マーカーを更新
+      const subjectScope = session?.accountType === "subject_admin" ? session?.subjectCode : undefined
+      const refreshed = await loadStudents(undefined, subjectScope, testSessionId)
+      setStudents(Array.isArray(refreshed) ? refreshed : [])
+      setSelectedCanonicalIds(new Set())
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[student-registration] canonical bulk import failed:", msg, error)
+      alert(`学生の bulk 登録に失敗しました: ${msg}`)
+    } finally {
+      setImportingCanonical(false)
+    }
+  }
+
   const handleConfirmRegistration = async () => {
     if (students.length === 0) {
       alert("登録する学生がいません")
@@ -298,9 +409,10 @@ export function StudentRegistration() {
         </div>
 
         <Tabs defaultValue="manual" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="manual">手動登録</TabsTrigger>
             <TabsTrigger value="csv">CSV一括登録</TabsTrigger>
+            <TabsTrigger value="canonical">過去学生から登録</TabsTrigger>
           </TabsList>
 
           {/* Manual Registration */}
@@ -467,6 +579,224 @@ export function StudentRegistration() {
                     </pre>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ADR-004 Phase B-2-d: 過去学生から登録 (canonical な students テーブルから絞り込んで bulk assign) */}
+          <TabsContent value="canonical">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  過去学生から登録
+                </CardTitle>
+                <CardDescription>
+                  以前に登録された学生を、大学・学年・教科で絞り込み、現在の試験セッションに一括で登録できます。
+                  すでに現在の試験セッションに登録済みの学生はグレー表示になり、自動的に除外されます。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* フィルタ */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">大学</Label>
+                    {accountType === "special_master" ? (
+                      <Select
+                        value={canonicalSearchUniversity || "all"}
+                        onValueChange={(v) => setCanonicalSearchUniversity(v === "all" ? "" : v)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="すべて" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">すべて</SelectItem>
+                          {Object.entries(universities).map(([code, name]) => (
+                            <SelectItem key={code} value={code}>
+                              {name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center h-9 px-3 bg-muted rounded-md text-sm">
+                        {universities[canonicalSearchUniversity] || canonicalSearchUniversity || "未設定"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">学年</Label>
+                    <Select value={canonicalSearchGrade} onValueChange={setCanonicalSearchGrade}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">すべて</SelectItem>
+                        <SelectItem value="1年">1年</SelectItem>
+                        <SelectItem value="2年">2年</SelectItem>
+                        <SelectItem value="3年">3年</SelectItem>
+                        <SelectItem value="4年">4年</SelectItem>
+                        <SelectItem value="5年">5年</SelectItem>
+                        <SelectItem value="6年">6年</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">教科</Label>
+                    {accountType === "subject_admin" ? (
+                      <div className="flex items-center h-9 px-3 bg-muted rounded-md text-sm">
+                        {subjects.find((s) => s.subjectCode === canonicalSearchSubject)?.subjectName ||
+                          canonicalSearchSubject ||
+                          "未設定"}
+                      </div>
+                    ) : (
+                      <Select value={canonicalSearchSubject} onValueChange={setCanonicalSearchSubject}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">すべて</SelectItem>
+                          {subjects.map((s) => (
+                            <SelectItem key={s.subjectCode} value={s.subjectCode}>
+                              {s.subjectName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSearchCanonicalStudents} disabled={searchingCanonical}>
+                    <Search className="w-4 h-4 mr-2" />
+                    {searchingCanonical ? "検索中..." : "検索"}
+                  </Button>
+                </div>
+
+                {/* 検索結果 */}
+                {canonicalStudents.length > 0 && (
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={allSelectableSelected}
+                          onCheckedChange={(v) => toggleCanonicalAll(Boolean(v))}
+                          disabled={selectableCanonicalIds.length === 0}
+                        />
+                        <span>
+                          全選択 ({selectedCanonicalIds.size} / {selectableCanonicalIds.length} 名選択中)
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        該当 {canonicalStudents.length} 名(うち登録済み{" "}
+                        {canonicalStudents.length - selectableCanonicalIds.length} 名)
+                      </div>
+                    </div>
+
+                    <div className="border rounded-md max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-muted">
+                          <tr>
+                            <th className="w-10 p-2"></th>
+                            <th className="p-2 text-left">学籍番号</th>
+                            <th className="p-2 text-left">氏名</th>
+                            <th className="p-2 text-left">学年</th>
+                            <th className="p-2 text-left">教科</th>
+                            <th className="p-2 text-left">状態</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {canonicalStudents.map((s) => {
+                            const isAssigned = alreadyAssignedIds.has(s.id)
+                            const subjName =
+                              subjects.find((sub) => sub.subjectCode === s.subjectCode)?.subjectName ||
+                              s.subjectCode ||
+                              "—"
+                            return (
+                              <tr
+                                key={s.id}
+                                className={isAssigned ? "bg-muted/30 text-muted-foreground" : "hover:bg-muted/20"}
+                              >
+                                <td className="p-2">
+                                  <Checkbox
+                                    checked={selectedCanonicalIds.has(s.id)}
+                                    disabled={isAssigned}
+                                    onCheckedChange={(v) => toggleCanonicalStudent(s.id, Boolean(v))}
+                                  />
+                                </td>
+                                <td className="p-2 font-mono">{s.studentId}</td>
+                                <td className="p-2">{s.name}</td>
+                                <td className="p-2">{s.grade || "—"}</td>
+                                <td className="p-2">{subjName}</td>
+                                <td className="p-2">
+                                  {isAssigned ? (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-gray-200">登録済</span>
+                                  ) : (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">未登録</span>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* 部屋指定 + 一括登録 */}
+                    <div className="flex flex-wrap items-end justify-between gap-3 pt-2 border-t">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">登録先 部屋番号</Label>
+                        <Select value={canonicalTargetRoom} onValueChange={setCanonicalTargetRoom}>
+                          <SelectTrigger className="h-9 w-48">
+                            <SelectValue placeholder="部屋を選択" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {rooms.map((r) => (
+                              <SelectItem key={r.id} value={r.roomNumber}>
+                                {r.roomNumber} - {r.roomName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        size="lg"
+                        className="bg-primary hover:bg-primary/90"
+                        onClick={handleBulkImportCanonical}
+                        disabled={
+                          importingCanonical ||
+                          selectedCanonicalIds.size === 0 ||
+                          !canonicalTargetRoom
+                        }
+                      >
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        {importingCanonical
+                          ? "登録中..."
+                          : `選択した ${selectedCanonicalIds.size} 名を登録`}
+                      </Button>
+                    </div>
+
+                    {canonicalImportResult && (
+                      <div className="p-3 rounded-md bg-green-50 text-sm border border-green-200">
+                        ✅ {canonicalImportResult.imported} 名を登録しました
+                        {canonicalImportResult.skipped > 0 && (
+                          <span className="text-muted-foreground ml-2">
+                            (すでに登録済みの {canonicalImportResult.skipped} 名はスキップ)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!searchingCanonical && canonicalStudents.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    条件を指定して「検索」ボタンを押してください
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

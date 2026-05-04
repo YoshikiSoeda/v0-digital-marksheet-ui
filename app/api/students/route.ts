@@ -49,7 +49,8 @@ function mapStudent(
 }
 
 export async function GET(request: NextRequest) {
-  const filters = parseListQuery(request, ["universityCode", "subjectCode", "testSessionId"] as const)
+  // ADR-004 Phase B-2-d: grade フィルタを追加 (canonical な students を学年で絞り込めるようにする)
+  const filters = parseListQuery(request, ["universityCode", "subjectCode", "testSessionId", "grade"] as const)
   const supabase = getServiceClient()
 
   // ADR-004 Phase B-2-b: testSessionId フィルタは assignments 経由で読む
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
 
     if (filters.universityCode) q = q.eq("students.university_code", filters.universityCode)
     if (filters.subjectCode) q = q.eq("students.subject_code", filters.subjectCode)
+    if (filters.grade) q = q.eq("students.grade", filters.grade)
 
     const { data, error } = await q
     if (error) {
@@ -82,6 +84,7 @@ export async function GET(request: NextRequest) {
   let query = supabase.from("students").select("*").order("created_at", { ascending: true })
   if (filters.universityCode) query = query.eq("university_code", filters.universityCode)
   if (filters.subjectCode) query = query.eq("subject_code", filters.subjectCode)
+  if (filters.grade) query = query.eq("grade", filters.grade)
 
   const { data, error } = await query
   if (error) {
