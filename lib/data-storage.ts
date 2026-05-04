@@ -32,9 +32,10 @@ export async function loadStudents(
   universityCode?: string,
   subjectCode?: string,
   testSessionId?: string,
+  grade?: string,
 ): Promise<Student[]> {
   const { listStudents } = await import("./api/students")
-  return listStudents({ universityCode, subjectCode, testSessionId })
+  return listStudents({ universityCode, subjectCode, testSessionId, grade })
 }
 
 export async function loadTeachers(
