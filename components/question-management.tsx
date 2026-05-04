@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy, Hourglass } from "lucide-react"
+import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy, Hourglass, Users } from "lucide-react"
 import Link from "next/link"
 import { loadTests, saveTests, deleteTest, type Test } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
@@ -575,8 +575,16 @@ export function QuestionManagement() {
 
                   return (
                     <div key={sessionId} className="rounded-lg border bg-card overflow-hidden">
-                      <div className="px-4 py-3 bg-[#00417A]/5 border-b">
+                      <div className="px-4 py-3 bg-[#00417A]/5 border-b flex items-center justify-between gap-2">
                         <h4 className="text-base font-bold text-[#00417A]">{sessionLabel}</h4>
+                        {sessionId !== "unassigned" && (
+                          <Link href={`/admin/test-sessions/${sessionId}/assignments`}>
+                            <Button variant="outline" size="sm" className="h-7 text-xs">
+                              <Users className="w-3 h-3 mr-1" />
+                              割当を編集
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                       <div className="divide-y">
                         {testsInSession.length === 0 && (
