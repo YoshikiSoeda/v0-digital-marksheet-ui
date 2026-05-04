@@ -29,6 +29,11 @@ const ADMIN_ROLES = new Set([
   "university_master",
 ])
 
+// 2026-05-04: 部屋未割当でも全部屋(または自教科の部屋)を任意選択して採点できる「上位教員ロール」
+//   - university_admin: 自大学の全部屋
+//   - subject_admin:    自教科の全部屋(教科 scope は維持)
+const ELEVATED_TEACHER_ROLES = new Set(["university_admin", "subject_admin"])
+
 interface ExamErrorScreenProps {
   title: string
   message: string
@@ -116,14 +121,28 @@ export default function TeacherExamPage() {
     return null
   }
 
-  // 必須情報欠落 → エラー UI(古い cookie で email / assigned_room がない場合)
-  if (!session.email || !session.assignedRoomNumber) {
+  // メール欠落は誰であっても採点不能
+  if (!session.email) {
     return (
       <ExamErrorScreen
         title="セッション情報が不完全です"
-        message={
-          "教員のメールアドレスまたは担当部屋番号が取得できませんでした。\n一度ログアウトして再度ログインしてください。"
-        }
+        message={"教員のメールアドレスが取得できませんでした。\n一度ログアウトして再度ログインしてください。"}
+        primaryLabel="ログイン画面へ"
+        primaryAction={() => router.push("/login")}
+      />
+    )
+  }
+
+  // 部屋未割当: ELEVATED ロール (university_admin / subject_admin) は任意の部屋を選べる
+  // 一般教員 (general) は担当部屋の割り当てが必須
+  const isElevated = ELEVATED_TEACHER_ROLES.has(session.role || "")
+  const hasRoom = !!session.assignedRoomNumber
+
+  if (!hasRoom && !isElevated) {
+    return (
+      <ExamErrorScreen
+        title="担当部屋が未割当です"
+        message={"あなたのアカウントには担当部屋が割り当てられていません。\n管理者に連絡して担当部屋を設定してもらってください。"}
         primaryLabel="ログイン画面へ"
         primaryAction={() => router.push("/login")}
       />
@@ -133,8 +152,12 @@ export default function TeacherExamPage() {
   return (
     <TeacherExamTabs
       teacherEmail={session.email}
-      teacherRoomNumber={session.assignedRoomNumber}
+      teacherRoomNumber={session.assignedRoomNumber || ""}
       testId={selectedTestId}
+      isFlexibleRoom={isElevated && !hasRoom}
+      teacherRole={session.role || "general"}
+      teacherSubjectCode={session.subjectCode || ""}
+      teacherUniversityCode={session.universityCode || ""}
     />
   )
 }

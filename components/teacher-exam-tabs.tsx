@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import {
   type AttendanceRecord,
   type EvaluationResult,
+  type Room,
   loadTests,
   loadStudents,
   loadAttendanceRecords,
@@ -13,17 +14,43 @@ import {
   saveAttendanceRecords,
   saveEvaluationResults,
   loadTeachers,
+  loadRooms,
 } from "@/lib/data-storage"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent } from "@/components/ui/card"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
 
 interface TeacherExamTabsProps {
   teacherEmail: string
+  /**
+   * 担当部屋番号。一般教員は cookie に必ず入っている前提だが、
+   * isFlexibleRoom=true (university_admin / subject_admin で部屋未割当) のときは
+   * 空文字 "" が渡され、UI で任意選択する。
+   */
   teacherRoomNumber: string
   testId: string
+  /**
+   * 2026-05-04: 上位教員ロール (university_admin / subject_admin) で部屋未割当のとき true。
+   * UI に「対象部屋を選択」セレクトを表示し、任意の部屋を採点対象にできる。
+   */
+  isFlexibleRoom?: boolean
+  /** ELEVATED 判定 + subject_admin 用の subjectCode 絞り込みに使う */
+  teacherRole?: string
+  teacherSubjectCode?: string
+  teacherUniversityCode?: string
 }
 
-export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testId }: TeacherExamTabsProps) {
+export default function TeacherExamTabs({
+  teacherEmail,
+  teacherRoomNumber,
+  testId,
+  isFlexibleRoom = false,
+  teacherRole = "general",
+  teacherSubjectCode = "",
+  teacherUniversityCode = "",
+}: TeacherExamTabsProps) {
   const router = useRouter()
   const [tests, setTests] = useState<any[]>([])
   const [selectedTest, setSelectedTest] = useState<any>(null)
@@ -36,6 +63,13 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
   const [questions, setQuestions] = useState<any[]>([])
   const [teacherName, setTeacherName] = useState("")
   const [elapsedTime, setElapsedTime] = useState<number>(0)
+
+  // 2026-05-04: フレキシブル部屋モード用 state
+  // - isFlexibleRoom=true: pickedRoomNumber は UI から選ばせる (初期値は空)
+  // - isFlexibleRoom=false: 既存挙動そのまま、teacherRoomNumber prop を使う
+  const [pickedRoomNumber, setPickedRoomNumber] = useState<string>(teacherRoomNumber || "")
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([])
+  const activeRoomNumber = isFlexibleRoom ? pickedRoomNumber : teacherRoomNumber
 
   // Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
@@ -59,8 +93,9 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         setTests(Array.isArray(fetchedTests) ? fetchedTests : [])
 
         const fetchedStudents = await loadStudents(universityCode, undefined, testSessionId)
-        const filteredStudents = Array.isArray(fetchedStudents)
-          ? fetchedStudents.filter((student) => student.roomNumber === teacherRoomNumber)
+        // ADR 2026-05-04: フレキシブルモード時は activeRoomNumber (state) で絞り込む
+        const filteredStudents = Array.isArray(fetchedStudents) && activeRoomNumber
+          ? fetchedStudents.filter((student) => student.roomNumber === activeRoomNumber)
           : []
         setAssignedStudents(filteredStudents)
 
@@ -127,7 +162,26 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
     }
 
     fetchData()
-  }, [teacherEmail, teacherRoomNumber, testId])
+  }, [teacherEmail, activeRoomNumber, testId])
+
+  // 2026-05-04: フレキシブル部屋モードのとき、選択肢になる部屋一覧を別途ロード
+  useEffect(() => {
+    if (!isFlexibleRoom) return
+    const loadRoomChoices = async () => {
+      try {
+        const testSessionId = typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") || "" : ""
+        // subject_admin は自教科のみ、university_admin は自大学の全教科
+        const subjectScope = teacherRole === "subject_admin" ? teacherSubjectCode : undefined
+        const univ = teacherUniversityCode || undefined
+        const rooms = await loadRooms(univ, subjectScope, testSessionId)
+        setAvailableRooms(Array.isArray(rooms) ? rooms : [])
+      } catch (e) {
+        console.error("[teacher-exam-tabs] failed to load rooms (flexible mode):", e)
+        setAvailableRooms([])
+      }
+    }
+    loadRoomChoices()
+  }, [isFlexibleRoom, teacherRole, teacherSubjectCode, teacherUniversityCode])
 
   // Phase 9b-β2f1: (session?.universityCode || "") を session 経由に統合
   const getTestSessionId = (): string => {
@@ -164,7 +218,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       evaluatorId: teacherEmail,
       evaluatorType: "teacher",
       testId,
-      roomNumber: teacherRoomNumber,
+      roomNumber: activeRoomNumber,
       answers: studentAnswersData,
       totalScore,
       answeredCount: Object.keys(studentAnswersData).length,
@@ -189,7 +243,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
       status,
       markedBy: teacherEmail,
       markedByType: "teacher",
-      roomNumber: teacherRoomNumber,
+      roomNumber: activeRoomNumber,
       timestamp: new Date().toISOString(),
       universityCode,
       testSessionId,
@@ -214,7 +268,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         evaluatorType: "teacher" as const,
         evaluatorId: teacherEmail,
         testId,
-        roomNumber: teacherRoomNumber,
+        roomNumber: activeRoomNumber,
         totalScore: calculateScore(studentId),
         answers: studentAnswersData,
         answeredCount,
@@ -297,9 +351,35 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
 
   return (
     <div className="space-y-4">
+      {isFlexibleRoom && (
+        <Card className="mx-4 mt-4 border-blue-200 bg-blue-50/30">
+          <CardContent className="p-3 flex items-center gap-3 flex-wrap">
+            <Label className="text-sm font-medium shrink-0">
+              採点対象の部屋:
+            </Label>
+            <Select value={pickedRoomNumber} onValueChange={setPickedRoomNumber}>
+              <SelectTrigger className="h-9 w-56">
+                <SelectValue placeholder="採点する部屋を選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableRooms.map((r) => (
+                  <SelectItem key={r.id} value={r.roomNumber}>
+                    {r.roomNumber} - {r.roomName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              {teacherRole === "subject_admin"
+                ? "(あなたの教科の部屋から選択できます)"
+                : "(自大学の全部屋から選択できます)"}
+            </span>
+          </CardContent>
+        </Card>
+      )}
       <ExamSessionBanner
         testSessionId={typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") || "" : ""}
-        roomNumber={teacherRoomNumber}
+        roomNumber={activeRoomNumber}
         subjectCode={selectedTest?.subjectCode}
         universityCode={session?.universityCode}
         elapsedSeconds={elapsedTime}
@@ -309,7 +389,7 @@ export default function TeacherExamTabs({ teacherEmail, teacherRoomNumber, testI
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <div className="text-sm">
-              <span className="font-medium">部屋番号:</span> {teacherRoomNumber}
+              <span className="font-medium">部屋番号:</span> {activeRoomNumber || "(未選択)"}
             </div>
             <div className="text-sm">
               <span className="font-medium">担当教員:</span> {teacherName}
