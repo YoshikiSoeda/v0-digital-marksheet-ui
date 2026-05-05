@@ -124,10 +124,19 @@ export function SubjectManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.subject_code || !formData.subject_name || !formData.university_code) {
-      toast.error("教科コード、教科名、大学を入力してください")
+    if (!formData.subject_name || !formData.university_code) {
+      toast.error("教科名と大学を入力してください")
       return
     }
+
+    // 新規登録時は subject_code を自動採番(UI 非表示の内部 ID)。
+    // 編集時は既存の subject_code を保持(FK で参照されているため変更不可)。
+    const payload = editingSubject
+      ? formData
+      : {
+          ...formData,
+          subject_code: formData.subject_code || `subj_${crypto.randomUUID()}`,
+        }
 
     try {
       const url = editingSubject ? `/api/subjects/${editingSubject.id}` : "/api/subjects"
@@ -136,7 +145,7 @@ export function SubjectManagement() {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
@@ -239,32 +248,19 @@ export function SubjectManagement() {
                 <DialogHeader>
                   <DialogTitle>{editingSubject ? "教科を編集" : "教科を追加"}</DialogTitle>
                   <DialogDescription>
-                    教科情報を入力してください。教科コードは一意である必要があります。
+                    教科情報を入力してください。教科コードは登録時にシステムが自動採番します。
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subject_code">教科コード *</Label>
-                      <Input
-                        id="subject_code"
-                        value={formData.subject_code}
-                        onChange={(e) => setFormData({ ...formData, subject_code: e.target.value })}
-                        placeholder="例: MATH101"
-                        required
-                        disabled={!!editingSubject}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="subject_name">教科名 *</Label>
-                      <Input
-                        id="subject_name"
-                        value={formData.subject_name}
-                        onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
-                        placeholder="例: 数学"
-                        required
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subject_name">教科名 *</Label>
+                    <Input
+                      id="subject_name"
+                      value={formData.subject_name}
+                      onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
+                      placeholder="例: OSCE 基本評価"
+                      required
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -350,7 +346,6 @@ export function SubjectManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>教科コード</TableHead>
                   <TableHead>教科名</TableHead>
                   {accountType === "special_master" && <TableHead>大学</TableHead>}
                   <TableHead>説明</TableHead>
@@ -361,7 +356,6 @@ export function SubjectManagement() {
               <TableBody>
                 {subjects.map((subject) => (
                   <TableRow key={subject.id}>
-                    <TableCell className="font-mono">{subject.subject_code}</TableCell>
                     <TableCell className="font-medium">{subject.subject_name}</TableCell>
                     {accountType === "special_master" && (
                       <TableCell>
