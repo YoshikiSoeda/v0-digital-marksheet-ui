@@ -176,13 +176,21 @@ export async function POST(request: NextRequest) {
     }
 
     // 3) Upsert sheets / categories / questions (現状を保存)
+    //    旧実装は sheet/category/question upsert 失敗時に `continue` でエラーを
+    //    握り潰し、API は 200 OK を返していたため、UI 上「保存成功」表示なのに
+    //    DB に sheets が 0 件のテストが量産される silent fail 不具合があった
+    //    (2026-05-05 通しテストで複製テストの編集不可として観測)。
+    //    最初のエラーを返して 500 で fail するように変更。
     for (const sheet of test.sheets) {
       const { error: sheetError } = await supabase
         .from("sheets")
         .upsert({ id: sheet.id, test_id: test.id, title: sheet.title } as never, { onConflict: "id" })
       if (sheetError) {
-        console.error("[api/tests] sheet upsert error:", sheetError)
-        continue
+        console.error("[api/tests] sheet upsert error:", sheetError, { sheetId: sheet.id })
+        return NextResponse.json(
+          { error: `sheet upsert failed: ${sheetError.message}`, sheetId: sheet.id },
+          { status: 500 },
+        )
       }
       for (const category of sheet.categories) {
         const { error: categoryError } = await supabase
@@ -192,8 +200,11 @@ export async function POST(request: NextRequest) {
             { onConflict: "id" },
           )
         if (categoryError) {
-          console.error("[api/tests] category upsert error:", categoryError)
-          continue
+          console.error("[api/tests] category upsert error:", categoryError, { categoryId: category.id })
+          return NextResponse.json(
+            { error: `category upsert failed: ${categoryError.message}`, categoryId: category.id },
+            { status: 500 },
+          )
         }
         for (const question of category.questions) {
           const { error: questionError } = await supabase.from("questions").upsert(
@@ -213,7 +224,11 @@ export async function POST(request: NextRequest) {
             { onConflict: "id" },
           )
           if (questionError) {
-            console.error("[api/tests] question upsert error:", questionError)
+            console.error("[api/tests] question upsert error:", questionError, { questionId: question.id })
+            return NextResponse.json(
+              { error: `question upsert failed: ${questionError.message}`, questionId: question.id },
+              { status: 500 },
+            )
           }
         }
       }
