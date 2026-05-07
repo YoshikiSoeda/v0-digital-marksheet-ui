@@ -107,7 +107,13 @@ const AdminDashboard = () => {
   const [universities, setUniversities] = useState<University[]>([])
   const [testSessions, setTestSessions] = useState<TestSession[]>([])
   const [selectedUniversity, setSelectedUniversity] = useState<string>("")
-  const [selectedTestCode, setSelectedTestCode] = useState<string>("all")
+  // 2026-05-07: 試験セッションセレクタの初期値を sessionStorage から復元する
+  // (これまで dashboard 上ではセッションを切り替える手段が無く、
+  //  sessionStorage の testSessionId が UI と乖離していた)
+  const [selectedTestCode, setSelectedTestCode] = useState<string>(() => {
+    if (typeof window === "undefined") return "all"
+    return sessionStorage.getItem("testSessionId") || "all"
+  })
   const [tests, setTests] = useState<any[]>([])
   const [isTeacherLogin, setIsTeacherLogin] = useState(false)
   const [assignedSubjectName, setAssignedSubjectName] = useState<string>("")
@@ -448,6 +454,24 @@ const AdminDashboard = () => {
     fetchData()
   }, [session, isSessionLoading, router])
 
+  // 2026-05-07: selectedTestCode を sessionStorage に反映し、ダッシュボードを再ロードする。
+  // 初回マウント時は sessionStorage と selectedTestCode が同期しているのでスキップする。
+  const isInitialTestCodeRender = useRef(true)
+  useEffect(() => {
+    if (isInitialTestCodeRender.current) {
+      isInitialTestCodeRender.current = false
+      return
+    }
+    if (typeof window === "undefined") return
+    const newSessionId = selectedTestCode === "all" ? "" : selectedTestCode
+    sessionStorage.setItem("testSessionId", newSessionId)
+    // 既にデータロード中ならスキップ。session が無いと handleRefresh が早期 return するので待つ。
+    if (!session) return
+    handleRefresh()
+    // handleRefresh は依存トラッキング不要(state setter のみで session を ref する関数)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTestCode])
+
   const handleRefresh = async () => {
     setIsRefreshing(true)
 
@@ -678,9 +702,18 @@ const AdminDashboard = () => {
     }
   }
 
-  const filteredTestSessions = testSessions.filter(
-    (session) => !selectedUniversity || session.universityCode === selectedUniversity,
-  )
+  // 2026-05-07: special_master 以外のロールでは自大学に固定して絞り込む
+  // (これまで非 special_master では試験セッションセレクタ自体が無かったので問題化していなかった)
+  const userUniversityCode =
+    session?.universityCodes && session.universityCodes.length > 0 && session.universityCodes[0] !== "ALL"
+      ? session.universityCodes[0]
+      : session?.universityCode || ""
+  const filteredTestSessions = testSessions.filter((s) => {
+    if (accountType === "special_master") {
+      return !selectedUniversity || s.universityCode === selectedUniversity
+    }
+    return !userUniversityCode || s.universityCode === userUniversityCode
+  })
 
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
@@ -727,41 +760,43 @@ const AdminDashboard = () => {
             </Button>
 
             {accountType === "special_master" && (
-              <>
-                <Select
-                  value={selectedUniversity}
-                  onValueChange={(value) => {
-                    setSelectedUniversity(value)
-                    setSelectedTestCode("all")
-                  }}
-                >
-                  <SelectTrigger className="h-9 w-[200px]">
-                    <SelectValue placeholder="大学を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {universities.map((uni) => (
-                      <SelectItem key={uni.code} value={uni.code}>
-                        {uni.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
-                  <SelectTrigger className="h-9 w-[250px]">
-                    <SelectValue placeholder="試験セッションを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">すべての試験セッション</SelectItem>
-                    {filteredTestSessions.map((session) => (
-                      <SelectItem key={session.id} value={session.id}>
-                        {session.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
+              <Select
+                value={selectedUniversity}
+                onValueChange={(value) => {
+                  setSelectedUniversity(value)
+                  setSelectedTestCode("all")
+                }}
+              >
+                <SelectTrigger className="h-9 w-[200px]">
+                  <SelectValue placeholder="大学を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {universities.map((uni) => (
+                    <SelectItem key={uni.code} value={uni.code}>
+                      {uni.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
+
+            {/*
+              2026-05-07: 試験セッションセレクタは subject_admin / university_master / general admin
+              でも露出する。これまで dashboard 上で session を切り替える手段が無かった。
+            */}
+            <Select value={selectedTestCode} onValueChange={setSelectedTestCode}>
+              <SelectTrigger className="h-9 w-[250px]">
+                <SelectValue placeholder="試験セッションを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての試験セッション</SelectItem>
+                {filteredTestSessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id}>
+                    {session.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
