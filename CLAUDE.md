@@ -305,6 +305,7 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 | 231 | 共通テストアカウント seed(kyouka / ippan / kanjya) |
 | 232 | attendance_records 旧 UNIQUE (student_id, room_number) DROP(2026-05-07 サマリー画面 0 件表示の根本対策) |
 | 233 | rooms.test_session_id NULLABLE + redundant rooms_unique_per_session DROP(ADR-007 C-7 phase 1) |
+| 234 | verify_teacher_login / verify_patient_login を junction LEFT JOIN 化(ADR-007 C-6、PR #90) |
 | `add-test-session-status.sql` | status カラム追加(連番外、命名揃えるなら次マイグで吸収) |
 
 ### 新規追加ルール
@@ -336,9 +337,9 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 - ✅ **C-3**: `register_teachers_bulk` / `register_patients_bulk` を canonical (`univ + email`) ON CONFLICT + assignments に(PR #74)
 - ✅ **C-4**: `teachers/patients.test_session_id` を NULLABLE 化(scripts/228, 229)+ 登録 UI から試験セッション選択を削除(PR #75)
 - ✅ **C-5**: 試験セッション割当管理ページ + APIs(`/admin/test-sessions/[id]/assignments`、PR #76)
-- ✅ **C-6 (部分)**: `/api/rooms` GET を junction 経由に切替(PR #85)。`rooms.test_session_id` NULLABLE + redundant UNIQUE DROP(scripts/233、PR #87)
-- ⏳ **C-6 (残)**: 他 application 層から legacy 列(rooms.test_session_id / subject_code、teachers/patients の同列)を完全に読まない・書かない
-- ⏳ **C-7**: `teachers/patients.test_session_id`、`teachers/patients.assigned_room_number`、`rooms.test_session_id`、`rooms.subject_code` の DROP COLUMN(本番安定 1〜2 週後)
+- ✅ **C-6 (部分)**: `/api/rooms` GET を junction 経由に切替(PR #85)。`rooms.test_session_id` NULLABLE + redundant UNIQUE DROP(scripts/233、PR #87)。`verify_teacher_login` / `verify_patient_login` を junction LEFT JOIN 化(scripts/234、PR #90)。POST /api/rooms onConflict を canonical UNIQUE に揃える(PR #91)。canonical fallback の `.order("assigned_room_number")` を `name` に切替(PR #93、C-7 prep)
+- ⏳ **C-6 (残)**: `/api/teachers`、`/api/patients`、`/api/teachers/[id]`、`/api/patients/[id]` の canonical fallback で legacy 列を返している箇所(C-7 で行が消えれば自然解消するが、`mapTeacher` / `mapPatient` で空文字 / undefined に揃える整理は別 PR で実施可)
+- ⏳ **C-7**: `teachers/patients.test_session_id`、`teachers/patients.assigned_room_number`、`rooms.test_session_id`、`rooms.subject_code` の DROP COLUMN(本番安定 1〜2 週後、2026-05-21 以降目安)
 
 ### 10.2 ADR-004 進捗(完了)
 
