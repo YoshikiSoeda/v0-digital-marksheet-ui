@@ -165,15 +165,19 @@ export default function TeacherExamTabs({
   }, [teacherEmail, activeRoomNumber, testId])
 
   // 2026-05-04: フレキシブル部屋モードのとき、選択肢になる部屋一覧を別途ロード
+  // 2026-05-07: testSessionId フィルタを廃止し「自大学の全部屋」を返すようにした。
+  //   旧実装は loadRooms(..., testSessionId) で rooms.test_session_id 列で絞り込んでいたが、
+  //   現状 rooms は test_session 別に重複行を持つ設計 (ADR-007 C-7 未完了) のため、
+  //   新規作成した試験セッションには rooms 行が存在せず候補ゼロになっていた。
+  //   UI 表示「自大学の全部屋から選択できます」と齟齬があった。
   useEffect(() => {
     if (!isFlexibleRoom) return
     const loadRoomChoices = async () => {
       try {
-        const testSessionId = typeof window !== "undefined" ? sessionStorage.getItem("testSessionId") || "" : ""
         // subject_admin は自教科のみ、university_admin は自大学の全教科
         const subjectScope = teacherRole === "subject_admin" ? teacherSubjectCode : undefined
         const univ = teacherUniversityCode || undefined
-        const rooms = await loadRooms(univ, subjectScope, testSessionId)
+        const rooms = await loadRooms(univ, subjectScope)
         setAvailableRooms(Array.isArray(rooms) ? rooms : [])
       } catch (e) {
         console.error("[teacher-exam-tabs] failed to load rooms (flexible mode):", e)
