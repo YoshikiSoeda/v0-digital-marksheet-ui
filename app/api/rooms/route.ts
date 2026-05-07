@@ -155,9 +155,11 @@ export async function POST(request: NextRequest) {
   const supabase = getServiceClient()
   const { error } = await supabase
     .from("rooms")
-    // ADR-005 F1: rooms テーブルの UNIQUE 制約は (room_number, university_code, subject_code, test_session_id) の 4 列。
-    // 旧 onConflict "room_number,test_session_id" は 4 列 UNIQUE と一致せず常に 23P01 で失敗 → UI は楽観更新で「成功」表示するが DB に反映されないバグだった。
-    .upsert(rows as never, { onConflict: "room_number,university_code,subject_code,test_session_id" })
+    // ADR-007 C-6 / scripts/233: rooms の UNIQUE 制約は canonical な
+    // (university_code, room_number) のみ。旧 4 列 UNIQUE (rooms_unique_per_session)
+    // は scripts/233 で DROP 済み。それを参照していた旧 onConflict は 42P10 で失敗
+    // していた(部屋追加が常に「失敗しました」alert で阻まれる致命バグ)。
+    .upsert(rows as never, { onConflict: "university_code,room_number" })
   if (error) {
     console.error("[api/rooms] POST error:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
