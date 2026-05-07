@@ -102,9 +102,19 @@ export function RoomManagement() {
       createdAt: new Date().toISOString(),
     }
 
+    const previousRooms = rooms
     const updatedRooms = [...rooms, newRoom]
     setRooms(updatedRooms)
-    await saveRooms(updatedRooms)
+    try {
+      await saveRooms(updatedRooms)
+    } catch (e) {
+      // 保存失敗時は楽観的更新を巻き戻す(silent fail 防止)
+      setRooms(previousRooms)
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[room-management] saveRooms (add) failed:", msg)
+      alert(`部屋の追加に失敗しました: ${msg}`)
+      return
+    }
 
     setNewRoomNumber("")
     setNewRoomName("")
@@ -131,6 +141,7 @@ export function RoomManagement() {
       return
     }
 
+    const previousRooms = rooms
     const updatedRooms = rooms.map((room) =>
       room.id === roomId
         ? { ...room, roomNumber: editRoomNumber, roomName: editRoomName, universityCode: editUniversityCode }
@@ -138,7 +149,15 @@ export function RoomManagement() {
     )
 
     setRooms(updatedRooms)
-    await saveRooms(updatedRooms)
+    try {
+      await saveRooms(updatedRooms)
+    } catch (e) {
+      setRooms(previousRooms)
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[room-management] saveRooms (edit) failed:", msg)
+      alert(`部屋の更新に失敗しました: ${msg}`)
+      return
+    }
     setEditingRoomId(null)
   }
 
@@ -192,10 +211,18 @@ export function RoomManagement() {
       }
 
       if (importedRooms.length > 0) {
+        const previousRooms = rooms
         const updatedRooms = [...rooms, ...importedRooms]
         setRooms(updatedRooms)
-        await saveRooms(updatedRooms)
-        alert(`${importedRooms.length}件の部屋をインポートしました`)
+        try {
+          await saveRooms(updatedRooms)
+          alert(`${importedRooms.length}件の部屋をインポートしました`)
+        } catch (e) {
+          setRooms(previousRooms)
+          const msg = e instanceof Error ? e.message : String(e)
+          console.error("[room-management] saveRooms (csv-import) failed:", msg)
+          alert(`部屋の一括登録に失敗しました: ${msg}`)
+        }
       }
     }
     reader.readAsText(file)
