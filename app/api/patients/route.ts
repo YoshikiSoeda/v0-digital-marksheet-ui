@@ -75,10 +75,13 @@ export async function GET(request: NextRequest) {
   }
 
   // testSessionId フィルタなしは patients を直接 (canonical view)
+  // ADR-007 C-7 prep: assigned_room_number は junction に移行済 / 物理 DROP 予定の legacy 列。
+  // canonical 一覧では別 session の room が入る/入らないため並び順としても意味を失っている。
+  // 安定して存在する name で並べる。
   let query = supabase
     .from("patients")
     .select("*")
-    .order("assigned_room_number", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true })
 
   if (filters.universityCode) {
     query = query.or(`university_code.eq.${filters.universityCode},university_code.is.null`)
