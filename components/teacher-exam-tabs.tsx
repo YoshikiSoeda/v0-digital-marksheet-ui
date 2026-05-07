@@ -534,7 +534,19 @@ export default function TeacherExamTabs({
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
-          <div className="text-center py-8 text-muted-foreground">出席ボタンを押してから入力してください</div>
+          <div className="text-center py-8 space-y-3">
+            <div className="text-muted-foreground">出席ボタンを押してから入力してください</div>
+            {/*
+              既に完了状態なのに attendance が "present" でないという稀な不整合状態
+              (例: 過去のサイレント保存失敗) でも UI が詰まないように、編集ボタンを露出する。
+              編集を押すと完了が解除され、出席/欠席ボタンが再び有効化される。
+            */}
+            {isCompleted && (
+              <Button onClick={() => handleEnableEdit(activeStudent.id)} variant="outline">
+                編集(完了を解除)
+              </Button>
+            )}
+          </div>
         )}
 
         {attendanceStatus[activeStudent?.id || ""] === "present" && (
