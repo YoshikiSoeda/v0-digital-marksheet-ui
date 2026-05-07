@@ -196,6 +196,7 @@ export default function TeacherExamTabs({
       return
     }
 
+    const previousAnswers = studentAnswers
     const updatedAnswers: Record<string, Record<number, number>> = {
       ...studentAnswers,
       [activeStudent.id]: {
@@ -229,10 +230,19 @@ export default function TeacherExamTabs({
       testSessionId,
     }
 
-    await saveEvaluationResults([newEvaluation])
+    try {
+      await saveEvaluationResults([newEvaluation])
+    } catch (e) {
+      // 保存失敗時は UI を巻き戻し、原因をユーザーに通知する(silent fail 防止)
+      setStudentAnswers(previousAnswers)
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[teacher-exam-tabs] saveEvaluationResults (answer) failed:", msg)
+      alert(`回答の保存に失敗しました。再度お試しください。\n${msg}`)
+    }
   }
 
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
+    const previousStatus = attendanceStatus[studentId]
     setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
 
     const universityCode = (session?.universityCode || "")
@@ -249,7 +259,21 @@ export default function TeacherExamTabs({
       testSessionId,
     }
 
-    await saveAttendanceRecords([newRecord])
+    try {
+      await saveAttendanceRecords([newRecord])
+    } catch (e) {
+      // 保存失敗時は UI を巻き戻して、ユーザーに「実際は保存されていない」ことを通知する。
+      // (例: 旧 UNIQUE 制約違反などのサーバー側エラーで silent fail していた問題への対策)
+      setAttendanceStatus((prev) => {
+        const next = { ...prev }
+        if (previousStatus) next[studentId] = previousStatus
+        else delete next[studentId]
+        return next
+      })
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[teacher-exam-tabs] saveAttendanceRecords failed:", msg)
+      alert(`出欠の保存に失敗しました。再度お試しください。\n${msg}`)
+    }
   }
 
   const handleMarkComplete = async (studentId: string) => {
@@ -257,6 +281,8 @@ export default function TeacherExamTabs({
     const answeredCount = Object.keys(studentAnswersData).length
 
     if (answeredCount === questions.length && attendanceStatus[studentId] === "present") {
+      const previousCompletion = completionStatus[studentId] || false
+      const previousEditMode = editMode[studentId] || false
       setCompletionStatus((prev) => ({ ...prev, [studentId]: true }))
       setEditMode((prev) => ({ ...prev, [studentId]: false }))
 
@@ -279,7 +305,16 @@ export default function TeacherExamTabs({
         testSessionId,
       }
 
-      await saveEvaluationResults([completedResult])
+      try {
+        await saveEvaluationResults([completedResult])
+      } catch (e) {
+        // 完了状態が DB に保存されていないなら UI も巻き戻す(silent fail 防止)
+        setCompletionStatus((prev) => ({ ...prev, [studentId]: previousCompletion }))
+        setEditMode((prev) => ({ ...prev, [studentId]: previousEditMode }))
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error("[teacher-exam-tabs] saveEvaluationResults (complete) failed:", msg)
+        alert(`完了状態の保存に失敗しました。再度お試しください。\n${msg}`)
+      }
     } else {
     }
   }
@@ -499,7 +534,19 @@ export default function TeacherExamTabs({
         </div>
 
         {attendanceStatus[activeStudent?.id || ""] !== "present" && (
-          <div className="text-center py-8 text-muted-foreground">出席ボタンを押してから入力してください</div>
+          <div className="text-center py-8 space-y-3">
+            <div className="text-muted-foreground">出席ボタンを押してから入力してください</div>
+            {/*
+              既に完了状態なのに attendance が "present" でないという稀な不整合状態
+              (例: 過去のサイレント保存失敗) でも UI が詰まないように、編集ボタンを露出する。
+              編集を押すと完了が解除され、出席/欠席ボタンが再び有効化される。
+            */}
+            {isCompleted && (
+              <Button onClick={() => handleEnableEdit(activeStudent.id)} variant="outline">
+                編集(完了を解除)
+              </Button>
+            )}
+          </div>
         )}
 
         {attendanceStatus[activeStudent?.id || ""] === "present" && (

@@ -205,6 +205,7 @@ export default function PatientExamTabs({
     const student = assignedStudents[activeStudentIndex]
     if (!student) return
 
+    const previousAnswers = studentAnswers
     const updatedAnswers = {
       ...studentAnswers[student.id],
       [questionNumber]: value,
@@ -237,6 +238,11 @@ export default function PatientExamTabs({
     try {
       await saveEvaluationResults([evaluationResult])
     } catch (error) {
+      // 保存失敗時は UI を巻き戻し、原因をユーザーに通知する(silent fail 防止)
+      setStudentAnswers(previousAnswers)
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error("[patient-exam-tabs] saveEvaluationResults (answer) failed:", msg)
+      alert(`回答の保存に失敗しました。再度お試しください。\n${msg}`)
     }
   }
 
@@ -252,6 +258,7 @@ export default function PatientExamTabs({
       return
     }
 
+    const previousCompletion = completionStatus[studentId] || false
     setCompletionStatus((prev) => ({
       ...prev,
       [studentId]: true,
@@ -279,6 +286,11 @@ export default function PatientExamTabs({
     try {
       await saveEvaluationResults([evaluationResult])
     } catch (error) {
+      // 完了状態が DB に保存されていないなら UI も巻き戻す(silent fail 防止)
+      setCompletionStatus((prev) => ({ ...prev, [studentId]: previousCompletion }))
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error("[patient-exam-tabs] saveEvaluationResults (complete) failed:", msg)
+      alert(`完了状態の保存に失敗しました。再度お試しください。\n${msg}`)
     }
   }
 
