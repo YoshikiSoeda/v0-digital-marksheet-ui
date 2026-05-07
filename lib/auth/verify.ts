@@ -138,8 +138,13 @@ export async function verifyCredentials(
     const rows = (data || []) as TeacherRow[]
 
     if (rows.length > 0) {
-      // multi-session disambiguation
-      if (rows.length > 1 && !testSessionId) {
+      // admin-like role(master_admin / university_admin / subject_admin)は
+      // dashboard 主体で session 切替を別 UI で行うため、複数 assignments があっても
+      // session_select に飛ばさない。redirect は /admin/dashboard。
+      const probeRole = rows[0].role || "general"
+      const isAdminLike = ADMIN_LIKE_ROLES.has(probeRole)
+      // multi-session disambiguation(general teacher のみ)
+      if (rows.length > 1 && !testSessionId && !isAdminLike) {
         return {
           kind: "session_select",
           source: "teachers",
