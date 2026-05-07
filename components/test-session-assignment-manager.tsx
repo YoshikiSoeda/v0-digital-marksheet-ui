@@ -482,6 +482,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
       let assigned = 0
       let unassigned = 0
       let failed = 0
+      const failureReasons: string[] = []
 
       // 部屋ごとにまとめて 1 回ずつ POST するのも考えられるが、register_student_canonical は
       // 1 件ずつしか受けないため、items 配列でまとめて 1 リクエストに送る方がよい。
@@ -496,6 +497,8 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           assigned = items.length
         } catch (e) {
           failed += toAssign.length
+          const msg = e instanceof Error ? e.message : String(e)
+          failureReasons.push(`割当 ${toAssign.length} 件: ${msg}`)
           console.error("[assignment-manager] bulk assign commit failed:", e)
         }
       }
@@ -516,16 +519,33 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
         )
         const ok = results.filter((r) => r.status === "fulfilled").length
         unassigned = ok
-        failed += results.length - ok
+        const rejections = results.filter(
+          (r): r is PromiseRejectedResult => r.status === "rejected",
+        )
+        failed += rejections.length
+        // 同じ理由が並びがちなので最大 3 件・重複排除して表示する
+        const uniqueReasons = Array.from(
+          new Set(
+            rejections.map((r) =>
+              r.reason instanceof Error ? r.reason.message : String(r.reason),
+            ),
+          ),
+        ).slice(0, 3)
+        for (const reason of uniqueReasons) {
+          failureReasons.push(`解除: ${reason}`)
+        }
       }
 
       const parts: string[] = []
       if (assigned > 0) parts.push(`${assigned} 件の割当`)
       if (unassigned > 0) parts.push(`${unassigned} 件の解除`)
       const summary = parts.length > 0 ? parts.join(" / ") : "(変更なし)"
-      setStudentResultMsg(failed > 0
-        ? `⚠ ${summary} を保存しましたが ${failed} 件失敗しました`
-        : `✅ ${summary} を保存しました`)
+      if (failed > 0) {
+        const detail = failureReasons.length > 0 ? ` / 失敗理由: ${failureReasons.join("; ")}` : ""
+        setStudentResultMsg(`⚠ ${summary} を保存しましたが ${failed} 件失敗しました${detail}`)
+      } else {
+        setStudentResultMsg(`✅ ${summary} を保存しました`)
+      }
 
       // pending を全クリアして DB から再取得
       setPendingMap({})
@@ -1000,7 +1020,13 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
             </div>
 
             {studentResultMsg && (
-              <div className="p-3 rounded-md bg-green-50 text-sm border border-green-200">
+              <div
+                className={
+                  studentResultMsg.startsWith("⚠")
+                    ? "p-3 rounded-md bg-amber-50 text-sm border border-amber-200 text-amber-900 break-words"
+                    : "p-3 rounded-md bg-green-50 text-sm border border-green-200"
+                }
+              >
                 {studentResultMsg}
               </div>
             )}
