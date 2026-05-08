@@ -15,13 +15,13 @@ import {
   loadTeachers,
   loadRooms,
   loadSubjects,
+  deleteTeacher,
   type Teacher,
   type TeacherRole,
   type Room,
   type Subject,
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
-import { createClient } from "@/lib/supabase/client"
 import { Table, TableCell, TableHead, TableRow } from "@/components/ui/table"
 
 export function TeacherRegistration() {
@@ -320,20 +320,17 @@ export function TeacherRegistration() {
       return
     }
 
+    // ADR-003 RLS 適用後、anon client での DELETE は deny-by-default で失敗する。
+    // /api/teachers/[id] DELETE (service role + requireAdmin) を経由する deleteTeacher を使う。
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("teachers").delete().eq("id", id)
-
-      if (error) {
-        alert("教員の削除に失敗しました")
-        return
-      }
-
+      await deleteTeacher(id)
       const updatedTeachers = teachers.filter((teacher) => teacher.id !== id)
       setTeachers(updatedTeachers)
       alert("教員を削除しました")
     } catch (error) {
-      alert("教員の削除に失敗しました")
+      const msg = error instanceof Error ? error.message : "Unknown error"
+      console.error("[teacher-registration] delete failed:", msg, error)
+      alert(`教員の削除に失敗しました: ${msg}`)
     }
   }
 
