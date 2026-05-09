@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
-import { calculateScore, getTestSessionId } from "@/lib/exam/utils"
+import { calculateScore, getTestSessionId, flattenTestQuestions } from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 
 interface TeacherExamTabsProps {
@@ -106,28 +106,9 @@ export default function TeacherExamTabs({
         const selectedTest = fetchedTests.find((t) => t.id === testId)
         setSelectedTest(selectedTest)
         if (selectedTest && selectedTest.sheets) {
-          const allQuestions: any[] = []
-          const seenQuestionNumbers = new Set<string>()
-
-          selectedTest.sheets.forEach((sheet) => {
-            sheet.categories.forEach((category) => {
-              category.questions.forEach((question) => {
-                // Create unique key combining sheet, category, and question number
-                const uniqueKey = `${sheet.title}-${category.number}-${question.number}`
-
-                if (!seenQuestionNumbers.has(uniqueKey)) {
-                  seenQuestionNumbers.add(uniqueKey)
-                  allQuestions.push({
-                    ...question,
-                    sheetTitle: sheet.title,
-                    categoryTitle: category.title,
-                    categoryNumber: category.number,
-                  })
-                }
-              })
-            })
-          })
-          setQuestions(allQuestions)
+          // 2026-05-08 ADR-001 §1.2 F4 Phase A.2: flatten ループを共通 utility に
+          // (sheet+category+question dedup を維持)
+          setQuestions(flattenTestQuestions(selectedTest, { dedupByKey: true }))
         }
 
         const fetchedAttendanceRecords = await loadAttendanceRecords(universityCode, testSessionId)
