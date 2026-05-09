@@ -18,6 +18,8 @@ import {
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
+import { calculateScore, getTestSessionId } from "@/lib/exam/utils"
+import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 
 interface PatientExamTabsProps {
   patientEmail: string
@@ -52,16 +54,13 @@ export default function PatientExamTabs({
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
   const [alertTriggers, setAlertTriggers] = useState<Record<string, boolean>>({})
-  const [elapsedTime, setElapsedTime] = useState<number>(0)
   const [patientName, setPatientName] = useState<string>("")
 
   // Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
 
-  const getTestSessionId = (): string => {
-    // testSessionId は test-selection-screen が UI 状態として書き込むため sessionStorage 残置
-    return sessionStorage.getItem("testSessionId") || ""
-  }
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: 経過時間タイマーを共通フックに
+  const elapsedTime = useElapsedTimer()
 
   useEffect(() => {
     if (isSessionLoading || !session) return
@@ -264,7 +263,7 @@ export default function PatientExamTabs({
       [studentId]: true,
     }))
 
-    const totalScore = calculateScore(studentId)
+    const totalScore = calculateScoreFor(studentId)
     const hasAlert = alertTriggers[studentId] || false
 
     const evaluationResult: EvaluationResult = {
@@ -294,10 +293,8 @@ export default function PatientExamTabs({
     }
   }
 
-  const calculateScore = (studentId: string) => {
-    const studentAnswersData = studentAnswers[studentId] || {}
-    return Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
-  }
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: 共通 utility に集約
+  const calculateScoreFor = (studentId: string) => calculateScore(studentAnswers[studentId])
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
@@ -307,45 +304,11 @@ export default function PatientExamTabs({
   }
 
   const answeredCount = Object.keys(studentAnswers[assignedStudents[activeStudentIndex]?.id || ""] || {}).length
-  const totalScore = calculateScore(assignedStudents[activeStudentIndex]?.id || "")
+  const totalScore = calculateScoreFor(assignedStudents[activeStudentIndex]?.id || "")
   const activeStudent = assignedStudents[activeStudentIndex]
 
-  const groupedQuestions: Array<{
-    sheetTitle: string
-    categories: Array<{
-      categoryTitle: string
-      categoryNumber: number
-      questions: QuestionWithMeta[]
-    }>
-  }> = []
-
-  questions.forEach((question) => {
-    let sheet = groupedQuestions.find((s) => s.sheetTitle === question.sheetTitle)
-    if (!sheet) {
-      sheet = { sheetTitle: question.sheetTitle, categories: [] }
-      groupedQuestions.push(sheet)
-    }
-
-    let category = sheet.categories.find((c) => c.categoryNumber === question.categoryNumber)
-    if (!category) {
-      category = {
-        categoryTitle: question.categoryTitle,
-        categoryNumber: question.categoryNumber,
-        questions: [],
-      }
-      sheet.categories.push(category)
-    }
-
-    category.questions.push(question)
-  })
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedTime((prev) => prev + 1)
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [])
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: グループ化を共通フックに
+  const groupedQuestions = useGroupedQuestions(questions)
 
   // Phase 9b-β2f1: sessionStorage("loginInfo") を session.userName に置換
   useEffect(() => {
@@ -390,7 +353,7 @@ export default function PatientExamTabs({
                   {Object.keys(studentAnswers[activeStudent.id] || {}).length}/{questions.length}
                 </div>
                 <div className="text-sm">
-                  <span className="font-medium">合計点:</span> {calculateScore(activeStudent.id)}点
+                  <span className="font-medium">合計点:</span> {calculateScoreFor(activeStudent.id)}点
                 </div>
               </>
             )}
@@ -407,7 +370,7 @@ export default function PatientExamTabs({
           {assignedStudents.map((student, index) => {
             const attendance = attendanceStatus[student.id] || null
             const isStudentCompleted = completionStatus[student.id] || false
-            const studentScore = calculateScore(student.id)
+            const studentScore = calculateScoreFor(student.id)
             const studentAnsweredCount = Object.keys(studentAnswers[student.id] || {}).length
 
             return (
