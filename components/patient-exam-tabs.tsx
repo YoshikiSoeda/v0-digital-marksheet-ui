@@ -18,7 +18,12 @@ import {
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
-import { calculateScore, getTestSessionId, flattenTestQuestions } from "@/lib/exam/utils"
+import {
+  calculateScore,
+  getTestSessionId,
+  flattenTestQuestions,
+  buildEvaluationMaps,
+} from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 
 interface PatientExamTabsProps {
@@ -127,30 +132,21 @@ export default function PatientExamTabs({
         const validAttendanceData = Array.isArray(attendanceData) ? attendanceData : []
         const validResultsData = Array.isArray(resultsData) ? resultsData : []
 
+        // 出席は別データソースなので個別に組み立て
         const initialAttendance: Record<string, "present" | "absent" | "pending"> = {}
-        const initialAnswers: Record<string, Record<number, number>> = {}
-        const initialCompletionStatus: Record<string, boolean> = {}
-        const initialAlertTriggers: Record<string, boolean> = {}
-
-        students.forEach((student) => {
-          if (!student || !student.id) {
-            return
-          }
-
+        for (const student of students) {
+          if (!student?.id) continue
           const attendanceRecord = validAttendanceData.find((r) => r.studentId === student.id)
           initialAttendance[student.id] = attendanceRecord?.status || "pending"
+        }
 
-          const evaluation = validResultsData.find((e) => e.studentId === student.id && e.evaluatorType === "patient")
-
-          initialAnswers[student.id] = evaluation?.answers || {}
-          initialCompletionStatus[student.id] = evaluation?.isCompleted || false
-          initialAlertTriggers[student.id] = evaluation?.hasAlert || false
-        })
+        // 2026-05-08 ADR-001 §1.2 F4 Phase A.3: 評価マップ組み立てを共通 utility に
+        const maps = buildEvaluationMaps(validResultsData, { evaluatorType: "patient" })
 
         setAttendanceStatus(initialAttendance)
-        setStudentAnswers(initialAnswers)
-        setCompletionStatus(initialCompletionStatus)
-        setAlertTriggers(initialAlertTriggers)
+        setStudentAnswers(maps.answers)
+        setCompletionStatus(maps.completion)
+        setAlertTriggers(maps.alerts)
       } catch (error) {
         router.push("/patient/exam-info")
       }

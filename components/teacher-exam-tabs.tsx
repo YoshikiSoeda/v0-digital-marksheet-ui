@@ -21,7 +21,12 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
-import { calculateScore, getTestSessionId, flattenTestQuestions } from "@/lib/exam/utils"
+import {
+  calculateScore,
+  getTestSessionId,
+  flattenTestQuestions,
+  buildEvaluationMaps,
+} from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 
 interface TeacherExamTabsProps {
@@ -126,20 +131,19 @@ export default function TeacherExamTabs({
 
         const fetchedEvaluationResults = await loadEvaluationResults(universityCode, testSessionId)
         if (Array.isArray(fetchedEvaluationResults)) {
-          const answersByStudent: Record<string, Record<number, number>> = {}
-          const completionByStudent: Record<string, boolean> = {}
-          const editByStudent: Record<string, boolean> = {}
-
-          fetchedEvaluationResults.forEach((result) => {
-            if (result.evaluatorType === "teacher" && result.evaluatorId === teacherEmail) {
-              answersByStudent[result.studentId] = result.answers || {}
-              completionByStudent[result.studentId] = result.isCompleted || false
-              editByStudent[result.studentId] = !result.isCompleted
-            }
+          // 2026-05-08 ADR-001 §1.2 F4 Phase A.3: 評価マップ組み立てを共通 utility に
+          const maps = buildEvaluationMaps(fetchedEvaluationResults, {
+            evaluatorType: "teacher",
+            evaluatorEmail: teacherEmail,
           })
+          // editMode は teacher 固有の派生 state: completion の逆
+          const editByStudent: Record<string, boolean> = {}
+          for (const studentId of Object.keys(maps.completion)) {
+            editByStudent[studentId] = !maps.completion[studentId]
+          }
 
-          setStudentAnswers(answersByStudent)
-          setCompletionStatus(completionByStudent)
+          setStudentAnswers(maps.answers)
+          setCompletionStatus(maps.completion)
           setEditMode(editByStudent)
         }
       } catch (error) {

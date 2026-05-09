@@ -68,6 +68,51 @@ interface MinimalTest {
   sheets?: ReadonlyArray<MinimalSheet>
 }
 
+/**
+ * EvaluationResult の配列(全件)から、評価者にマッチする行だけを抽出して
+ * 学生 ID をキーとする answers / completion / alerts のマップを組み立てる。
+ *
+ * patient/teacher で同型だった「初期評価状態の組み立てループ」を 1 つに集約。
+ * editMode のような role 固有の派生 state は caller 側で computeMaps.completion
+ * から導出する想定。
+ */
+export interface EvaluationMaps {
+  answers: Record<string, Record<number, number>>
+  completion: Record<string, boolean>
+  alerts: Record<string, boolean>
+}
+
+interface EvaluationResultLike {
+  studentId: string
+  evaluatorType?: string | null
+  evaluatorId?: string | null
+  answers?: Record<number, number> | null
+  isCompleted?: boolean | null
+  hasAlert?: boolean | null
+}
+
+export function buildEvaluationMaps(
+  results: ReadonlyArray<EvaluationResultLike> | null | undefined,
+  opts: {
+    evaluatorType: "teacher" | "patient"
+    /** teacher 限定: 同じ部屋の他教員の評価を除外する為の照合 */
+    evaluatorEmail?: string
+  },
+): EvaluationMaps {
+  const out: EvaluationMaps = { answers: {}, completion: {}, alerts: {} }
+  if (!results || !Array.isArray(results)) return out
+
+  for (const r of results) {
+    if (r.evaluatorType !== opts.evaluatorType) continue
+    if (opts.evaluatorEmail && r.evaluatorId !== opts.evaluatorEmail) continue
+    if (!r.studentId) continue
+    out.answers[r.studentId] = r.answers || {}
+    out.completion[r.studentId] = r.isCompleted || false
+    out.alerts[r.studentId] = r.hasAlert || false
+  }
+  return out
+}
+
 export function flattenTestQuestions(
   test: MinimalTest | null | undefined,
   options: FlattenTestOptions = {},
