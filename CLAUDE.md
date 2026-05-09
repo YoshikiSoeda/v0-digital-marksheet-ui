@@ -373,7 +373,7 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 ## 13. 既知の問題・要注意点
 
 1. **`components/exam-screen.tsx` は V0 由来のデッドコード**(2026-04-25 に削除済)。`/student/results` というルートは存在しない
-2. **`teacher-exam-tabs.tsx` と `patient-exam-tabs.tsx` の本体ロジック重複(~500 行 × 2)** → ADR-001 §1.2 F4(`<ExamTabs role>` に統合候補、未着手)
+2. **`teacher-exam-tabs.tsx` と `patient-exam-tabs.tsx` の本体ロジック重複** → ADR-001 §1.2 F4。2026-05-08 Phase A.1〜A.3 + Phase B.1 で `lib/exam/utils.ts` + `lib/exam/hooks.ts` + `components/exam-questions-renderer.tsx` に共通要素を抽出、teacher 644→545 / patient 560→450 行に削減。残りは Phase B.2 (StudentTabList) と Phase C (データロード/handler 統合 → 完全 `<ExamTabs role>`)
 3. **`next.config.mjs` の `typescript.ignoreBuildErrors`** → Phase 6 で **`false` 化済み**。型エラーは build を落とす(従って `pnpm exec tsc --noEmit` を CI/ローカル両方で回すこと)
 4. **README.md は 2026-04-25 にプロジェクト固有版へ差し替え済み**(V0 テンプレではない)
 5. **平文パスワードの seed 残骸**(`scripts/102_import_teachers.sql` など)は Phase 8 で全 bcrypt 化、本番 DB の plaintext_remaining=0。SQL ファイル自体の seed は読み物として残置
