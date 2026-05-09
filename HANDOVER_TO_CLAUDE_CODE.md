@@ -211,37 +211,64 @@ Cowork セッションでは MCP が自動接続されていたが、Claude Code
 
 ---
 
-## 6. 残課題(優先度順)
+## 6. 残課題(2026-05-08 更新、優先度順)
 
-### A. 即着手可能・小物
+### A. DROP COLUMN(段階的に適用)
 
-- **ADR-004 B-2-c PR3 (DROP COLUMN)** ← **2026-05-18 以降目安**
-  - `scripts/221`: `ALTER TABLE students DROP COLUMN test_session_id, DROP COLUMN room_number`
-  - 本番運用で 1〜2 週間、新規学生登録が問題なく動くことを確認してから実施
-  - 破壊的なので別 PR + Supabase Branch でリハーサル必須
+- **ADR-004 B-2-c PR3**: `students.test_session_id` / `students.room_number` を DROP
+  - **scripts/236 が PR #103 で準備済み**(本番安全性検証済 — backfill 完全一致、依存ゼロ、ドライラン OK)
+  - 適用条件:scripts/220(2026-04-26 頃 merge、本番 2 週間以上稼働)→ **適用条件 OK**
+  - **副田さんの「apply 指示」待ち**
 
-### B. ADR-001 §1.2 構造的問題で未対応
+- **ADR-007 C-7 段階 1**: `register_teachers_bulk` / `register_patients_bulk` から legacy 列 INSERT を除去
+  - **scripts/237.todo が PR #103 で準備済み**
+  - 適用条件:scripts/226-227(2026-05-04 merge)から 1〜2 週後 = **2026-05-18 以降**
+  - apply するときは `.todo` 拡張子を取って scripts/237_*.sql に rename + MCP apply
 
-- **F4**: `teacher-exam-tabs.tsx` と `patient-exam-tabs.tsx` の本体ロジック重複(~500 行 × 2)を `<ExamTabs role>` に統合
-- **F7**: 一覧画面の共通 `<DataTable>` 抽出(teachers-list / patients-list / students-list / question-management)
+- **ADR-007 C-7 段階 2**: `teachers/patients/rooms` の legacy 列を物理 DROP
+  - **scripts/238.todo が PR #103 で準備済み**
+  - 適用条件:scripts/237 から 1〜2 週後
+
+### B. ADR-001 §1.2 構造的問題(未対応分)
+
+- **F4 残**: ExamTabs 本体(`teacher-exam-tabs.tsx` 644 行 + `patient-exam-tabs.tsx` 560 行)を `<ExamTabs role>` に統合
+  - PR #102 で page wrapper 部分のみ抽出済み(`useExamPageGuard` + `ExamErrorScreen`)
+  - 本体は採点 UI で regression リスク高 → ブラウザ smoke test 込みの別 PR で実施
+- **F7**: 一覧画面の共通 `<DataTable>` 抽出
+  - 対象 4 ファイル合計 2267 行(teachers-list / patients-list / students-list / question-management)
+  - 各画面の edit dialog や CSV export が画面固有で、generic な API が複雑になりがち
+  - tanstack-table 等のライブラリ導入を含めて改めて scope 設計が必要
 - **C4**: アラート集計ロジック UI 強化
 
-### C. ADR-001 §7 Open Questions(方針確認のみ)
+### C. クリーンアップ候補
 
-- §3 `/login` 旧 URL の redirect 永続性(現状 permanent: true)
+- **A-2**: `lib/data-storage.ts` deprecated shim を 26 caller migrate して削除
+  - 機械的だが 26 ファイル touch、別 PR で計画的に進める
+- ✅ A-3 `lib/supabase/server.ts` 削除済み(PR #100)
+- ✅ A-4 `add-test-session-status.sql` → `scripts/230_*` rename 済み(PR #100)
+
+### D. ADR-001 §7 Open Questions(方針確認のみ)
+
+- §3 `/login` 旧 URL の redirect 永続性(現状 `permanent: true`)
 - §4 Server Components シフトの範囲
 
-### D. 長期(別 Phase で別 ADR 化推奨)
+### E. 長期(別 Phase で別 ADR 化推奨)
 
 - **Phase 10 候補**: `password` 列を `admins` / `teachers` / `patients` から別テーブル(`user_credentials`)に分離(ADR-003 §6)
 - **Phase 11 候補**: Supabase Auth 移行(独自 Cookie 認証 → JWT/MFA/メール認証)
 - **Phase 12 候補**: V0 連携の整理 / 完全 Claude Code 主軸への移行
 
-### E. クリーンアップ候補
+### F. 最近の修正履歴(参考)
 
-- `lib/data-storage.ts` の deprecated shim を最終的に削除(全 caller 移行済を確認後)
-- `lib/supabase/client.ts` の参照ゼロを確認 → 削除候補
-- `add-test-session-status.sql` を `scripts/230_*.sql` 系統に rename(連番揃える)
+| PR | 内容 | 影響 |
+|---|---|---|
+| #98 | teachers/patients PATCH/DELETE — email 変更 orphan + patients 削除 silent fail 修正 | 致命バグ |
+| #100 | A-3/A-4 cleanup | 軽微 |
+| #101 | students PATCH/DELETE — studentId 変更 orphan + 削除 silent fail 修正 | 致命バグ |
+| #102 | F4 部分 — exam page wrapper 抽出(295 → 110 行) | refactor |
+| #103 | DROP COLUMN 準備(scripts/236 + 237/238 の .todo) | 副田さん確認待ち |
+
+D-audit-2 (2026-05-08): subjects-management / room-management / question-management / university-management の handleDelete はすべて proper な DELETE /api/* 経由 → 同型 silent-fail バグなし。
 
 ---
 

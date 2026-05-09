@@ -340,7 +340,8 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 - ✅ **C-5**: 試験セッション割当管理ページ + APIs(`/admin/test-sessions/[id]/assignments`、PR #76)
 - ✅ **C-6 (部分)**: `/api/rooms` GET を junction 経由に切替(PR #85)。`rooms.test_session_id` NULLABLE + redundant UNIQUE DROP(scripts/233、PR #87)。`verify_teacher_login` / `verify_patient_login` を junction LEFT JOIN 化(scripts/234、PR #90)。POST /api/rooms onConflict を canonical UNIQUE に揃える(PR #91)。canonical fallback の `.order("assigned_room_number")` を `name` に切替(PR #93、C-7 prep)
 - ⏳ **C-6 (残)**: `/api/teachers`、`/api/patients`、`/api/teachers/[id]`、`/api/patients/[id]` の canonical fallback で legacy 列を返している箇所(C-7 で行が消えれば自然解消するが、`mapTeacher` / `mapPatient` で空文字 / undefined に揃える整理は別 PR で実施可)
-- ⏳ **C-7**: `teachers/patients.test_session_id`、`teachers/patients.assigned_room_number`、`rooms.test_session_id`、`rooms.subject_code` の DROP COLUMN(本番安定 1〜2 週後、2026-05-21 以降目安)
+- ⏳ **C-7 段階 1**: `register_teachers_bulk` / `register_patients_bulk` から legacy 列 INSERT を除去(scripts/237.todo 準備済 — PR #103、適用は 2026-05-18 以降)
+- ⏳ **C-7 段階 2**: `teachers/patients.test_session_id`、`teachers/patients.assigned_room_number`、`rooms.test_session_id`、`rooms.subject_code` の物理 DROP COLUMN(scripts/238.todo 準備済 — PR #103、scripts/237 適用 1〜2 週後)
 
 ### 10.2 ADR-004 進捗(完了)
 
@@ -348,7 +349,7 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 - ✅ B-2-b: `/api/students` GET/POST を canonical RPC + assignments に
 - ✅ B-2-c: legacy 列(`students.test_session_id` / `room_number`)を読まない・書かない(scripts/220)
 - ✅ B-2-d: `/admin/register-students` に「過去学生から登録」タブ(canonical bulk assign)
-- ⏳ **B-2-c PR3**: legacy 列の DROP COLUMN(本番安定後、scripts/221 として予定)
+- ⏳ **B-2-c PR3**: legacy 列の DROP COLUMN(scripts/236 として準備済 — PR #103、副田さんの apply 指示待ち。安全性は本番 DB で検証済)
 
 ---
 
