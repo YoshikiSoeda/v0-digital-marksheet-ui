@@ -25,6 +25,7 @@ import {
   buildEvaluationMaps,
 } from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
+import { ExamQuestionsRenderer } from "@/components/exam-questions-renderer"
 
 interface PatientExamTabsProps {
   patientEmail: string
@@ -410,65 +411,14 @@ export default function PatientExamTabs({
 
         {attendanceStatus[activeStudent?.id || ""] === "present" && (
           <>
-            {groupedQuestions.map((sheet) => (
-              <div key={sheet.sheetTitle} className="space-y-3">
-                <div className="bg-muted px-4 py-3 rounded">
-                  <span className="font-medium">{sheet.sheetTitle}</span>
-                </div>
-
-                {sheet.categories.map((category) => (
-                  <div key={category.categoryNumber} className="space-y-3">
-                    <div className="px-4">
-                      <p className="text-sm font-semibold">{category.categoryTitle}</p>
-                    </div>
-
-                    <div className="space-y-1 px-4">
-                      {category.questions.map((question) => {
-                        const studentAnswersData = studentAnswers[activeStudent.id] || {}
-                        const selectedOption = studentAnswersData[question.number]
-                        const isAlertTarget = question.isAlertTarget
-                        const isInputDisabled = completionStatus[activeStudent.id] || false
-
-                        return (
-                          <div
-                            key={`${category.categoryNumber}-${question.number}`}
-                            className="flex items-center gap-4 py-2 border-b border-gray-200/40"
-                          >
-                            <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
-                              {question.number}
-                            </div>
-
-                            <div className="flex-1 min-w-0 text-sm">
-                              {question.text}
-                              {isAlertTarget && (
-                                <span className="ml-2 text-xs text-red-600 font-medium">
-                                  (アラート対象: {question.alertOptions?.join(",")})
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              {[1, 2, 3, 4, 5].map((option) => (
-                                <Button
-                                  key={option}
-                                  variant={selectedOption === option ? "default" : "outline"}
-                                  size="sm"
-                                  className="w-10 h-10 p-0 text-sm rounded-md"
-                                  onClick={() => handleAnswerChange(question.number, option)}
-                                  disabled={isInputDisabled || attendanceStatus[activeStudent.id] !== "present"}
-                                >
-                                  {option}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
+            {/* 2026-05-08 ADR-001 §1.2 F4 Phase B.1: 質問描画は共通コンポーネント */}
+            <ExamQuestionsRenderer
+              groupedQuestions={groupedQuestions}
+              answers={studentAnswers[activeStudent.id] || {}}
+              inputDisabled={completionStatus[activeStudent.id] || false}
+              attendancePresent={attendanceStatus[activeStudent.id] === "present"}
+              onAnswer={handleAnswerChange}
+            />
 
             <div className="flex gap-3 pt-4 px-4">
               {!completionStatus[activeStudent.id] && (
