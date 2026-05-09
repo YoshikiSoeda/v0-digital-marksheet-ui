@@ -18,7 +18,7 @@ import {
 } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
-import { calculateScore, getTestSessionId } from "@/lib/exam/utils"
+import { calculateScore, getTestSessionId, flattenTestQuestions } from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 
 interface PatientExamTabsProps {
@@ -94,28 +94,9 @@ export default function PatientExamTabs({
         setSelectedTest(test)
         setTests(testsData)
 
-        const flatQuestions: QuestionWithMeta[] = []
-        let displayNumber = 1
-
-        test.sheets.forEach((sheet) => {
-          if (!sheet.categories || !Array.isArray(sheet.categories)) return
-
-          sheet.categories.forEach((category) => {
-            if (!category.questions || !Array.isArray(category.questions)) return
-
-            category.questions.forEach((question) => {
-              flatQuestions.push({
-                ...question,
-                sheetTitle: sheet.title,
-                categoryTitle: category.title,
-                categoryNumber: category.number,
-                displayNumber: displayNumber++,
-              })
-            })
-          })
-        })
-
-        setQuestions(flatQuestions)
+        // 2026-05-08 ADR-001 §1.2 F4 Phase A.2: flatten ループを共通 utility に
+        const flatQuestions = flattenTestQuestions(test, { addDisplayNumber: true })
+        setQuestions(flatQuestions as unknown as QuestionWithMeta[])
 
         let students: any[] = []
         try {
