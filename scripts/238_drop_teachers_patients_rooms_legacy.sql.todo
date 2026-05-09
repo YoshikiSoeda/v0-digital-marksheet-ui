@@ -1,0 +1,41 @@
+-- scripts/238 (TODO, scripts/237 適用 1〜2 週後): teachers / patients / rooms の
+-- legacy 列を物理 DROP COLUMN
+-- (ADR-007 Phase C-7 完結)
+--
+-- 適用前提:
+--   1. scripts/237 が本番安定 (RPC が legacy 列に書き込まなくなって 1〜2 週間)
+--   2. application 層が一切読まない (PR #90 / #93 で完了済)
+--   3. DROP 直前に backfill 検証:
+--      - teachers / patients: legacy 列値と junction 値の一致確認
+--      - rooms: legacy 列に値が残っていても情報損失なし(rooms POST は
+--        ADR-007 C-6 で junction 経由 GET になっており、legacy 列値は
+--        参照されていない)
+--
+-- 安全性確認 SQL (apply 前に実行):
+--   SELECT s.id, s.email,
+--     s.test_session_id AS legacy, a.test_session_id AS junction
+--   FROM teachers s
+--   LEFT JOIN teacher_test_session_assignments a
+--     ON a.teacher_id = s.id AND a.test_session_id = s.test_session_id
+--   WHERE s.test_session_id IS NOT NULL AND a.test_session_id IS NULL;
+--   -- 0 行であれば情報損失なし
+--   (patients も同型)
+--
+-- ロールバック: 列追加 + junction から backfill (詳細は scripts/236 参照)
+
+-- teachers
+ALTER TABLE teachers DROP COLUMN IF EXISTS test_session_id;
+ALTER TABLE teachers DROP COLUMN IF EXISTS assigned_room_number;
+
+-- patients
+ALTER TABLE patients DROP COLUMN IF EXISTS test_session_id;
+ALTER TABLE patients DROP COLUMN IF EXISTS assigned_room_number;
+
+-- rooms
+ALTER TABLE rooms DROP COLUMN IF EXISTS test_session_id;
+ALTER TABLE rooms DROP COLUMN IF EXISTS subject_code;
+
+-- 動作確認
+SELECT table_name, column_name FROM information_schema.columns
+WHERE table_schema='public' AND table_name IN ('teachers','patients','rooms')
+ORDER BY table_name, ordinal_position;
