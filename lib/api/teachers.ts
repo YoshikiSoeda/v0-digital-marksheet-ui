@@ -52,3 +52,34 @@ export async function deleteTeacherApi(id: string): Promise<{ ok: boolean }> {
   }
   return { ok: true }
 }
+
+export interface UpdateTeacherInput {
+  name?: string
+  email?: string
+  password?: string
+  role?: string
+  assignedRoomNumber?: string
+  universityCode?: string
+  subjectCode?: string
+  accountType?: string
+}
+
+/**
+ * 2026-05-08: id ベースの単行 UPDATE。
+ * register_teachers_bulk (ON CONFLICT (univ, email)) は email 変更時に旧行を
+ * orphan 化するため、編集時は本関数を使う。
+ */
+export async function updateTeacher(id: string, input: UpdateTeacherInput): Promise<Teacher> {
+  const res = await fetch(`/api/teachers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || `updateTeacher failed: ${res.status}`)
+  }
+  const json = await res.json()
+  return json.item as Teacher
+}

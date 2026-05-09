@@ -141,6 +141,11 @@ export async function deleteTeacher(teacherId: string) {
   return deleteTeacherApi(teacherId)
 }
 
+export async function deletePatient(patientId: string) {
+  const { deletePatientApi } = await import("./api/patients")
+  return deletePatientApi(patientId)
+}
+
 // teachers / patients の write は Phase 8c で /api/admin/register-* に migration 済み。
 export async function saveTeachers(teachers: Teacher[]) {
   if (!Array.isArray(teachers) || teachers.length === 0) {

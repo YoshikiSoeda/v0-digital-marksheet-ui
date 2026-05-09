@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadPatients, savePatients, loadRooms, loadSubjects, type Patient, type Subject } from "@/lib/data-storage"
+import { loadPatients, loadRooms, loadSubjects, deletePatient, type Patient, type Subject } from "@/lib/data-storage"
+import { updatePatient } from "@/lib/api/patients"
 import { useSession } from "@/lib/auth/use-session"
 
 export default function PatientsListPage() {
@@ -104,39 +105,64 @@ export default function PatientsListPage() {
       return
     }
 
-    const updatedPatients = patients.map((p) =>
-      p.id === editingPatient.id
-        ? {
-            ...p,
-            name: editForm.name,
-            email: editForm.email,
-            password: editForm.password,
-            role: editForm.role as "general",
-            assignedRoomNumber: editForm.roomNumber,
-            universityCode: editForm.university_code,
-          }
-        : p,
-    )
-
-    await savePatients(updatedPatients)
-    setPatients(updatedPatients)
-    setEditingPatient(null)
-    alert("患者役情報を更新しました")
+    // 2026-05-08: id ベースの PATCH に切替(register_patients_bulk の
+    // ON CONFLICT (univ, email) で email 変更時に旧行が orphan になるバグ回避)
+    try {
+      const updated = await updatePatient(editingPatient.id, {
+        name: editForm.name,
+        email: editForm.email,
+        password: editForm.password || undefined,
+        role: editForm.role,
+        assignedRoomNumber: editForm.roomNumber,
+        universityCode: editForm.university_code,
+      })
+      setPatients((prev) => prev.map((p) => (p.id === editingPatient.id ? { ...p, ...updated } : p)))
+      setEditingPatient(null)
+      alert("患者役情報を更新しました")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      console.error("[patients-list] handleSaveEdit failed:", msg, e)
+      alert(`患者役情報の更新に失敗しました: ${msg}`)
+    }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm("この患者役を削除しますか？")) {
-      const updated = patients.filter((p) => p.id !== id)
-      await savePatients(updated)
-      setPatients(updated)
+    if (!confirm("この患者役を削除しますか？")) return
+    // 2026-05-08: 旧実装は savePatients(filtered) に頼っており、
+    // register_patients_bulk は upsert なので実際には削除できていなかった。
+    try {
+      await deletePatient(id)
+      setPatients((prev) => prev.filter((p) => p.id !== id))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      console.error("[patients-list] handleDelete failed:", msg, e)
+      alert(`患者役の削除に失敗しました: ${msg}`)
     }
   }
 
   const handleDeleteAll = async () => {
-    if (confirm("全ての患者役データを削除しますか？この操作は取り消せません。")) {
-      await savePatients([])
+    if (!confirm("全ての患者役データを削除しますか？この操作は取り消せません。")) return
+    // 2026-05-08: savePatients([]) は no-op upsert で削除されない為、
+    // 1 件ずつ DELETE /api/patients/[id] を呼ぶ。
+    const targets = [...patients]
+    let failed = 0
+    const reasons: string[] = []
+    for (const p of targets) {
+      try {
+        await deletePatient(p.id)
+      } catch (e) {
+        failed++
+        const msg = e instanceof Error ? e.message : String(e)
+        reasons.push(`${p.email || p.id}: ${msg}`)
+      }
+    }
+    if (failed === 0) {
       setPatients([])
       alert("全ての患者役データを削除しました")
+    } else {
+      // 失敗分は残るので画面の表示と DB を一致させるため再ロード相当の filter
+      setPatients((prev) => prev.filter((p) => reasons.some((r) => r.startsWith(p.email || p.id))))
+      alert(`${targets.length - failed} 件削除しましたが ${failed} 件失敗しました\n${reasons.slice(0, 5).join("\n")}`)
     }
   }
 

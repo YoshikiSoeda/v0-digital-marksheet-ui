@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadTeachers, saveTeachers, loadRooms, deleteTeacher, loadSubjects, type Teacher,
+import { loadTeachers, loadRooms, deleteTeacher, loadSubjects, type Teacher,
   type TeacherRole, type Subject } from "@/lib/data-storage"
+import { updateTeacher } from "@/lib/api/teachers"
 import { useSession } from "@/lib/auth/use-session"
 
 export default function TeachersListPage() {
@@ -102,26 +103,26 @@ export default function TeachersListPage() {
   const handleSaveEdit = async () => {
     if (!editingTeacher) return
 
-
-    const updatedTeachers = teachers.map((t) =>
-      t.id === editingTeacher.id
-        ? {
-            ...t,
-            name: editForm.name,
-            email: editForm.email,
-            password: editForm.password,
-            role: editForm.role,
-            assignedRoomNumber: editForm.assignedRoomNumber,
-            universityCode: editForm.university_code,
-            subjectCode: editForm.subjectCode,
-          }
-        : t,
-    )
-
-    await saveTeachers(updatedTeachers)
-    setTeachers(updatedTeachers)
-    setEditingTeacher(null)
-    alert("教員情報を更新しました")
+    // 2026-05-08: id ベースの PATCH に切替(register_teachers_bulk の
+    // ON CONFLICT (univ, email) で email 変更時に旧行が orphan になるバグ回避)
+    try {
+      const updated = await updateTeacher(editingTeacher.id, {
+        name: editForm.name,
+        email: editForm.email,
+        password: editForm.password || undefined, // 空文字なら password 未変更扱い
+        role: editForm.role,
+        assignedRoomNumber: editForm.assignedRoomNumber,
+        universityCode: editForm.university_code,
+        subjectCode: editForm.subjectCode,
+      })
+      setTeachers((prev) => prev.map((t) => (t.id === editingTeacher.id ? { ...t, ...updated } : t)))
+      setEditingTeacher(null)
+      alert("教員情報を更新しました")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      console.error("[teachers-list] handleSaveEdit failed:", msg, e)
+      alert(`教員情報の更新に失敗しました: ${msg}`)
+    }
   }
 
   const handleDelete = async (id: string) => {
