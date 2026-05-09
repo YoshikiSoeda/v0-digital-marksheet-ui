@@ -71,7 +71,7 @@ pnpm exec tsc --noEmit      # 型チェックのみ(build せずに)
 | `SUPABASE_SERVICE_ROLE_KEY` | service role キー(API ルートからの管理操作) | **server only** |
 | `SUPABASE_URL` | 一部 API ルートで参照(基本は `NEXT_PUBLIC_SUPABASE_URL` と同値) | server |
 
-> Supabase クライアントは `app/api/*/route.ts`(service role)に集約。`lib/supabase/server.ts` は最終削除候補。`lib/supabase/client.ts` は anon ベースで RLS deny に当たる旧導線だった為 2026-05-08 に削除済(PR #96)。
+> Supabase クライアントは `app/api/*/route.ts`(service role)に集約。`lib/supabase/{server,client}.ts` は両方とも 2026-05-08 に削除済(client.ts は PR #96、server.ts は本 cleanup PR)。
 
 ---
 
@@ -133,7 +133,7 @@ pnpm exec tsc --noEmit      # 型チェックのみ(build せずに)
 │   ├── auth/
 │   │   ├── api-guard.ts                                # requireAdmin + getSubjectScope + rejectIfOutsideSubjectScope (Y-2)
 │   │   ├── http-cookie.ts, verify.ts, session.ts, use-session.ts
-│   ├── supabase/server.ts                              # 参照ほぼゼロ、最終削除候補(client.ts は 2026-05-08 削除済 PR #96)
+│   ├── (lib/supabase/ は 2026-05-08 撤去済: server.ts / client.ts ともゼロ参照だった)
 │   └── utils.ts
 ├── hooks/use-toast.ts
 ├── middleware.ts                                       # Cookie ベース 401 ガード + /admin/* admin ロール限定 (R3-1)
@@ -307,7 +307,7 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 | 233 | rooms.test_session_id NULLABLE + redundant rooms_unique_per_session DROP(ADR-007 C-7 phase 1) |
 | 234 | verify_teacher_login / verify_patient_login を junction LEFT JOIN 化(ADR-007 C-6、PR #90) |
 | 235 | teacher/patient junction の RLS 有効化 + register_student_canonical の anon/auth EXECUTE 剥奪(advisor cleared、PR #95) |
-| `add-test-session-status.sql` | status カラム追加(連番外、命名揃えるなら次マイグで吸収) |
+| 230 | test_sessions.status 列追加(旧 `add-test-session-status.sql` を 2026-05-08 に rename、DDL 内容は無変更) |
 
 ### 新規追加ルール
 
