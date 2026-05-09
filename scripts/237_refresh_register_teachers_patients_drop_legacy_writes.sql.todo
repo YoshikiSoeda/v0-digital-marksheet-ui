@@ -1,0 +1,145 @@
+-- scripts/237 (TODO, 2026-05-18 以降に apply): register_teachers_bulk と
+-- register_patients_bulk から legacy 列 (test_session_id / assigned_room_number)
+-- への INSERT を除去
+-- (ADR-007 Phase C-7 prep)
+--
+-- 背景:
+--   現行 RPC (scripts/226, 227) は新規 INSERT 時のみ legacy 列を埋めていた
+--   (後方互換のため)。canonical + junction 方式に完全移行した今、これは
+--   DROP COLUMN のブロッカー。
+--
+-- 適用前提:
+--   1. scripts/226, 227 が本番安定 1〜2 週後 (= 2026-05-18 以降目安)
+--   2. application 層は legacy 列を読まない (PR #90 / #93 で完了済)
+--   3. backfill 確認: legacy 値と junction 値が一致していること
+--      (scripts/238 適用前に SELECT で再確認)
+--
+-- 変更:
+--   両 RPC の INSERT 句から assigned_room_number / test_session_id 列を削除
+--   (junction への INSERT はそのまま)
+--
+-- ロールバック:
+--   scripts/226, 227 を再 apply
+
+CREATE OR REPLACE FUNCTION public.register_teachers_bulk(p_data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  rec jsonb;
+  cnt integer := 0;
+  v_teacher_id uuid;
+  v_test_session_id uuid;
+  v_assigned_room text;
+BEGIN
+  IF p_data IS NULL OR jsonb_typeof(p_data) <> 'array' THEN
+    RAISE EXCEPTION 'p_data must be a JSONB array';
+  END IF;
+
+  FOR rec IN SELECT * FROM jsonb_array_elements(p_data)
+  LOOP
+    v_test_session_id := NULLIF(rec->>'test_session_id', '')::uuid;
+    v_assigned_room   := NULLIF(rec->>'assigned_room_number', '');
+
+    -- canonical upsert (legacy 列を含めない)
+    INSERT INTO public.teachers (
+      name, email, password, role,
+      subject_code, university_code, account_type
+    )
+    VALUES (
+      rec->>'name',
+      rec->>'email',
+      public.hash_password_if_plain(rec->>'password'),
+      rec->>'role',
+      NULLIF(rec->>'subject_code', ''),
+      COALESCE(NULLIF(rec->>'university_code', ''), 'dentshowa'),
+      NULLIF(rec->>'account_type', '')
+    )
+    ON CONFLICT (university_code, email) DO UPDATE SET
+      name         = EXCLUDED.name,
+      password     = public.hash_password_if_plain(EXCLUDED.password),
+      role         = EXCLUDED.role,
+      subject_code = COALESCE(EXCLUDED.subject_code, public.teachers.subject_code),
+      account_type = COALESCE(EXCLUDED.account_type, public.teachers.account_type),
+      updated_at   = now()
+    RETURNING id INTO v_teacher_id;
+
+    IF v_test_session_id IS NOT NULL THEN
+      INSERT INTO public.teacher_test_session_assignments (
+        teacher_id, test_session_id, assigned_room_number
+      ) VALUES (
+        v_teacher_id, v_test_session_id, v_assigned_room
+      )
+      ON CONFLICT (teacher_id, test_session_id) DO UPDATE SET
+        assigned_room_number = EXCLUDED.assigned_room_number,
+        updated_at           = now();
+    END IF;
+
+    cnt := cnt + 1;
+  END LOOP;
+
+  RETURN jsonb_build_object('upserted', cnt);
+END $$;
+
+CREATE OR REPLACE FUNCTION public.register_patients_bulk(p_data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  rec jsonb;
+  cnt integer := 0;
+  v_patient_id uuid;
+  v_test_session_id uuid;
+  v_assigned_room text;
+BEGIN
+  IF p_data IS NULL OR jsonb_typeof(p_data) <> 'array' THEN
+    RAISE EXCEPTION 'p_data must be a JSONB array';
+  END IF;
+
+  FOR rec IN SELECT * FROM jsonb_array_elements(p_data)
+  LOOP
+    v_test_session_id := NULLIF(rec->>'test_session_id', '')::uuid;
+    v_assigned_room   := NULLIF(rec->>'assigned_room_number', '');
+
+    INSERT INTO public.patients (
+      name, email, password, role,
+      subject_code, university_code, account_type
+    )
+    VALUES (
+      rec->>'name',
+      rec->>'email',
+      public.hash_password_if_plain(rec->>'password'),
+      rec->>'role',
+      NULLIF(rec->>'subject_code', ''),
+      COALESCE(NULLIF(rec->>'university_code', ''), 'dentshowa'),
+      NULLIF(rec->>'account_type', '')
+    )
+    ON CONFLICT (university_code, email) DO UPDATE SET
+      name         = EXCLUDED.name,
+      password     = public.hash_password_if_plain(EXCLUDED.password),
+      role         = EXCLUDED.role,
+      subject_code = COALESCE(EXCLUDED.subject_code, public.patients.subject_code),
+      account_type = COALESCE(EXCLUDED.account_type, public.patients.account_type),
+      updated_at   = now()
+    RETURNING id INTO v_patient_id;
+
+    IF v_test_session_id IS NOT NULL THEN
+      INSERT INTO public.patient_test_session_assignments (
+        patient_id, test_session_id, assigned_room_number
+      ) VALUES (
+        v_patient_id, v_test_session_id, v_assigned_room
+      )
+      ON CONFLICT (patient_id, test_session_id) DO UPDATE SET
+        assigned_room_number = EXCLUDED.assigned_room_number,
+        updated_at           = now();
+    END IF;
+
+    cnt := cnt + 1;
+  END LOOP;
+
+  RETURN jsonb_build_object('upserted', cnt);
+END $$;
