@@ -21,6 +21,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSession } from "@/lib/auth/use-session"
 import { ExamSessionBanner } from "@/components/exam-session-banner"
+import { calculateScore, getTestSessionId } from "@/lib/exam/utils"
+import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 
 interface TeacherExamTabsProps {
   teacherEmail: string
@@ -62,7 +64,9 @@ export default function TeacherExamTabs({
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
   const [questions, setQuestions] = useState<any[]>([])
   const [teacherName, setTeacherName] = useState("")
-  const [elapsedTime, setElapsedTime] = useState<number>(0)
+
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: 経過時間タイマーを共通フックに
+  const elapsedTime = useElapsedTimer()
 
   // 2026-05-04: フレキシブル部屋モード用 state
   // - isFlexibleRoom=true: pickedRoomNumber は UI から選ばせる (初期値は空)
@@ -187,10 +191,7 @@ export default function TeacherExamTabs({
     loadRoomChoices()
   }, [isFlexibleRoom, teacherRole, teacherSubjectCode, teacherUniversityCode])
 
-  // Phase 9b-β2f1: (session?.universityCode || "") を session 経由に統合
-  const getTestSessionId = (): string => {
-    return sessionStorage.getItem("testSessionId") || ""
-  }
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: getTestSessionId は @/lib/exam/utils から import
 
   const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
@@ -299,7 +300,7 @@ export default function TeacherExamTabs({
         evaluatorId: teacherEmail,
         testId,
         roomNumber: activeRoomNumber,
-        totalScore: calculateScore(studentId),
+        totalScore: calculateScoreFor(studentId),
         answers: studentAnswersData,
         answeredCount,
         isCompleted: true,
@@ -328,10 +329,8 @@ export default function TeacherExamTabs({
     setCompletionStatus((prev) => ({ ...prev, [studentId]: false }))
   }
 
-  const calculateScore = (studentId: string): number => {
-    const answers = studentAnswers[studentId] || {}
-    return Object.values(answers).reduce((sum, val) => sum + val, 0)
-  }
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: 共通 utility に集約
+  const calculateScoreFor = (studentId: string): number => calculateScore(studentAnswers[studentId])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -342,51 +341,17 @@ export default function TeacherExamTabs({
   const activeStudent = assignedStudents[activeStudentIndex]
   const studentAnswersData = studentAnswers[activeStudent?.id || ""] || {}
   const answeredCount = Object.keys(studentAnswersData).length
-  const totalScore = calculateScore(activeStudent?.id || "")
+  const totalScore = calculateScoreFor(activeStudent?.id || "")
   const isCompleted = completionStatus[activeStudent?.id || ""] || false
   const isEditMode = editMode[activeStudent?.id || ""] || false
   const isInputDisabled = isCompleted && !isEditMode
 
-  const groupedQuestions: Array<{
-    sheetTitle: string
-    categories: Array<{
-      categoryTitle: string
-      categoryNumber: number
-      questions: any[]
-    }>
-  }> = []
-
-  questions.forEach((question) => {
-    let sheet = groupedQuestions.find((s) => s.sheetTitle === question.sheetTitle)
-    if (!sheet) {
-      sheet = { sheetTitle: question.sheetTitle, categories: [] }
-      groupedQuestions.push(sheet)
-    }
-
-    let category = sheet.categories.find((c) => c.categoryNumber === question.categoryNumber)
-    if (!category) {
-      category = {
-        categoryTitle: question.categoryTitle,
-        categoryNumber: question.categoryNumber,
-        questions: [],
-      }
-      sheet.categories.push(category)
-    }
-
-    category.questions.push(question)
-  })
+  // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: グループ化を共通フックに
+  const groupedQuestions = useGroupedQuestions(questions)
 
   const handleFinishEvaluation = async () => {
     router.push("/teacher/results")
   }
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedTime((prev) => prev + 1)
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [])
 
   return (
     <div className="space-y-4">
@@ -444,7 +409,7 @@ export default function TeacherExamTabs({
                   {questions.length}
                 </div>
                 <div className="text-sm">
-                  <span className="font-medium">合計点:</span> {calculateScore(activeStudent.id)}点
+                  <span className="font-medium">合計点:</span> {calculateScoreFor(activeStudent.id)}点
                 </div>
               </>
             )}
@@ -461,7 +426,7 @@ export default function TeacherExamTabs({
           {assignedStudents.map((student, index) => {
             const attendance = attendanceStatus[student.id] || null
             const isStudentCompleted = completionStatus[student.id] || false
-            const studentScore = calculateScore(student.id)
+            const studentScore = calculateScoreFor(student.id)
             const studentAnsweredCount = Object.keys(studentAnswers[student.id] || {}).length
 
             return (
