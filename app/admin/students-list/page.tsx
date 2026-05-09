@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Home, Download, Trash2, Search, Edit, AlertTriangle } from "lucide-react"
-import { loadStudents, saveStudents, loadRooms, loadSubjects, type Student, type Subject } from "@/lib/data-storage"
+import { loadStudents, saveStudents, loadRooms, loadSubjects, deleteStudent, type Student, type Subject } from "@/lib/data-storage"
+import { updateStudent } from "@/lib/api/students"
 import { useSession } from "@/lib/auth/use-session"
 import {
   Dialog,
@@ -109,38 +110,86 @@ export default function StudentsListPage() {
   const handleSaveEdit = async () => {
     if (!editingStudent) return
 
-    const updated = students.map((s) =>
-      s.id === editingStudent.id
-        ? {
-            ...s,
-            studentId: editForm.studentId,
-            name: editForm.name,
-            email: editForm.email,
-            department: editForm.department,
-            grade: editForm.grade || undefined,
+    // 2026-05-08: id ベースの PATCH に切替(register_student_canonical の
+    // ON CONFLICT (univ, student_id) で student_id 変更時に旧行が orphan に
+    // なるバグ回避)。roomNumber は assignment 経由なので、変更があれば
+    // saveStudents を別途呼んで junction を更新する。
+    const testSessionId = sessionStorage.getItem("testSessionId") || ""
+    const roomChanged = editForm.roomNumber !== editingStudent.roomNumber
+    try {
+      const updatedCanonical = await updateStudent(editingStudent.id, {
+        studentId: editForm.studentId,
+        name: editForm.name,
+        email: editForm.email,
+        department: editForm.department,
+        grade: editForm.grade || undefined,
+        universityCode: editForm.university_code,
+        // subjectCode は edit form に項目が無いのでそのまま
+      })
+      // roomNumber 変更がある場合のみ assignment を upsert する
+      if (roomChanged && testSessionId) {
+        await saveStudents([
+          {
+            ...editingStudent,
+            ...updatedCanonical,
             roomNumber: editForm.roomNumber,
-            universityCode: editForm.university_code,
-          }
-        : s,
-    )
-    await saveStudents(updated)
-    setStudents(updated)
-    setEditingStudent(null)
+            testSessionId,
+          },
+        ])
+      }
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === editingStudent.id
+            ? { ...s, ...updatedCanonical, roomNumber: editForm.roomNumber }
+            : s,
+        ),
+      )
+      setEditingStudent(null)
+      alert("学生情報を更新しました")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      console.error("[students-list] handleSaveEdit failed:", msg, e)
+      alert(`学生情報の更新に失敗しました: ${msg}`)
+    }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm("この学生を削除しますか？")) {
-      const updated = students.filter((s) => s.id !== id)
-      await saveStudents(updated)
-      setStudents(updated)
+    if (!confirm("この学生を削除しますか？")) return
+    // 2026-05-08: 旧実装は saveStudents(filtered) に頼っており、
+    // register_student_canonical は upsert なので削除できていなかった。
+    try {
+      await deleteStudent(id)
+      setStudents((prev) => prev.filter((s) => s.id !== id))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      console.error("[students-list] handleDelete failed:", msg, e)
+      alert(`学生の削除に失敗しました: ${msg}`)
     }
   }
 
   const handleResetAllData = async () => {
-    if (confirm("全ての学生データを削除しますか？この操作は取り消せません。")) {
-      await saveStudents([])
+    if (!confirm("全ての学生データを削除しますか？この操作は取り消せません。")) return
+    // 2026-05-08: saveStudents([]) は no-op upsert で削除されない為、
+    // 1 件ずつ DELETE /api/students/[id] を呼ぶ。
+    const targets = [...students]
+    let failed = 0
+    const reasons: string[] = []
+    for (const s of targets) {
+      try {
+        await deleteStudent(s.id)
+      } catch (e) {
+        failed++
+        const msg = e instanceof Error ? e.message : String(e)
+        reasons.push(`${s.studentId || s.id}: ${msg}`)
+      }
+    }
+    if (failed === 0) {
       setStudents([])
       alert("全ての学生データを削除しました")
+    } else {
+      // 失敗分は残るので表示と DB を一致させる
+      setStudents((prev) => prev.filter((s) => reasons.some((r) => r.startsWith(s.studentId || s.id))))
+      alert(`${targets.length - failed} 件削除しましたが ${failed} 件失敗しました\n${reasons.slice(0, 5).join("\n")}`)
     }
   }
 
