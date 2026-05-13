@@ -258,7 +258,7 @@ export function SubjectManagement() {
                       id="subject_name"
                       value={formData.subject_name}
                       onChange={(e) => setFormData({ ...formData, subject_name: e.target.value })}
-                      placeholder="例: OSCE 基本評価"
+                      placeholder="例: 医療面接基本評価"
                       required
                     />
                   </div>

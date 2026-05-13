@@ -15,11 +15,8 @@ export default function HomePage() {
         <div className="max-w-2xl w-full space-y-10">
           <div className="text-center space-y-4">
             <h1 className="text-4xl md:text-5xl font-bold text-primary tracking-tight">
-              Digital Marksheet Exam System
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-xl mx-auto">
               医療面接評価システム
-            </p>
+            </h1>
           </div>
 
           <Card className="hover:shadow-lg transition-shadow">

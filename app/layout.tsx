@@ -8,9 +8,9 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  // <CHANGE> Updated metadata for exam system
-  title: "Digital Marksheet Exam System",
-  description: "大学試験のためのデジタル解答システム",
+  // 2026-05-13: ブランド名を「医療面接評価システム」に統一
+  title: "医療面接評価システム",
+  description: "医療面接評価システム — 大学試験のためのデジタル解答システム",
   generator: "v0.app",
   icons: {
     icon: [
