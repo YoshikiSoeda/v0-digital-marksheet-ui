@@ -70,7 +70,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
       <div className="min-h-screen flex flex-col bg-secondary/30">
         <header className="border-b bg-background">
           <div className="max-w-7xl mx-auto px-4 py-3">
-            <span className="text-primary font-semibold">OSCE 評価システム</span>
+            <span className="text-primary font-semibold">医療面接評価システム</span>
           </div>
         </header>
         <main className="flex-1 flex items-center justify-center">
@@ -92,7 +92,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
       <header className="border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Link href="/" className="text-primary font-semibold text-lg">
-            OSCE 評価システム
+            医療面接評価システム
           </Link>
           {session && (
             <div className="flex items-center gap-3">

@@ -776,7 +776,7 @@ export function QuestionManagement() {
                                   setDupNewTestName(e.target.value)
                                   if (dupNewTestDate && e.target.value.trim()) setDuplicateStep(2)
                                 }}
-                                placeholder="例: 全身OSCE"
+                                placeholder="例: 全身医療面接"
                               />
                             </div>
                           </div>
