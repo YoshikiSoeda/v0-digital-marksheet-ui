@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Plus, Trash2, FileDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { loadTests, saveTests, type Test, type Sheet, type Question } from "@/lib/data-storage"
+import { saveTests, type Test, type Sheet, type Question } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -461,7 +461,6 @@ export function QuestionCreate() {
     }
 
     try {
-      const existingTests = await loadTests()
       const newTests: Test[] = []
 
       for (const test of tests) {
@@ -490,7 +489,10 @@ export function QuestionCreate() {
         newTests.push(newTest)
       }
 
-      await saveTests([...existingTests, ...newTests])
+      // 2026-05-13 (bug fix): 旧実装は既存全テストを再 POST して新テストを追加していたが、
+      // それは他のテストの cascade delete を不必要に走らせ、稀なエラーで関係ない
+      // テストが壊れるリスクがあった (question-edit と同じ問題)。新規登録は新テストのみ送る。
+      await saveTests(newTests)
 
       // 合格基準点をセッションに保存
       if (passingScore !== "") {

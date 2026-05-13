@@ -289,24 +289,35 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
         return
       }
 
+      // 2026-05-13 (bug fix): 旧実装は loadTests() で全テストを取得し、
+      // 編集中の 1 件だけを修正した配列を POST /api/tests に送っていた。
+      // POST 側は配列の各要素に対して sheets/categories/questions の
+      // upsert + cascade delete を走らせるので、編集していない他テスト
+      // (特に同セッションの教員/患者側ペア) の処理中にエラーが起きると、
+      // 「教員側を編集したのに患者側のエラーが alert される」「同セッションの
+      // 別テストの sheets が誤って cascade delete される」など、ユーザーから
+      // すると意味不明な障害になっていた。
+      //
+      // 修正: 編集対象 1 件だけを送る。POST 側はその 1 件分の cascade のみ実行。
       const tests = await loadTests()
-      const testsArray = Array.isArray(tests) ? tests : []
-      const updatedTests = testsArray.map((t) =>
-        t.id === testId
-          ? {
-              ...t,
-              title: testTitle,
-              sheets,
-              testSessionId: testSession.id,
-              universityCode: testSession.university_code,
-              subjectCode: selectedSubjectCode || undefined,
-              roleType: roleType,
-              updatedAt: new Date().toISOString(),
-            }
-          : t,
-      )
+      const currentTest = Array.isArray(tests) ? tests.find((t) => t.id === testId) : null
+      if (!currentTest) {
+        alert("編集対象のテストが見つかりませんでした。一覧に戻って再度開いてください。")
+        setIsSaving(false)
+        return
+      }
+      const updatedTest = {
+        ...currentTest,
+        title: testTitle,
+        sheets,
+        testSessionId: testSession.id,
+        universityCode: testSession.university_code,
+        subjectCode: selectedSubjectCode || undefined,
+        roleType: roleType,
+        updatedAt: new Date().toISOString(),
+      }
 
-      await saveTests(updatedTests)
+      await saveTests([updatedTest])
 
       // 合格基準点をセッションに保存
       if (passingScore !== "") {
