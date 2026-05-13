@@ -158,7 +158,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     )
   }
 
-  const handleSelectSession = (sessionId: string) => {
+  const handleSelectSession = async (sessionId: string) => {
     const matchingTest = findTestForSession(sessionId)
     if (!matchingTest) {
       const roleLabel = userType === "teacher" ? "教員用" : "患者用"
@@ -166,6 +166,39 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       setTimeout(() => setNoTestMessage(""), 4000)
       return
     }
+
+    // 2026-05-13 bug fix: ログイン時 Cookie の assignedRoomNumber は login で
+    // 選んだ session の room しか反映していない。ここで選び直された session の
+    // 部屋情報で Cookie を refresh しないと、PR #102 useExamPageGuard が古い
+    // (または空の) room を見て「セッション情報が不完全です」と誤判定する。
+    try {
+      const res = await fetch("/api/auth/select-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ testSessionId: sessionId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        const msg = err?.error || `セッションの選択に失敗しました (status ${res.status})`
+        setNoTestMessage(msg)
+        setTimeout(() => setNoTestMessage(""), 6000)
+        return
+      }
+      // useSession のキャッシュ無効化 (cookie が更新されたので)
+      try {
+        const { invalidateSessionCache } = await import("@/lib/auth/use-session")
+        invalidateSessionCache()
+      } catch {
+        // dynamic import failure はログのみ
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "ネットワークエラー"
+      setNoTestMessage(`セッションの選択中にエラーが発生しました: ${msg}`)
+      setTimeout(() => setNoTestMessage(""), 6000)
+      return
+    }
+
     sessionStorage.setItem(`${userType}_selected_test`, matchingTest.id)
     sessionStorage.setItem("testSessionId", sessionId)
     router.push(examPath)
