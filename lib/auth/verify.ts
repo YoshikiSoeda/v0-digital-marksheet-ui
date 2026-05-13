@@ -138,26 +138,11 @@ export async function verifyCredentials(
     const rows = (data || []) as TeacherRow[]
 
     if (rows.length > 0) {
-      // admin-like role(master_admin / university_admin / subject_admin)は
-      // dashboard 主体で session 切替を別 UI で行うため、複数 assignments があっても
-      // session_select に飛ばさない。redirect は /admin/dashboard。
-      const probeRole = rows[0].role || "general"
-      const isAdminLike = ADMIN_LIKE_ROLES.has(probeRole)
-      // multi-session disambiguation(general teacher のみ)
-      if (rows.length > 1 && !testSessionId && !isAdminLike) {
-        return {
-          kind: "session_select",
-          source: "teachers",
-          candidates: rows.map((r) => ({
-            source: "teachers",
-            id: r.test_session_id || "",
-            name: r.name,
-            assignedRoomNumber: r.assigned_room_number || "",
-            universityCode: r.university_code || "",
-            subjectCode: r.subject_code || "",
-          })),
-        }
-      }
+      // 2026-05-13: ログイン直後の session_select 画面 (UI 二重表示) を廃止。
+      // 多 session の場合も rows[0] でログイン完了させ、テスト選択は
+      // /teacher/exam-info の評価テスト選択画面で行う。そこで session を
+      // 選んだ際は /api/auth/select-session (PR #112) が Cookie の room を
+      // refresh する。
       let row = rows[0]
       if (testSessionId) {
         const matched = rows.find((r) => r.test_session_id === testSessionId)
@@ -205,20 +190,11 @@ export async function verifyCredentials(
     const rows = (data || []) as PatientRow[]
 
     if (rows.length > 0) {
-      if (rows.length > 1 && !testSessionId) {
-        return {
-          kind: "session_select",
-          source: "patients",
-          candidates: rows.map((r) => ({
-            source: "patients",
-            id: r.test_session_id || "",
-            name: r.name,
-            assignedRoomNumber: r.assigned_room_number || "",
-            universityCode: r.university_code || "",
-            subjectCode: r.subject_code || "",
-          })),
-        }
-      }
+      // 2026-05-13: ログイン直後の session_select 画面 (UI 二重表示) を廃止。
+      // 多 session の場合も rows[0] でログイン完了させ、テスト選択は
+      // /patient/exam-info の評価テスト選択画面で行う。そこで session を
+      // 選んだ際は /api/auth/select-session (PR #112) が Cookie の room を
+      // refresh する。
       let row = rows[0]
       if (testSessionId) {
         const matched = rows.find((r) => r.test_session_id === testSessionId)
