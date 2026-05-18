@@ -22,6 +22,13 @@ const nextConfig = {
         destination: "/admin/question-management",
         permanent: true,
       },
+      // 2026-05-13: /admin/users ルート単独は 404 だった (page.tsx 不在、
+      // /admin/users/new だけ実装)。/admin/account-management に redirect。
+      {
+        source: "/admin/users",
+        destination: "/admin/account-management",
+        permanent: true,
+      },
       // ADR-001 §7-1: ログイン入口は /login に統一(Phase 9d-2)
       {
         source: "/admin/login",
