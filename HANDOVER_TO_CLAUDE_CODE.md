@@ -252,6 +252,14 @@ Cowork セッションでは MCP が自動接続されていたが、Claude Code
 - §3 `/login` 旧 URL の redirect 永続性(現状 `permanent: true`)
 - §4 Server Components シフトの範囲
 
+### D-2. 200 名同時利用に向けた負荷テスト(保留中)
+
+副田さん「夜間に実施するので一旦後回し」(2026-05-13)
+- 詳細計画: `docs/operations/load-test-plan.md`
+- ツール: k6
+- 環境: Supabase Branch + Vercel preview
+- 着手タイミング: 本番試験日の 1〜2 週間前
+
 ### E. 長期(別 Phase で別 ADR 化推奨)
 
 - **Phase 10 候補**: `password` 列を `admins` / `teachers` / `patients` から別テーブル(`user_credentials`)に分離(ADR-003 §6)
