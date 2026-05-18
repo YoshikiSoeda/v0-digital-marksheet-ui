@@ -1,0 +1,85 @@
+-- E2E 通しテストで作成したデータの削除 (2026-05-13)
+--
+-- 副田さんの指示で apply する想定 (.todo 拡張子で自動 apply 対象外)。
+-- MCP execute_sql で 1 ブロックずつ実行するか、Supabase ダッシュボードから
+-- 一括実行する。
+--
+-- 対象:
+--   1. exam_results (test_session=e2e の全件)
+--   2. attendance_records (test_session=e2e の全件)
+--   3. junction (teacher/patient/student_test_session_assignments)
+--   4. questions / categories / sheets / tests (e2e のもの)
+--   5. test_sessions (e2e-通しテスト)
+--   6. teachers / patients / students (e2e-prefix 全件)
+
+BEGIN;
+
+-- 1. 評価結果と出席記録
+DELETE FROM exam_results
+WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+DELETE FROM attendance_records
+WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+-- 2. junction (e2e 試験セッションの全 assignment)
+DELETE FROM teacher_test_session_assignments
+WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+DELETE FROM patient_test_session_assignments
+WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+DELETE FROM student_test_session_assignments
+WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+-- 3. 問題定義 (questions → categories → sheets → tests の順で CASCADE 期待)
+DELETE FROM questions
+WHERE category_id IN (
+  SELECT c.id FROM categories c
+  JOIN sheets s ON s.id = c.sheet_id
+  JOIN tests t ON t.id = s.test_id
+  WHERE t.test_session_id = '00000000-e2e0-4000-8000-000000000001'
+);
+
+DELETE FROM categories
+WHERE sheet_id IN (
+  SELECT s.id FROM sheets s
+  JOIN tests t ON t.id = s.test_id
+  WHERE t.test_session_id = '00000000-e2e0-4000-8000-000000000001'
+);
+
+DELETE FROM sheets
+WHERE test_id IN (
+  SELECT id FROM tests WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001'
+);
+
+DELETE FROM tests
+WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+-- 4. 試験セッション
+DELETE FROM test_sessions
+WHERE id = '00000000-e2e0-4000-8000-000000000001';
+
+-- 5. ユーザー (junction は他セッションに残ってる可能性があるので、
+--    先に全 junction を削除してから本体)
+DELETE FROM teacher_test_session_assignments
+WHERE teacher_id IN (SELECT id FROM teachers WHERE email LIKE 'e2e-%@example.com');
+
+DELETE FROM patient_test_session_assignments
+WHERE patient_id IN (SELECT id FROM patients WHERE email LIKE 'e2e-%@example.com');
+
+DELETE FROM student_test_session_assignments
+WHERE student_id IN (SELECT id FROM students WHERE student_id LIKE 'E2E%');
+
+DELETE FROM teachers WHERE email LIKE 'e2e-%@example.com';
+DELETE FROM patients WHERE email LIKE 'e2e-%@example.com';
+DELETE FROM students WHERE student_id LIKE 'E2E%';
+
+-- 確認
+SELECT 'remaining e2e teachers' AS k, COUNT(*) FROM teachers WHERE email LIKE 'e2e-%'
+UNION ALL SELECT 'remaining e2e patients', COUNT(*) FROM patients WHERE email LIKE 'e2e-%'
+UNION ALL SELECT 'remaining e2e students', COUNT(*) FROM students WHERE student_id LIKE 'E2E%'
+UNION ALL SELECT 'remaining e2e test_sessions', COUNT(*) FROM test_sessions WHERE id = '00000000-e2e0-4000-8000-000000000001'
+UNION ALL SELECT 'remaining e2e tests', COUNT(*) FROM tests WHERE test_session_id = '00000000-e2e0-4000-8000-000000000001';
+
+-- 問題なければ COMMIT, ロールバックしたければ ROLLBACK
+ROLLBACK;  -- ← 確認後 COMMIT に書き換えて再実行
