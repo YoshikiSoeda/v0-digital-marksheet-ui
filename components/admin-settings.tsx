@@ -10,7 +10,7 @@ import Link from "next/link"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSession } from "@/lib/auth/use-session"
-import { useBranding, invalidateBrandingCache } from "@/lib/branding/use-branding"
+import { useBrandingFor, invalidateBrandingCache } from "@/lib/branding/use-branding"
 
 export function AdminSettings() {
   const [autoSave, setAutoSave] = useState(true)
@@ -26,32 +26,54 @@ export function AdminSettings() {
   const [durations, setDurations] = useState<Record<string, string>>({})
   const [savingDuration, setSavingDuration] = useState<string | null>(null)
 
-  // 2026-05-13: ブランド設定 (special_master のみ編集可)
-  const branding = useBranding()
+  // Phase 9b-β2c: sessionStorage("accountType"|"universityCode") を useSession() に置換
+  const { session, isLoading: isSessionLoading } = useSession()
+
+  // 2026-05-13 (改訂): 大学ごとのブランド設定
+  //   special_master: 大学切替可
+  //   university_master / university_admin: 自大学のみ
+  //   その他: セクション非表示
+  const isUniversityMaster =
+    session?.accountType === "university_master" ||
+    session?.role === "university_master" ||
+    session?.role === "university_admin"
+  const canEditBranding = (session?.accountType === "special_master") || isUniversityMaster
+  // 対象大学は既存の selectedUniversity と同期する
+  // (special_master は「大学選択」ドロップダウンで切替、univ_master は session.universityCode)
   const [brandingTitle, setBrandingTitle] = useState<string>("")
   const [brandingIcon, setBrandingIcon] = useState<string>("")
   const [savingBranding, setSavingBranding] = useState(false)
-  // 初期値の同期 (useBranding が fetch 完了したら form に反映)
+  // 対象大学が変わったら fetch (空指定時は default)
+  const brandingForTarget = useBrandingFor(selectedUniversity)
   useEffect(() => {
-    setBrandingTitle(branding.title)
-    setBrandingIcon(branding.icon)
-  }, [branding.title, branding.icon])
+    setBrandingTitle(brandingForTarget.title)
+    setBrandingIcon(brandingForTarget.icon)
+  }, [brandingForTarget.title, brandingForTarget.icon])
 
   const handleSaveBranding = async () => {
+    if (!selectedUniversity) {
+      alert("対象大学が選択されていません")
+      return
+    }
     setSavingBranding(true)
     try {
       const res = await fetch("/api/admin/branding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ title: brandingTitle, icon: brandingIcon }),
+        body: JSON.stringify({
+          universityCode: selectedUniversity,
+          title: brandingTitle,
+          icon: brandingIcon,
+        }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => null)
         alert(`ブランド設定の保存に失敗しました: ${err?.error || res.status}`)
         return
       }
-      invalidateBrandingCache()
+      invalidateBrandingCache(selectedUniversity)
+      invalidateBrandingCache("") // 未ログイン default も念のため
       alert("ブランド設定を保存しました。画面の表示は次のリロードで反映されます。")
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown"
@@ -60,9 +82,6 @@ export function AdminSettings() {
       setSavingBranding(false)
     }
   }
-
-  // Phase 9b-β2c: sessionStorage("accountType"|"universityCode") を useSession() に置換
-  const { session, isLoading: isSessionLoading } = useSession()
 
   useEffect(() => {
     if (isSessionLoading || !session) return
@@ -179,15 +198,25 @@ export function AdminSettings() {
           <p className="text-muted-foreground">試験システムの設定を管理</p>
         </div>
 
-        {isSpecialMaster && (
+        {canEditBranding && (
           <Card>
             <CardHeader>
-              <CardTitle>ブランド設定</CardTitle>
+              <CardTitle>ブランド設定(大学ごと)</CardTitle>
               <CardDescription>
-                ヘッダー / トップページ / ブラウザタブに表示されるアプリ名とアイコンを設定します(スーパーマスター専用)。
+                ヘッダー / トップページ / ブラウザタブに表示されるアプリ名とアイコンを大学ごとに設定します。
+                未設定の大学は「医療面接評価システム」「🏥」で表示されます。
+                {isSpecialMaster
+                  ? "(スーパーマスター: 全大学を上の「大学選択」で切替可)"
+                  : "(大学管理者: 自大学のみ編集可)"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="text-sm">
+                対象大学:{" "}
+                <span className="font-semibold text-primary">
+                  {universities.find((u) => u.code === selectedUniversity)?.name || selectedUniversity || "(未選択)"}
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-3 items-end">
                 <div>
                   <Label htmlFor="branding-icon">アイコン</Label>
@@ -224,7 +253,7 @@ export function AdminSettings() {
               </div>
               <Button
                 onClick={handleSaveBranding}
-                disabled={savingBranding || !brandingTitle.trim()}
+                disabled={savingBranding || !brandingTitle.trim() || !selectedUniversity}
               >
                 <Save className="w-4 h-4 mr-2" />
                 {savingBranding ? "保存中..." : "ブランド設定を保存"}
