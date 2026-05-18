@@ -26,6 +26,7 @@ import {
   getTestSessionId,
   flattenTestQuestions,
   buildEvaluationMaps,
+  computeHasAlert,
 } from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 import { ExamQuestionsRenderer } from "@/components/exam-questions-renderer"
@@ -202,8 +203,10 @@ export default function TeacherExamTabs({
     const studentAnswersData: Record<number, number> = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
-    const question = questions.find((q) => q.number === questionNumber)
-    const hasAlert = question?.isAlertTarget && question.alertOptions?.includes(optionValue)
+    // 2026-05-13: 単一問題だけでなく学生の全 answers から hasAlert を再計算
+    // (旧コードは「今変更した問題」だけ判定するため、別問題を後から変更すると
+    // アラート情報が消える可能性があった)
+    const hasAlert = computeHasAlert(studentAnswersData, questions)
 
     const newEvaluation: EvaluationResult = {
       studentId: activeStudent.id,
@@ -280,6 +283,8 @@ export default function TeacherExamTabs({
       const universityCode = (session?.universityCode || "")
       const testSessionId = getTestSessionId()
 
+      // 2026-05-13: hasAlert を answers + questions から再計算する
+      // (旧コードはハードコード false で完了時にアラート情報が消えるバグ)
       const completedResult: EvaluationResult = {
         studentId,
         evaluatorType: "teacher" as const,
@@ -290,7 +295,7 @@ export default function TeacherExamTabs({
         answers: studentAnswersData,
         answeredCount,
         isCompleted: true,
-        hasAlert: false,
+        hasAlert: computeHasAlert(studentAnswersData, questions),
         timestamp: new Date().toISOString(),
         universityCode,
         testSessionId,

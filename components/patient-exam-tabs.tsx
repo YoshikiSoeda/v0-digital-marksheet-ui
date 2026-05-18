@@ -23,6 +23,7 @@ import {
   getTestSessionId,
   flattenTestQuestions,
   buildEvaluationMaps,
+  computeHasAlert,
 } from "@/lib/exam/utils"
 import { useElapsedTimer, useGroupedQuestions } from "@/lib/exam/hooks"
 import { ExamQuestionsRenderer } from "@/components/exam-questions-renderer"
@@ -194,7 +195,9 @@ export default function PatientExamTabs({
     }))
 
     const totalScore = Object.values(updatedAnswers).reduce((sum, val) => sum + val, 0)
-    const hasAlert = alertTriggers[student.id] || false
+    // 2026-05-13: alertTriggers state は handleAnswerChange で更新していなかったため
+    // 常に false で保存されるバグ。全 answers から再計算する。
+    const hasAlert = computeHasAlert(updatedAnswers, questions)
 
     const evaluationResult: EvaluationResult = {
       studentId: student.id,
@@ -242,7 +245,8 @@ export default function PatientExamTabs({
     }))
 
     const totalScore = calculateScoreFor(studentId)
-    const hasAlert = alertTriggers[studentId] || false
+    // 2026-05-13: 完了時にも全 answers から hasAlert を再計算
+    const hasAlert = computeHasAlert(studentAnswersData, questions)
 
     const evaluationResult: EvaluationResult = {
       studentId: student.id,
