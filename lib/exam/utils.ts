@@ -69,6 +69,34 @@ interface MinimalTest {
 }
 
 /**
+ * 学生の回答マップ + 質問定義から、アラート発火しているかを判定する。
+ *
+ * 質問のうち `is_alert_target=true` のものについて、選択した値が
+ * `alert_options` に含まれていれば true。1 問でも該当があれば true。
+ *
+ * 2026-05-13: teacher-exam-tabs / patient-exam-tabs の handleMarkComplete で
+ * hasAlert がハードコード false / state 不整合になっていたバグの修正用に新設。
+ */
+interface QuestionWithAlert {
+  number: number
+  isAlertTarget?: boolean | null
+  alertOptions?: number[] | null
+}
+
+export function computeHasAlert(
+  answers: Record<number, number> | undefined,
+  questions: ReadonlyArray<QuestionWithAlert>,
+): boolean {
+  if (!answers || !questions) return false
+  for (const q of questions) {
+    if (!q.isAlertTarget || !q.alertOptions || q.alertOptions.length === 0) continue
+    const selected = answers[q.number]
+    if (selected != null && q.alertOptions.includes(selected)) return true
+  }
+  return false
+}
+
+/**
  * EvaluationResult の配列(全件)から、評価者にマッチする行だけを抽出して
  * 学生 ID をキーとする answers / completion / alerts のマップを組み立てる。
  *
