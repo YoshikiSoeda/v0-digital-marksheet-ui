@@ -31,6 +31,9 @@ const PUBLIC_API_PATHS: string[] = [
   "/api/auth/logout",
   // パスワードリセット (Phase 8c) は未ログインで使う
   "/api/auth/reset-password",
+  // 2026-05-13: ブランディング情報 (title + icon) は /login 等の未ログイン画面でも
+  // 表示する必要があるため public
+  "/api/branding",
 ]
 
 const PUBLIC_PAGES_PREFIX = [

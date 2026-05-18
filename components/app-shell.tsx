@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft } from "lucide-react"
 import { useSession } from "@/lib/auth/use-session"
+import { useBranding } from "@/lib/branding/use-branding"
 
 interface AppShellProps {
   children: ReactNode
@@ -64,13 +65,15 @@ function deriveRoleVariant(role: string, accountType: string) {
 export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppShellProps) {
   const router = useRouter()
   const { session, isLoading } = useSession()
+  const branding = useBranding()
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-secondary/30">
         <header className="border-b bg-background">
-          <div className="max-w-7xl mx-auto px-4 py-3">
-            <span className="text-primary font-semibold">医療面接評価システム</span>
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2">
+            <span className="text-xl" aria-hidden="true">{branding.icon}</span>
+            <span className="text-primary font-semibold">{branding.title}</span>
           </div>
         </header>
         <main className="flex-1 flex items-center justify-center">
@@ -91,8 +94,9 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
     <div className="min-h-screen flex flex-col bg-secondary/30">
       <header className="border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <Link href="/" className="text-primary font-semibold text-lg">
-            医療面接評価システム
+          <Link href="/" className="flex items-center gap-2 text-primary font-semibold text-lg">
+            <span className="text-2xl" aria-hidden="true">{branding.icon}</span>
+            <span>{branding.title}</span>
           </Link>
           {session && (
             <div className="flex items-center gap-3">

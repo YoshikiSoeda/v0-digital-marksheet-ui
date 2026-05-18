@@ -10,6 +10,7 @@ import Link from "next/link"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSession } from "@/lib/auth/use-session"
+import { useBranding, invalidateBrandingCache } from "@/lib/branding/use-branding"
 
 export function AdminSettings() {
   const [autoSave, setAutoSave] = useState(true)
@@ -24,6 +25,41 @@ export function AdminSettings() {
   const [savingPassingScore, setSavingPassingScore] = useState<string | null>(null)
   const [durations, setDurations] = useState<Record<string, string>>({})
   const [savingDuration, setSavingDuration] = useState<string | null>(null)
+
+  // 2026-05-13: ブランド設定 (special_master のみ編集可)
+  const branding = useBranding()
+  const [brandingTitle, setBrandingTitle] = useState<string>("")
+  const [brandingIcon, setBrandingIcon] = useState<string>("")
+  const [savingBranding, setSavingBranding] = useState(false)
+  // 初期値の同期 (useBranding が fetch 完了したら form に反映)
+  useEffect(() => {
+    setBrandingTitle(branding.title)
+    setBrandingIcon(branding.icon)
+  }, [branding.title, branding.icon])
+
+  const handleSaveBranding = async () => {
+    setSavingBranding(true)
+    try {
+      const res = await fetch("/api/admin/branding", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ title: brandingTitle, icon: brandingIcon }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        alert(`ブランド設定の保存に失敗しました: ${err?.error || res.status}`)
+        return
+      }
+      invalidateBrandingCache()
+      alert("ブランド設定を保存しました。画面の表示は次のリロードで反映されます。")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown"
+      alert(`ブランド設定の保存中にエラーが発生しました: ${msg}`)
+    } finally {
+      setSavingBranding(false)
+    }
+  }
 
   // Phase 9b-β2c: sessionStorage("accountType"|"universityCode") を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
@@ -142,6 +178,60 @@ export function AdminSettings() {
           <h1 className="text-3xl font-bold text-primary">システム設定</h1>
           <p className="text-muted-foreground">試験システムの設定を管理</p>
         </div>
+
+        {isSpecialMaster && (
+          <Card>
+            <CardHeader>
+              <CardTitle>ブランド設定</CardTitle>
+              <CardDescription>
+                ヘッダー / トップページ / ブラウザタブに表示されるアプリ名とアイコンを設定します(スーパーマスター専用)。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-3 items-end">
+                <div>
+                  <Label htmlFor="branding-icon">アイコン</Label>
+                  <Input
+                    id="branding-icon"
+                    value={brandingIcon}
+                    onChange={(e) => setBrandingIcon(e.target.value)}
+                    placeholder="🏥"
+                    maxLength={8}
+                    className="text-2xl text-center"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    絵文字 1〜2 文字推奨
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="branding-title">タイトル</Label>
+                  <Input
+                    id="branding-title"
+                    value={brandingTitle}
+                    onChange={(e) => setBrandingTitle(e.target.value)}
+                    placeholder="医療面接評価システム"
+                    maxLength={60}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    最大 60 文字
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-md border bg-secondary/30 p-3 flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">プレビュー:</span>
+                <span className="text-2xl" aria-hidden="true">{brandingIcon || "🏥"}</span>
+                <span className="text-primary font-semibold">{brandingTitle || "医療面接評価システム"}</span>
+              </div>
+              <Button
+                onClick={handleSaveBranding}
+                disabled={savingBranding || !brandingTitle.trim()}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {savingBranding ? "保存中..." : "ブランド設定を保存"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {isSpecialMaster && (
           <Card>
