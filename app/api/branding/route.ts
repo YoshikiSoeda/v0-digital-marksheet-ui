@@ -15,12 +15,16 @@ import { getServiceClient } from "@/lib/api/_shared"
 
 export interface Branding {
   title: string
+  /** 絵文字 (画像アイコンが未設定の場合のフォールバック) */
   icon: string
+  /** Supabase Storage に upload された画像 URL。null/undefined なら icon (絵文字) を表示 */
+  iconUrl?: string | null
 }
 
 const DEFAULT_BRANDING: Branding = {
   title: "医療面接評価システム",
   icon: "🏥",
+  iconUrl: null,
 }
 
 export async function GET(request: NextRequest) {
@@ -51,6 +55,7 @@ export async function GET(request: NextRequest) {
   const branding: Branding = {
     title: typeof raw?.title === "string" && raw.title ? raw.title : DEFAULT_BRANDING.title,
     icon: typeof raw?.icon === "string" && raw.icon ? raw.icon : DEFAULT_BRANDING.icon,
+    iconUrl: typeof raw?.iconUrl === "string" && raw.iconUrl ? raw.iconUrl : null,
   }
   return NextResponse.json(
     { branding },

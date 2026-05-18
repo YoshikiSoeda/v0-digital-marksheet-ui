@@ -42,13 +42,73 @@ export function AdminSettings() {
   // (special_master は「大学選択」ドロップダウンで切替、univ_master は session.universityCode)
   const [brandingTitle, setBrandingTitle] = useState<string>("")
   const [brandingIcon, setBrandingIcon] = useState<string>("")
+  const [brandingIconUrl, setBrandingIconUrl] = useState<string | null>(null)
   const [savingBranding, setSavingBranding] = useState(false)
+  const [uploadingIcon, setUploadingIcon] = useState(false)
   // 対象大学が変わったら fetch (空指定時は default)
   const brandingForTarget = useBrandingFor(selectedUniversity)
   useEffect(() => {
     setBrandingTitle(brandingForTarget.title)
     setBrandingIcon(brandingForTarget.icon)
-  }, [brandingForTarget.title, brandingForTarget.icon])
+    setBrandingIconUrl(brandingForTarget.iconUrl ?? null)
+  }, [brandingForTarget.title, brandingForTarget.icon, brandingForTarget.iconUrl])
+
+  const handleUploadIcon = async (file: File) => {
+    if (!selectedUniversity) {
+      alert("対象大学が選択されていません")
+      return
+    }
+    setUploadingIcon(true)
+    try {
+      const fd = new FormData()
+      fd.append("universityCode", selectedUniversity)
+      fd.append("file", file)
+      const res = await fetch("/api/admin/branding/icon", {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        alert(`アイコン画像のアップロードに失敗しました: ${err?.error || res.status}`)
+        return
+      }
+      const json = await res.json()
+      setBrandingIconUrl(json.iconUrl as string)
+      invalidateBrandingCache(selectedUniversity)
+      invalidateBrandingCache("")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown"
+      alert(`アップロード中にエラーが発生しました: ${msg}`)
+    } finally {
+      setUploadingIcon(false)
+    }
+  }
+
+  const handleClearIcon = async () => {
+    if (!selectedUniversity) return
+    if (!confirm("アップロード済みアイコン画像をクリアし、絵文字表示に戻しますか?")) return
+    setUploadingIcon(true)
+    try {
+      const res = await fetch(
+        `/api/admin/branding/icon?universityCode=${encodeURIComponent(selectedUniversity)}`,
+        { method: "DELETE", credentials: "same-origin" },
+      )
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        alert(`アイコン画像のクリアに失敗しました: ${err?.error || res.status}`)
+        return
+      }
+      setBrandingIconUrl(null)
+      invalidateBrandingCache(selectedUniversity)
+      invalidateBrandingCache("")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown"
+      alert(`クリア中にエラーが発生しました: ${msg}`)
+    } finally {
+      setUploadingIcon(false)
+    }
+  }
 
   const handleSaveBranding = async () => {
     if (!selectedUniversity) {
@@ -217,9 +277,54 @@ export function AdminSettings() {
                   {universities.find((u) => u.code === selectedUniversity)?.name || selectedUniversity || "(未選択)"}
                 </span>
               </div>
+              {/* アイコン画像アップロード */}
+              <div className="space-y-2">
+                <Label>アイコン画像</Label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="w-16 h-16 rounded-md border bg-background flex items-center justify-center overflow-hidden">
+                    {brandingIconUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={brandingIconUrl}
+                        alt=""
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-3xl" aria-hidden="true">{brandingIcon || "🏥"}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUploadIcon(file)
+                        e.target.value = ""
+                      }}
+                      disabled={uploadingIcon || !selectedUniversity}
+                      className="text-xs"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      PNG / JPEG / SVG / WEBP、最大 1MB
+                    </p>
+                  </div>
+                  {brandingIconUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleClearIcon}
+                      disabled={uploadingIcon}
+                    >
+                      画像をクリア(絵文字に戻す)
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-3 items-end">
                 <div>
-                  <Label htmlFor="branding-icon">アイコン</Label>
+                  <Label htmlFor="branding-icon">絵文字(画像未設定時のフォールバック)</Label>
                   <Input
                     id="branding-icon"
                     value={brandingIcon}
@@ -229,7 +334,7 @@ export function AdminSettings() {
                     className="text-2xl text-center"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    絵文字 1〜2 文字推奨
+                    絵文字 1〜2 字
                   </p>
                 </div>
                 <div>
@@ -248,7 +353,12 @@ export function AdminSettings() {
               </div>
               <div className="rounded-md border bg-secondary/30 p-3 flex items-center gap-2">
                 <span className="text-xs text-muted-foreground shrink-0">プレビュー:</span>
-                <span className="text-2xl" aria-hidden="true">{brandingIcon || "🏥"}</span>
+                {brandingIconUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={brandingIconUrl} alt="" className="w-8 h-8 object-contain" />
+                ) : (
+                  <span className="text-2xl" aria-hidden="true">{brandingIcon || "🏥"}</span>
+                )}
                 <span className="text-primary font-semibold">{brandingTitle || "医療面接評価システム"}</span>
               </div>
               <Button
@@ -256,7 +366,7 @@ export function AdminSettings() {
                 disabled={savingBranding || !brandingTitle.trim() || !selectedUniversity}
               >
                 <Save className="w-4 h-4 mr-2" />
-                {savingBranding ? "保存中..." : "ブランド設定を保存"}
+                {savingBranding ? "保存中..." : "タイトル/絵文字を保存"}
               </Button>
             </CardContent>
           </Card>

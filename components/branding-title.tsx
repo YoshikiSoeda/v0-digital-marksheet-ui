@@ -9,11 +9,12 @@
 
 import { useEffect } from "react"
 import { useBranding } from "@/lib/branding/use-branding"
+import { BrandingIcon } from "@/components/branding-icon"
 
 interface Props {
   /** 文字スタイルの className(h1 等)。省略時 inline-flex で並べるだけ */
   className?: string
-  /** アイコンの font-size class */
+  /** アイコンのサイズ class (絵文字なら font-size、画像なら w-* h-*) */
   iconClassName?: string
   /** document.title もこの内容に同期するか */
   syncDocumentTitle?: boolean
@@ -34,9 +35,7 @@ export function BrandingTitle({
 
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
-      <span className={iconClassName} aria-hidden="true">
-        {branding.icon}
-      </span>
+      <BrandingIcon branding={branding} className={iconClassName} alt="" />
       <span>{branding.title}</span>
     </span>
   )

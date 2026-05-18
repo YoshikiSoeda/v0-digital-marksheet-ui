@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft } from "lucide-react"
 import { useSession } from "@/lib/auth/use-session"
 import { useBranding } from "@/lib/branding/use-branding"
+import { BrandingIcon } from "@/components/branding-icon"
 
 interface AppShellProps {
   children: ReactNode
@@ -72,7 +73,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
       <div className="min-h-screen flex flex-col bg-secondary/30">
         <header className="border-b bg-background">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2">
-            <span className="text-xl" aria-hidden="true">{branding.icon}</span>
+            <BrandingIcon branding={branding} className="text-xl w-6 h-6" alt="" />
             <span className="text-primary font-semibold">{branding.title}</span>
           </div>
         </header>
@@ -95,7 +96,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
       <header className="border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 text-primary font-semibold text-lg">
-            <span className="text-2xl" aria-hidden="true">{branding.icon}</span>
+            <BrandingIcon branding={branding} className="text-2xl w-7 h-7" alt="" />
             <span>{branding.title}</span>
           </Link>
           {session && (
