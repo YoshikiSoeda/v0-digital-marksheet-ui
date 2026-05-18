@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LogIn, Mail, ExternalLink } from "lucide-react"
+import { BrandingTitle } from "@/components/branding-title"
 
 /**
  * Phase 9d-1: ロール選択を廃止して単一の「ログイン」CTA に簡素化。
@@ -15,7 +16,11 @@ export default function HomePage() {
         <div className="max-w-2xl w-full space-y-10">
           <div className="text-center space-y-4">
             <h1 className="text-4xl md:text-5xl font-bold text-primary tracking-tight">
-              医療面接評価システム
+              <BrandingTitle
+                className="justify-center"
+                iconClassName="text-5xl md:text-6xl"
+                syncDocumentTitle
+              />
             </h1>
           </div>
 
