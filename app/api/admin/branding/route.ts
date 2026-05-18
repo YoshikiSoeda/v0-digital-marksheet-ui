@@ -81,9 +81,18 @@ export async function PUT(request: NextRequest) {
   }
 
   const supabase = getServiceClient()
+  // 2026-05-13 (改訂): 既存の iconUrl 等は保持してマージ更新する
+  const { data: existing } = await supabase
+    .from("universities")
+    .select("branding")
+    .eq("university_code", universityCode)
+    .maybeSingle()
+  const oldBranding = ((existing as Record<string, unknown> | null)?.branding as Record<string, unknown>) || {}
+  const merged = { ...oldBranding, title, icon }
+
   const { data, error } = await supabase
     .from("universities")
-    .update({ branding: { title, icon } } as never)
+    .update({ branding: merged } as never)
     .eq("university_code", universityCode)
     .select("university_code")
     .maybeSingle()
@@ -97,7 +106,7 @@ export async function PUT(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { universityCode, branding: { title, icon } },
+    { universityCode, branding: merged },
     { status: 200 },
   )
 }

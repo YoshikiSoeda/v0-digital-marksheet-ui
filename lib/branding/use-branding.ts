@@ -15,12 +15,16 @@ import { useSession } from "@/lib/auth/use-session"
 
 export interface Branding {
   title: string
+  /** 絵文字 (iconUrl 未設定時のフォールバック) */
   icon: string
+  /** Supabase Storage に upload された画像 URL。指定があれば img、なければ icon (絵文字) */
+  iconUrl?: string | null
 }
 
 const DEFAULT_BRANDING: Branding = {
   title: "医療面接評価システム",
   icon: "🏥",
+  iconUrl: null,
 }
 
 // universityCode -> Branding (大学未指定は "" key で default)
@@ -48,6 +52,7 @@ async function fetchBranding(universityCode: string): Promise<Branding> {
       const value: Branding = {
         title: b?.title || DEFAULT_BRANDING.title,
         icon: b?.icon || DEFAULT_BRANDING.icon,
+        iconUrl: b?.iconUrl || null,
       }
       _cache.set(universityCode, value)
       return value
