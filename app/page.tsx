@@ -16,9 +16,14 @@ export default function HomePage() {
         <div className="max-w-2xl w-full space-y-10">
           <div className="text-center space-y-4">
             <h1 className="text-4xl md:text-5xl font-bold text-primary tracking-tight">
+              {/*
+                2026-05-19: 画像アイコンが原寸表示で巨大になる問題を修正。
+                w-24 h-24 (md: w-28 h-28) の固定枠 + object-contain で
+                画像でも絵文字でも同じ占有サイズになる。
+              */}
               <BrandingTitle
                 className="justify-center"
-                iconClassName="text-5xl md:text-6xl"
+                iconClassName="w-24 h-24 md:w-28 md:h-28 text-5xl md:text-6xl shrink-0"
                 syncDocumentTitle
               />
             </h1>

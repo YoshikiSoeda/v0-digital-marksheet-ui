@@ -33,7 +33,11 @@ export function BrandingIcon({ branding, className = "", alt = "" }: Props) {
     )
   }
   return (
-    <span className={className} aria-hidden="true">
+    // box を fixed (w-* h-*) で渡された場合でも絵文字が中央に来るよう inline-flex 配置
+    <span
+      className={`inline-flex items-center justify-center leading-none ${className}`}
+      aria-hidden="true"
+    >
       {branding.icon}
     </span>
   )
