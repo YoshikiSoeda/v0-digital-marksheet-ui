@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Home, ArrowLeft, Save, UserPlus, Search, Trash2, UserMinus, CheckCircle2, RotateCcw } from "lucide-react"
+import { Home, ArrowLeft, Save, Search, Trash2, CheckCircle2, RotateCcw } from "lucide-react"
 import { useSession } from "@/lib/auth/use-session"
 import {
   loadTeachers, loadPatients, loadRooms, loadTestSessions,
@@ -76,8 +76,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
   const [studentList, setStudentList] = useState<Student[]>([])
   // この試験セッションでの割当 map: studentId → roomNumber("" は割当無し)
   const [assignmentMap, setAssignmentMap] = useState<Record<string, string>>({})
-  // 一括操作
-  const [studentTargetRoom, setStudentTargetRoom] = useState<string>("")
+  // チェック付き学生(確定対象を絞り込むため)
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set())
   // 進行状態
   const [studentSearching, setStudentSearching] = useState(false)
@@ -495,57 +494,29 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     setLastClickedIdx(null)
   }
 
-  // 「選択した N 名を [部屋] に追加」: pending に積むのみ (DB 書込は無し)
-  // 同じ部屋に既保存(saved) と一致する変更は noop として無視する。
-  const handleStageBulkAssign = () => {
-    if (selectedStudentIds.size === 0) {
-      alert("対象の学生を選択してください")
-      return
-    }
-    if (!studentTargetRoom) {
-      alert("登録先の部屋番号を選択してください")
-      return
-    }
+  // 2026-05-19 B-1 Step 3: 行ごと部屋セル Select の onValueChange
+  // 「(未割当)」を選んだ場合と部屋を選んだ場合で pending を更新する。
+  // saved と同じ部屋を選んだ場合は pending を消す (差分なしを示す)。
+  const handleStageRowAssign = (studentId: string, roomNumber: string) => {
     setPendingMap((prev) => {
       const next = { ...prev }
-      for (const id of selectedStudentIds) {
-        const saved = assignmentMap[id] || ""
-        if (saved === studentTargetRoom) {
-          // saved と同じなので pending は不要 (既存 pending があれば消す)
-          delete next[id]
-        } else {
-          next[id] = studentTargetRoom
-        }
-      }
-      return next
-    })
-    // 選択をクリアして次の操作に移れるようにする (target room はそのまま残す)
-    setSelectedStudentIds(new Set())
-    setLastClickedIdx(null)
-    setStudentResultMsg("")
-  }
-
-  // 「選択した N 名の割当を解除」: pending null を積むのみ
-  const handleStageBulkUnassign = () => {
-    if (selectedStudentIds.size === 0) {
-      alert("対象の学生を選択してください")
-      return
-    }
-    setPendingMap((prev) => {
-      const next = { ...prev }
-      for (const id of selectedStudentIds) {
-        const saved = assignmentMap[id] || ""
+      const saved = assignmentMap[studentId] || ""
+      if (!roomNumber) {
+        // (未割当)
         if (!saved) {
-          // 元から未割当なら解除は無意味 → pending を消す (もし新規割当 pending があった場合の取り消し)
-          delete next[id]
+          delete next[studentId]
         } else {
-          next[id] = null
+          next[studentId] = null
+        }
+      } else {
+        if (saved === roomNumber) {
+          delete next[studentId]
+        } else {
+          next[studentId] = roomNumber
         }
       }
       return next
     })
-    setSelectedStudentIds(new Set())
-    setLastClickedIdx(null)
     setStudentResultMsg("")
   }
 
@@ -573,12 +544,21 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     setStudentResultMsg("")
   }
 
-  // 確定: pendingMap の中身を DB に反映する
+  // 確定: チェックを付けた学生に紐づく pending のみ DB に反映する
   // - 部屋指定の pending → POST /api/students (upsert: register_student_canonical RPC)
   // - null pending → DELETE assignment
   const handleCommitChanges = async () => {
-    if (meaningfulPendingCount === 0) {
-      alert("保留中の変更がありません")
+    if (selectedStudentIds.size === 0) {
+      alert("確定対象の学生にチェックを付けてください")
+      return
+    }
+    // チェック付き学生のうち pending を持つ ID 集合
+    const targetIds = Array.from(selectedStudentIds).filter((id) => {
+      const eff = getEffective(id)
+      return eff.hasPending
+    })
+    if (targetIds.length === 0) {
+      alert("チェックを付けた学生に保留中の変更がありません")
       return
     }
     setStudentProcessing(true)
@@ -587,9 +567,8 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
       // 1. 部屋指定 pending を抽出 → bulk POST
       const toAssign: Array<{ student: Student; room: string }> = []
       const toUnassign: string[] = []
-      for (const [id, val] of Object.entries(pendingMap)) {
-        const eff = getEffective(id)
-        if (!eff.hasPending) continue
+      for (const id of targetIds) {
+        const val = pendingMap[id]
         if (val === null) {
           toUnassign.push(id)
         } else if (typeof val === "string") {
@@ -666,8 +645,12 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
         setStudentResultMsg(`✅ ${summary} を保存しました`)
       }
 
-      // pending を全クリアして DB から再取得
-      setPendingMap({})
+      // 確定対象の pending をクリアして DB から再取得
+      setPendingMap((prev) => {
+        const next = { ...prev }
+        for (const id of targetIds) delete next[id]
+        return next
+      })
       await refreshStudentAssignments()
       setSelectedStudentIds(new Set())
       setLastClickedIdx(null)
@@ -827,9 +810,9 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">学生の割当</CardTitle>
           <CardDescription>
-            上部のフィルタで対象学生を絞り込み、行のチェックボックス(Shift で範囲選択可)で選択してから、
-            「[部屋] に追加」で保留中リストに積みます。連続して別の部屋を割当でき、
-            最後に <strong>「確定」</strong> ボタンで一括保存します。確定するまで DB は変更されません。
+            行の「部屋」プルダウンで部屋を選び、対象学生のチェックボックスをオン(Shift で範囲選択可)にしてから
+            <strong>「確定」</strong> ボタンで一括保存します。確定するまで DB は変更されません。
+            教員/患者役のプルダウンはセル選択と同時に保存されます。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1034,20 +1017,35 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                           <td className="p-2 whitespace-nowrap">{s.name}</td>
                           <td className="p-2 text-xs font-mono text-muted-foreground whitespace-nowrap">{s.email || "—"}</td>
                           <td className="p-2 whitespace-nowrap">{s.grade || "—"}</td>
-                          <td className="p-2 font-mono text-xs whitespace-nowrap">
-                            {eff.pendingKind === "move" ? (
-                              <span>
-                                <span className="line-through text-muted-foreground">{eff.savedRoom}</span>
-                                {" → "}
-                                <span className="font-semibold">{eff.effectiveRoom}</span>
-                              </span>
-                            ) : eff.pendingKind === "new" ? (
-                              <span className="font-semibold">{eff.effectiveRoom}</span>
-                            ) : eff.pendingKind === "unassign" ? (
-                              <span className="line-through text-muted-foreground">{eff.savedRoom}</span>
-                            ) : (
-                              eff.savedRoom || "—"
-                            )}
+                          <td className="p-1.5 whitespace-nowrap">
+                            <Select
+                              value={eff.effectiveRoom || UNASSIGNED}
+                              onValueChange={(v) =>
+                                handleStageRowAssign(s.id, v === UNASSIGNED ? "" : v)
+                              }
+                            >
+                              <SelectTrigger
+                                className={`h-8 w-32 text-xs bg-white ${
+                                  eff.pendingKind === "move"
+                                    ? "border-amber-500"
+                                    : eff.pendingKind === "new"
+                                      ? "border-green-500"
+                                      : eff.pendingKind === "unassign"
+                                        ? "border-red-500"
+                                        : ""
+                                }`}
+                              >
+                                <SelectValue placeholder="(未割当)" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px] overflow-y-auto">
+                                <SelectItem value={UNASSIGNED}>(未割当)</SelectItem>
+                                {rooms.map((r) => (
+                                  <SelectItem key={r.id} value={r.roomNumber}>
+                                    {r.roomNumber} - {r.roomName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </td>
                           {/* 教員 slot N: 名前 + 権限ペア (動的) */}
                           {Array.from({ length: teacherSlotCount }, (_, i) => {
@@ -1166,57 +1164,17 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
               </table>
             </div>
 
-            {/* 1 段目: ステージ操作 (保留に積む) */}
-            <div className="flex flex-wrap items-end justify-between gap-3 pt-3 border-t">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">登録先 部屋番号(割当 / 移動)</Label>
-                <Select value={studentTargetRoom} onValueChange={setStudentTargetRoom}>
-                  <SelectTrigger className="h-9 w-56">
-                    <SelectValue placeholder="部屋を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rooms.map((r) => (
-                      <SelectItem key={r.id} value={r.roomNumber}>
-                        {r.roomNumber} - {r.roomName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleStageBulkUnassign}
-                  disabled={studentProcessing || selectedStudentIds.size === 0}
-                  title="選択した学生の割当を保留で解除する(確定で反映)"
-                >
-                  <UserMinus className="w-4 h-4 mr-2" />
-                  選択した {selectedStudentIds.size} 名を保留解除
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={handleStageBulkAssign}
-                  disabled={
-                    studentProcessing ||
-                    selectedStudentIds.size === 0 ||
-                    !studentTargetRoom
-                  }
-                  title="選択した学生を保留で部屋に追加する(確定で反映)"
-                >
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  {studentTargetRoom
-                    ? `選択した ${selectedStudentIds.size} 名を ${studentTargetRoom} に追加`
-                    : `選択した ${selectedStudentIds.size} 名を追加`}
-                </Button>
-              </div>
-            </div>
-
-            {/* 2 段目: 確定 / キャンセル */}
+            {/* 確定 / キャンセル */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t bg-muted/40 -mx-6 px-6 py-3 mt-3 rounded-b">
               <div className="text-sm">
                 {meaningfulPendingCount > 0 ? (
                   <span className="font-medium text-amber-700">
                     保留中の変更: {meaningfulPendingCount} 件
+                    {selectedStudentIds.size > 0 && (
+                      <span className="ml-2 text-muted-foreground">
+                        (チェック付き: {selectedStudentIds.size} 名)
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-muted-foreground">保留中の変更はありません</span>
@@ -1236,13 +1194,14 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                   size="lg"
                   className="bg-primary hover:bg-primary/90"
                   onClick={handleCommitChanges}
-                  disabled={studentProcessing || meaningfulPendingCount === 0}
+                  disabled={studentProcessing || selectedStudentIds.size === 0}
+                  title="チェックを付けた学生の保留中変更を保存します"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   {studentProcessing
                     ? "保存中..."
-                    : meaningfulPendingCount > 0
-                      ? `確定 (${meaningfulPendingCount} 件を保存)`
+                    : selectedStudentIds.size > 0
+                      ? `確定 (${selectedStudentIds.size} 名)`
                       : "確定"}
                 </Button>
               </div>
