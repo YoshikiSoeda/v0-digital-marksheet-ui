@@ -102,13 +102,9 @@ export function PatientRoleRegistration() {
       return
     }
 
-    if (formData.roomNumber) {
-      const roomExists = rooms.some((r) => r.roomNumber === formData.roomNumber)
-      if (!roomExists) {
-        alert("選択された部屋番号が部屋マスターに存在しません")
-        return
-      }
-    }
+    // 2026-05-19 副田さん仕様変更:
+    //   - 患者役登録から「担当部屋番号」「担当教科」フィールドを削除。
+    //     試験割当時に決めるため。
 
     const newPatient: Patient = {
       id: Date.now().toString(),
@@ -117,7 +113,7 @@ export function PatientRoleRegistration() {
       email: formData.email,
       password: formData.password,
       role: formData.role,
-      assignedRoomNumber: formData.roomNumber,
+      assignedRoomNumber: "",
       createdAt: new Date().toISOString(),
       universityCode: formData.university_code,
       testSessionId: "", // ADR-007 C-4: canonical 登録
@@ -366,45 +362,7 @@ export function PatientRoleRegistration() {
                   </div>
                   {/* ADR-001 §7-2(b): 患者役は role="general" のみ */}
                   <input type="hidden" value="general" />
-                  <div className="space-y-2">
-                    <Label htmlFor="roomNumber">担当部屋番号 *</Label>
-                    {rooms.length === 0 ? (
-                      <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
-                        部屋が登録されていません。先に部屋マスターで部屋を登録してください。
-                      </div>
-                    ) : (
-                      <select
-                        id="roomNumber"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        value={formData.roomNumber}
-                        onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                      >
-                        <option value="">部屋を選択してください</option>
-                        {rooms.map((room) => (
-                          <option key={room.id} value={room.roomNumber}>
-                            {room.roomNumber} - {room.roomName}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    <p className="text-xs text-muted-foreground">この部屋に属する学生が自動的に評価対象になります</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="subjectCode">担当教科</Label>
-                    <select
-                      id="subjectCode"
-                      className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
-                      value={formData.subjectCode}
-                      onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
-                    >
-                      <option value="">選択してください</option>
-                      {subjects.map((s) => (
-                        <option key={s.subjectCode} value={s.subjectCode}>
-                          {s.subjectName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* 2026-05-19 副田さん仕様変更: 担当部屋番号 / 担当教科は登録時には入力不要 (試験割当時に決める) */}
                   {accountType === "special_master" && (
                     <div className="grid gap-2">
                       <Label htmlFor="university">大学</Label>
