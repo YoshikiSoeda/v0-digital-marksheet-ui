@@ -809,10 +809,15 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">学生の割当</CardTitle>
-          <CardDescription>
-            行の「部屋」プルダウンで部屋を選び、対象学生のチェックボックスをオン(Shift で範囲選択可)にしてから
-            <strong>「確定」</strong> ボタンで一括保存します。確定するまで DB は変更されません。
-            教員/患者役のプルダウンはセル選択と同時に保存されます。
+          <CardDescription className="space-y-1">
+            <span className="block">
+              行の「部屋」プルダウンで部屋を選び、対象学生のチェックボックスをオン(Shift で範囲選択可)にしてから
+              <strong>「確定」</strong> ボタンで一括保存します。確定するまで DB は変更されません。
+            </span>
+            <span className="block text-amber-700">
+              ⚠ 教員/患者役は <strong>部屋単位</strong> の割当です。同じ部屋にいる学生は同じ教員ペアで評価されるため、
+              ある学生の行で教員を変更すると、同じ部屋の他の学生行にも同じ教員が表示されます(セル選択と同時に保存)。
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -939,11 +944,13 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                     <th className="p-2 text-left whitespace-nowrap">学年</th>
                     <th className="p-2 text-left whitespace-nowrap">部屋</th>
                     {/* 2026-05-19 B-1 Step 2: teacherSlotCount に応じて動的に列を生成
-                        副田さん指示: 教員側テスト 1 つだけなら教員①のみ、2 つなら教員①② */}
+                        副田さん指示: 教員側テスト 1 つだけなら教員①のみ、2 つなら教員①②
+                        2026-05-20 B-1 Step 3 補強: 部屋単位仕様であることをヘッダーに明示 */}
                     {Array.from({ length: teacherSlotCount }, (_, i) => (
                       <Fragment key={`th-teacher-${i}`}>
                         <th className="p-2 text-left whitespace-nowrap">
                           教員{["①", "②", "③", "④", "⑤"][i] || `(${i + 1})`}
+                          <span className="text-[10px] text-amber-700 font-normal block">部屋共通</span>
                         </th>
                         <th className="p-2 text-left whitespace-nowrap">
                           教員{["①", "②", "③", "④", "⑤"][i] || `(${i + 1})`}の権限
@@ -953,6 +960,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                     {Array.from({ length: patientSlotCount }, (_, i) => (
                       <th key={`th-patient-${i}`} className="p-2 text-left whitespace-nowrap">
                         患者役{patientSlotCount > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}
+                        <span className="text-[10px] text-amber-700 font-normal block">部屋共通</span>
                       </th>
                     ))}
                     <th className="p-2 text-left whitespace-nowrap">状態</th>
