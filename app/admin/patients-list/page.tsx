@@ -414,7 +414,7 @@ export default function PatientsListPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-room">担当部屋番号 *</Label>
+                <Label htmlFor="edit-room">担当部屋番号</Label>
                 {rooms.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
                     部屋が登録されていません。先に部屋マスターを登録してください。
@@ -426,7 +426,7 @@ export default function PatientsListPage() {
                     onChange={(e) => setEditForm({ ...editForm, roomNumber: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">選択してください</option>
+                    <option value="">未設定</option>
                     {rooms.map((room) => (
                       <option key={room.roomNumber} value={room.roomNumber}>
                         {room.roomNumber} - {room.roomName}
@@ -434,7 +434,9 @@ export default function PatientsListPage() {
                     ))}
                   </select>
                 )}
-                <p className="text-xs text-muted-foreground">この部屋に属する学生が自動的に評価対象になります</p>
+                <p className="text-xs text-muted-foreground">
+                  部屋の割当は試験セッションごとの「割当管理」画面でも設定できます
+                </p>
               </div>
             </div>
             <div className="flex justify-end gap-2">

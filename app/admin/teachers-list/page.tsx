@@ -107,6 +107,12 @@ export default function TeachersListPage() {
   const handleSaveEdit = async () => {
     if (!editingTeacher) return
 
+    // 2026-05-20 副田さん仕様: 教科管理者は担当教科必須 (PR #125 登録 form と同じ仕様)
+    if (editForm.role === "subject_admin" && !editForm.subjectCode) {
+      alert("教科管理者の場合は担当教科を選択してください")
+      return
+    }
+
     // 2026-05-08: id ベースの PATCH に切替(register_teachers_bulk の
     // ON CONFLICT (univ, email) で email 変更時に旧行が orphan になるバグ回避)
     try {
@@ -450,7 +456,7 @@ export default function TeachersListPage() {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-room">担当部屋番号 *</Label>
+                <Label htmlFor="edit-room">担当部屋番号</Label>
                 {rooms.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
                     部屋が登録されていません。先に部屋マスターを登録してください。
@@ -462,7 +468,7 @@ export default function TeachersListPage() {
                     onChange={(e) => setEditForm({ ...editForm, assignedRoomNumber: e.target.value })}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="">選択してください</option>
+                    <option value="">未設定</option>
                     {rooms.map((room) => (
                       <option key={room.roomNumber} value={room.roomNumber}>
                         {room.roomNumber} - {room.roomName}
@@ -470,9 +476,14 @@ export default function TeachersListPage() {
                     ))}
                   </select>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  部屋の割当は試験セッションごとの「割当管理」画面でも設定できます
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-subject">担当教科</Label>
+                <Label htmlFor="edit-subject">
+                  担当教科{editForm.role === "subject_admin" ? " *" : ""}
+                </Label>
                 <select
                   id="edit-subject"
                   value={editForm.subjectCode}
@@ -486,6 +497,9 @@ export default function TeachersListPage() {
                     </option>
                   ))}
                 </select>
+                {editForm.role === "subject_admin" && (
+                  <p className="text-xs text-muted-foreground">教科管理者は担当教科の選択が必須です</p>
+                )}
               </div>
 
             </div>
