@@ -10,6 +10,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getServiceClient, parseListQuery } from "@/lib/api/_shared"
+import { checkAndMaybeMarkSessionComplete } from "@/lib/api/session-completion"
 
 export async function GET(request: NextRequest) {
   const filters = parseListQuery(request, ["universityCode", "testSessionId"] as const)
@@ -147,5 +148,21 @@ export async function POST(request: NextRequest) {
     console.error("[api/evaluation-results] POST error:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, upserted: rows.length })
+
+  // A-3 (2026-05-20 副田さん仕様): 評価保存後にセッション全完了を判定し、
+  // 全テスト × 全出席学生で is_completed=true が揃ったら status='completed' に自動更新。
+  // 失敗しても保存自体は成功させる(best-effort)。
+  const sessionIds = Array.from(
+    new Set(items.map((r) => r.testSessionId).filter((s): s is string => !!s)),
+  )
+  const sessionResults: Array<{ sessionId: string; completed: boolean; reason?: string }> = []
+  for (const sid of sessionIds) {
+    try {
+      const r = await checkAndMaybeMarkSessionComplete(supabase, sid)
+      sessionResults.push({ sessionId: sid, ...r })
+    } catch (e) {
+      console.error("[api/evaluation-results] session completion check error:", sid, e)
+    }
+  }
+  return NextResponse.json({ ok: true, upserted: rows.length, sessionResults })
 }
