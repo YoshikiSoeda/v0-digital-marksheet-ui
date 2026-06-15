@@ -154,13 +154,14 @@ export function SubjectManagement() {
         resetForm()
         await loadSubjects()
       } else {
-        const errorData = await response.json().catch(() => ({}))
+        const errorData = await response.json().catch(() => null)
+        const msg = errorData?.error || `教科の保存に失敗しました (HTTP ${response.status})`
         console.error("Save subject error:", response.status, errorData)
-        throw new Error(`Failed to save subject: ${response.status}`)
+        toast.error(msg)
       }
     } catch (error) {
       console.error("Failed to save subject:", error)
-      toast.error("教科の保存に失敗しました")
+      toast.error("教科の保存中にネットワークエラーが発生しました")
     }
   }
 
@@ -190,11 +191,14 @@ export function SubjectManagement() {
         toast.success("教科を削除しました")
         loadSubjects()
       } else {
-        throw new Error("Failed to delete subject")
+        // 2026-05-19: server 側で 409 + 詳細メッセージを返すようになった (FK 違反時)。
+        const errBody = await response.json().catch(() => null)
+        const msg = errBody?.error || `教科の削除に失敗しました (HTTP ${response.status})`
+        toast.error(msg)
       }
     } catch (error) {
       console.error("Failed to delete subject:", error)
-      toast.error("教科の削除に失敗しました")
+      toast.error("教科の削除中にネットワークエラーが発生しました")
     }
   }
 
