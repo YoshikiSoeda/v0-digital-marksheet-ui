@@ -13,7 +13,7 @@
  *              - 多選択 → 部屋を指定 → 「割当」(新規 or 移動) / 「割当解除」
  */
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, Fragment } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -26,9 +26,9 @@ import { Home, ArrowLeft, Save, UserPlus, Search, Trash2, UserMinus, CheckCircle
 import { useSession } from "@/lib/auth/use-session"
 import {
   loadTeachers, loadPatients, loadRooms, loadTestSessions,
-  loadStudents, loadSubjects, saveStudents,
+  loadStudents, loadSubjects, saveStudents, loadTests,
   type Teacher, type Patient, type Room, type TestSession,
-  type Student, type Subject,
+  type Student, type Subject, type Test,
 } from "@/lib/data-storage"
 
 const UNASSIGNED = "__unassigned__"
@@ -50,6 +50,19 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
   const [isLoading, setIsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState<string>("")
+
+  // 2026-05-19 副田さん仕様変更 B-1 Step 2:
+  // セッションに含まれる tests から slot 数を決める。
+  //   roleType=teacher の数 = 教員 slot 列数
+  //   roleType=patient の数 = 患者役 slot 列数
+  // 例: 教員側テスト 1 つだけのセッションでは「教員①, 権限」のみ。
+  // 副田さん上限指示 (Step 1 質問) は 教員②/患者役1 だが、tests 構成に応じて
+  // 動的に増減させるのが本仕様。
+  const [sessionTests, setSessionTests] = useState<Test[]>([])
+  const teacherSlotCount = sessionTests.filter((t) => (t.roleType || "teacher") === "teacher").length
+  const patientSlotCount = sessionTests.filter((t) => t.roleType === "patient").length
+  // inline edit が走っているセル (重複保存防止)
+  const [savingSlot, setSavingSlot] = useState<string | null>(null)
 
   // 学生タブ用 state (ADR-007 C-5 補強 v2 — 1 リスト+フィルタ駆動)
   const [universities, setUniversities] = useState<Record<string, string>>({})
@@ -128,6 +141,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           patientAssignsRes,
           universitiesRes,
           studentAssignsMap,
+          allTests,
         ] = await Promise.all([
           loadTestSessions(universityCode),
           loadTeachers(universityCode, undefined, undefined),  // canonical (no session filter)
@@ -138,6 +152,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           fetch(`/api/test-sessions/${sessionId}/patient-assignments`, { credentials: "same-origin" }),
           fetch(`/api/universities`, { credentials: "same-origin" }),
           refreshStudentAssignments(),
+          loadTests(universityCode),
         ])
 
         const ts = (Array.isArray(allSessions) ? allSessions : []).find((s) => s.id === sessionId) || null
@@ -146,6 +161,11 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
         setPatients(Array.isArray(canonicalPatients) ? canonicalPatients : [])
         setRooms(Array.isArray(canonicalRooms) ? canonicalRooms : [])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
+        // 本セッションに紐づく tests のみ抽出 (副田さん B-1 Step 2)
+        const myTests = Array.isArray(allTests)
+          ? allTests.filter((t) => (t as Test & { testSessionId?: string }).testSessionId === sessionId)
+          : []
+        setSessionTests(myTests as Test[])
 
         // 学生フィルタの初期値を session 文脈から
         const initUniv = session.universityCode || ""
@@ -217,6 +237,105 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
       [patientId]: roomNumber === UNASSIGNED ? "" : roomNumber,
     }))
     setSavedMsg("")
+  }
+
+  // 2026-05-19 B-1 Step 2: inline edit ハンドラ
+  // 任意の部屋 R の N 番目 slot (メール昇順) の教員 / 患者役 を入れ替える。
+  //   - new = "" / null → 旧 slot 教員を unassign のみ
+  //   - new = teacherId → 旧 slot 教員を外し、新教員を同じ R に assign
+  // 即時 PUT で全教員 (or 全患者役) の割当を再送信する。
+  const persistTeacherRooms = async (next: Record<string, string>) => {
+    const items = Object.entries(next)
+      .filter(([, room]) => room !== "")
+      .map(([teacherId, room]) => ({ teacherId, assignedRoomNumber: room }))
+    const res = await fetch(`/api/test-sessions/${sessionId}/teacher-assignments`, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => null)
+      throw new Error(err?.error || `${res.status}`)
+    }
+  }
+  const persistPatientRooms = async (next: Record<string, string>) => {
+    const items = Object.entries(next)
+      .filter(([, room]) => room !== "")
+      .map(([patientId, room]) => ({ patientId, assignedRoomNumber: room }))
+    const res = await fetch(`/api/test-sessions/${sessionId}/patient-assignments`, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => null)
+      throw new Error(err?.error || `${res.status}`)
+    }
+  }
+
+  // 教員 slot inline edit: room の slot N (メール昇順) の教員を newId に置き換え
+  const handleSlotChangeTeacher = async (
+    room: string,
+    slotIndex: number,
+    newTeacherId: string | null,
+  ) => {
+    if (!room) return
+    const key = `t:${room}:${slotIndex}`
+    setSavingSlot(key)
+    setSavedMsg("")
+    try {
+      const existing = teachers
+        .filter((t) => teacherRooms[t.id] === room)
+        .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+      const old = existing[slotIndex]
+      const next = { ...teacherRooms }
+      if (old) {
+        // 旧 slot N の教員を unassign (この room から外す)
+        next[old.id] = ""
+      }
+      if (newTeacherId) {
+        // 新教員を同 room に (他部屋にいたら移動)
+        next[newTeacherId] = room
+      }
+      await persistTeacherRooms(next)
+      setTeacherRooms(next)
+      setSavedMsg(`部屋 ${room} の教員${slotIndex + 1}を更新しました`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      alert(`教員割当の更新に失敗: ${msg}`)
+    } finally {
+      setSavingSlot(null)
+    }
+  }
+
+  const handleSlotChangePatient = async (
+    room: string,
+    slotIndex: number,
+    newPatientId: string | null,
+  ) => {
+    if (!room) return
+    const key = `p:${room}:${slotIndex}`
+    setSavingSlot(key)
+    setSavedMsg("")
+    try {
+      const existing = patients
+        .filter((p) => patientRooms[p.id] === room)
+        .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+      const old = existing[slotIndex]
+      const next = { ...patientRooms }
+      if (old) next[old.id] = ""
+      if (newPatientId) next[newPatientId] = room
+      await persistPatientRooms(next)
+      setPatientRooms(next)
+      setSavedMsg(`部屋 ${room} の患者役${slotIndex + 1}を更新しました`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error"
+      alert(`患者役割当の更新に失敗: ${msg}`)
+    } finally {
+      setSavingSlot(null)
+    }
   }
 
   const handleSaveTeachers = async () => {
@@ -836,11 +955,23 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                     <th className="p-2 text-left whitespace-nowrap">メール</th>
                     <th className="p-2 text-left whitespace-nowrap">学年</th>
                     <th className="p-2 text-left whitespace-nowrap">部屋</th>
-                    <th className="p-2 text-left whitespace-nowrap">教員①</th>
-                    <th className="p-2 text-left whitespace-nowrap">教員①の権限</th>
-                    <th className="p-2 text-left whitespace-nowrap">教員②</th>
-                    <th className="p-2 text-left whitespace-nowrap">教員②の権限</th>
-                    <th className="p-2 text-left whitespace-nowrap">患者役</th>
+                    {/* 2026-05-19 B-1 Step 2: teacherSlotCount に応じて動的に列を生成
+                        副田さん指示: 教員側テスト 1 つだけなら教員①のみ、2 つなら教員①② */}
+                    {Array.from({ length: teacherSlotCount }, (_, i) => (
+                      <Fragment key={`th-teacher-${i}`}>
+                        <th className="p-2 text-left whitespace-nowrap">
+                          教員{["①", "②", "③", "④", "⑤"][i] || `(${i + 1})`}
+                        </th>
+                        <th className="p-2 text-left whitespace-nowrap">
+                          教員{["①", "②", "③", "④", "⑤"][i] || `(${i + 1})`}の権限
+                        </th>
+                      </Fragment>
+                    ))}
+                    {Array.from({ length: patientSlotCount }, (_, i) => (
+                      <th key={`th-patient-${i}`} className="p-2 text-left whitespace-nowrap">
+                        患者役{patientSlotCount > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}
+                      </th>
+                    ))}
                     <th className="p-2 text-left whitespace-nowrap">状態</th>
                     <th className="p-2 w-12"></th>
                   </tr>
@@ -848,7 +979,10 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                 <tbody className="bg-white">
                   {filteredStudentList.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="text-center p-6 text-muted-foreground">
+                      <td
+                        colSpan={6 + teacherSlotCount * 2 + patientSlotCount + 2}
+                        className="text-center p-6 text-muted-foreground"
+                      >
                         {studentSearching
                           ? "検索中..."
                           : studentList.length === 0
@@ -866,21 +1000,18 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                         eff.pendingKind === "unassign" ? "bg-red-50" :
                         "bg-white"
                       // 2026-05-19: その学生の effective room に assign されている
-                      // 教員(メール昇順) / 患者役 を slot 1/2 で表示
+                      // 教員(メール昇順) / 患者役 を slot N で表示
                       const room = eff.effectiveRoom
                       const teachersHere = room
                         ? teachers
                             .filter((t) => teacherRooms[t.id] === room)
                             .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
                         : []
-                      const t1 = teachersHere[0]
-                      const t2 = teachersHere[1]
                       const patientsHere = room
                         ? patients
                             .filter((p) => patientRooms[p.id] === room)
                             .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
                         : []
-                      const p1 = patientsHere[0]
                       const roleLabel = (role: string | undefined): string => {
                         switch (role) {
                           case "master_admin": return "マスター管理者"
@@ -918,11 +1049,77 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                               eff.savedRoom || "—"
                             )}
                           </td>
-                          <td className="p-2 whitespace-nowrap">{t1?.name || <span className="text-muted-foreground">—</span>}</td>
-                          <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{t1 ? roleLabel(t1.role) : "—"}</td>
-                          <td className="p-2 whitespace-nowrap">{t2?.name || <span className="text-muted-foreground">—</span>}</td>
-                          <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{t2 ? roleLabel(t2.role) : "—"}</td>
-                          <td className="p-2 whitespace-nowrap">{p1?.name || <span className="text-muted-foreground">—</span>}</td>
+                          {/* 教員 slot N: 名前 + 権限ペア (動的) */}
+                          {Array.from({ length: teacherSlotCount }, (_, i) => {
+                            const slotKey = `t:${room}:${i}`
+                            const tHere = teachersHere[i]
+                            const currentId = tHere?.id || ""
+                            const candidates = teachers
+                              .slice()
+                              .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+                            const disabled = !room || savingSlot === slotKey
+                            return (
+                              <Fragment key={`td-teacher-${s.id}-${i}`}>
+                                <td className="p-1.5 whitespace-nowrap">
+                                  <Select
+                                    value={currentId || UNASSIGNED}
+                                    disabled={disabled}
+                                    onValueChange={(v) =>
+                                      handleSlotChangeTeacher(room, i, v === UNASSIGNED ? null : v)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 w-40 text-xs bg-white">
+                                      <SelectValue placeholder={room ? "(未割当)" : "(部屋未定)"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-[300px] overflow-y-auto">
+                                      <SelectItem value={UNASSIGNED}>(未割当)</SelectItem>
+                                      {candidates.map((tt) => (
+                                        <SelectItem key={tt.id} value={tt.id}>
+                                          {tt.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">
+                                  {tHere ? roleLabel(tHere.role) : "—"}
+                                </td>
+                              </Fragment>
+                            )
+                          })}
+                          {/* 患者役 slot N (動的) */}
+                          {Array.from({ length: patientSlotCount }, (_, i) => {
+                            const slotKey = `p:${room}:${i}`
+                            const pHere = patientsHere[i]
+                            const currentId = pHere?.id || ""
+                            const candidates = patients
+                              .slice()
+                              .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+                            const disabled = !room || savingSlot === slotKey
+                            return (
+                              <td key={`td-patient-${s.id}-${i}`} className="p-1.5 whitespace-nowrap">
+                                <Select
+                                  value={currentId || UNASSIGNED}
+                                  disabled={disabled}
+                                  onValueChange={(v) =>
+                                    handleSlotChangePatient(room, i, v === UNASSIGNED ? null : v)
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-40 text-xs bg-white">
+                                    <SelectValue placeholder={room ? "(未割当)" : "(部屋未定)"} />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                                    <SelectItem value={UNASSIGNED}>(未割当)</SelectItem>
+                                    {candidates.map((pp) => (
+                                      <SelectItem key={pp.id} value={pp.id}>
+                                        {pp.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            )
+                          })}
                           <td className="p-2">
                             {eff.pendingKind === "new" && (
                               <span className="text-xs px-2 py-0.5 rounded bg-green-200 text-green-800">新規(保留)</span>
