@@ -117,6 +117,15 @@ export function TeacherRegistration() {
       return
     }
 
+    // 2026-05-19 副田さん仕様変更:
+    //   - 担当部屋番号は必須でない (試験割当時に決めるため)
+    //   - 担当教科は教科管理者 (subject_admin) のときのみ必須
+    //     (一般教員は教科外の試験も担当しうるため任意、大学管理者は教科スコープ無いため不要)
+    if (formData.role === "subject_admin" && !formData.subjectCode) {
+      alert("教科管理者には担当教科の指定が必須です")
+      return
+    }
+
     if (formData.roomNumber) {
       const roomExists = rooms.some((r) => r.roomNumber === formData.roomNumber)
       if (!roomExists) {
@@ -446,7 +455,7 @@ export function TeacherRegistration() {
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="roomNumber">担当部屋番号 *</Label>
+                    <Label htmlFor="roomNumber">担当部屋番号</Label>
                     {rooms.length === 0 ? (
                       <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
                         部屋が登録されていません。先に部屋マスターで部屋を登録してください。
@@ -458,7 +467,7 @@ export function TeacherRegistration() {
                         value={formData.roomNumber}
                         onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
                       >
-                        <option value="">部屋を選択してください</option>
+                        <option value="">部屋を選択してください（任意）</option>
                         {rooms.map((room) => (
                           <option key={room.id} value={room.roomNumber}>
                             {room.roomNumber} - {room.roomName}
@@ -467,7 +476,7 @@ export function TeacherRegistration() {
                       </select>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      この部屋に属する学生が自動的に評価対象として表示されます
+                      任意。試験ごとに担当部屋を割り当てる場合は試験セッション割当画面で設定できます。
                     </p>
                   </div>
                   {accountType === "special_master" && (
@@ -490,15 +499,19 @@ export function TeacherRegistration() {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Label htmlFor="subject">担当教科</Label>
+                    <Label htmlFor="subject">
+                      担当教科{formData.role === "subject_admin" ? " *" : ""}
+                    </Label>
                     <select
                       id="subject"
                       value={formData.subjectCode}
                       onChange={(e) => setFormData({ ...formData, subjectCode: e.target.value })}
                       className="flex h-10 w-full rounded-md border border-blue-500 bg-background px-3 py-2 text-sm"
-                      required
+                      required={formData.role === "subject_admin"}
                     >
-                      <option value="">選択してください</option>
+                      <option value="">
+                        {formData.role === "subject_admin" ? "選択してください" : "選択してください（任意）"}
+                      </option>
                       {subjects
                         .filter((s) => !formData.university_code || s.universityCode === formData.university_code)
                         .map((subject) => (
@@ -507,6 +520,11 @@ export function TeacherRegistration() {
                           </option>
                         ))}
                     </select>
+                    <p className="text-xs text-muted-foreground">
+                      {formData.role === "subject_admin"
+                        ? "教科管理者は自教科のダッシュボードのみ参照するため必須です"
+                        : "任意。一般教員は教科外の試験も担当できます。大学管理者は教科横断で参照可能です。"}
+                    </p>
                   </div>
 
                 </div>
