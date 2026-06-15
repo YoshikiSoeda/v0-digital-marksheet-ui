@@ -61,11 +61,12 @@ export default function PatientsListPage() {
         }
       }
 
+      // 2026-05-19: 患者役一覧も canonical 全件取得 (未割当の患者役も含む)
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
       // 案 Y: subject_admin は自教科のみ表示
       const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
       const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([
-        loadPatients(undefined, subjectScope, testSessionId),
+        loadPatients(undefined, subjectScope, undefined),
         loadRooms(undefined, undefined, testSessionId),
         loadSubjects(),
       ])

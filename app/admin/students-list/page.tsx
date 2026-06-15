@@ -69,11 +69,12 @@ export default function StudentsListPage() {
         }
       }
 
+      // 2026-05-19: 学生一覧も canonical 全件取得 (未割当の学生も含む)
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
       // 案 Y: subject_admin は自教科のみ表示
       const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
       const [fetchedStudents, fetchedRooms, fetchedSubjects] = await Promise.all([
-        loadStudents(undefined, subjectScope, testSessionId),
+        loadStudents(undefined, subjectScope, undefined),
         loadRooms(undefined, undefined, testSessionId),
         loadSubjects(),
       ])

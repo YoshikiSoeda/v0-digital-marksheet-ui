@@ -62,11 +62,15 @@ export default function TeachersListPage() {
         }
       }
 
+      // 2026-05-19: 教員一覧は人物そのものの canonical 一覧として全件取得。
+      // (testSessionId を渡すと未割当の教員が見えなくなり、副田さんから
+      //  「kyouka が表示されない」と報告された問題への対応)
+      // 部屋一覧は現セッションでフィルタする (編集ダイアログの「担当部屋」選択肢用)。
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
       // 案 Y: subject_admin は自教科のみ表示
       const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
       const [fetchedTeachers, fetchedRooms, fetchedSubjects] = await Promise.all([
-        loadTeachers(undefined, subjectScope, testSessionId),
+        loadTeachers(undefined, subjectScope, undefined),
         loadRooms(undefined, undefined, testSessionId),
         loadSubjects(),
       ])
@@ -186,8 +190,12 @@ export default function TeachersListPage() {
   }
 
   const handleRefresh = async () => {
+    // 2026-05-19: 教員一覧は canonical 全件取得 (未割当の教員も含む)
     const testSessionId = sessionStorage.getItem("testSessionId") || ""
-    const [fetchedTeachers, fetchedRooms] = await Promise.all([loadTeachers(undefined, undefined, testSessionId), loadRooms(undefined, undefined, testSessionId)])
+    const [fetchedTeachers, fetchedRooms] = await Promise.all([
+      loadTeachers(undefined, undefined, undefined),
+      loadRooms(undefined, undefined, testSessionId),
+    ])
     setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
     setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])
   }
