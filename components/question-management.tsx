@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, Edit, Trash2, ArrowLeft, Calendar, Copy, Hourglass, Users } from "lucide-react"
 import Link from "next/link"
 import { loadTests, saveTests, deleteTest, type Test } from "@/lib/data-storage"
+import { buildTestLabelMap } from "@/lib/exam/test-labels"
 import { useSession } from "@/lib/auth/use-session"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -182,13 +183,22 @@ export function QuestionManagement() {
     }
     groupedBySession[sessionId].push(test)
   })
-  // 各グループ内で教員側を先、患者役側を後にソート
+  // 各グループ内で教員側を先、患者役側を後にソート (同 roleType 内は createdAt 昇順)
   Object.values(groupedBySession).forEach((group) => {
     group.sort((a, b) => {
       const roleOrder = { teacher: 0, patient: 1 }
-      return (roleOrder[(a as any).roleType as keyof typeof roleOrder] ?? 2) - (roleOrder[(b as any).roleType as keyof typeof roleOrder] ?? 2)
+      const ra = roleOrder[(a as any).roleType as keyof typeof roleOrder] ?? 2
+      const rb = roleOrder[(b as any).roleType as keyof typeof roleOrder] ?? 2
+      if (ra !== rb) return ra - rb
+      const da = new Date(a.createdAt || 0).getTime()
+      const db = new Date(b.createdAt || 0).getTime()
+      return da - db
     })
   })
+
+  // A-2 (2026-05-20 副田さん仕様): 同セッション内で同 roleType が複数あれば
+  // 「教員側①」「教員側②」のように自動採番。filteredTests 全体で 1 回計算して再利用。
+  const testLabelMap = buildTestLabelMap(filteredTests)
 
   const groupedByUniversityAndTestCode: Record<string, Record<string, Test[]>> = {}
 
@@ -516,7 +526,7 @@ export function QuestionManagement() {
                                       ? "bg-pink-100 text-pink-800"
                                       : "bg-blue-100 text-blue-800"
                                   }`}>
-                                    {(test as any).roleType === "patient" ? "患者役側" : "教員側"}
+                                    {testLabelMap[test.id] || ((test as any).roleType === "patient" ? "患者役側" : "教員側")}
                                   </span>
                                 </div>
                                 <p className="text-sm text-gray-500">
@@ -603,7 +613,7 @@ export function QuestionManagement() {
                                       ? "bg-pink-100 text-pink-800"
                                       : "bg-blue-100 text-blue-800"
                                   }`}>
-                                    {(test as any).roleType === "patient" ? "患者役側" : "教員側"}
+                                    {testLabelMap[test.id] || ((test as any).roleType === "patient" ? "患者役側" : "教員側")}
                                   </span>
                                   <h5 className="font-semibold text-[#00417A]">{test.title}</h5>
                                 </div>
