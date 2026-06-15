@@ -826,24 +826,29 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
               </div>
             </div>
 
-            <div className="border rounded-md max-h-[60vh] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted">
+            <div className="border rounded-md max-h-[60vh] overflow-auto bg-white">
+              <table className="min-w-full text-sm bg-white">
+                <thead className="sticky top-0 bg-white border-b z-10">
                   <tr>
                     <th className="w-10 p-2"></th>
-                    <th className="p-2 text-left">学籍番号</th>
-                    <th className="p-2 text-left">氏名</th>
-                    <th className="p-2 text-left">学年</th>
-                    <th className="p-2 text-left">教科</th>
-                    <th className="p-2 text-left">状態</th>
-                    <th className="p-2 text-left">部屋</th>
+                    <th className="p-2 text-left whitespace-nowrap">学籍番号</th>
+                    <th className="p-2 text-left whitespace-nowrap">氏名</th>
+                    <th className="p-2 text-left whitespace-nowrap">メール</th>
+                    <th className="p-2 text-left whitespace-nowrap">学年</th>
+                    <th className="p-2 text-left whitespace-nowrap">部屋</th>
+                    <th className="p-2 text-left whitespace-nowrap">教員①</th>
+                    <th className="p-2 text-left whitespace-nowrap">教員①の権限</th>
+                    <th className="p-2 text-left whitespace-nowrap">教員②</th>
+                    <th className="p-2 text-left whitespace-nowrap">教員②の権限</th>
+                    <th className="p-2 text-left whitespace-nowrap">患者役</th>
+                    <th className="p-2 text-left whitespace-nowrap">状態</th>
                     <th className="p-2 w-12"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white">
                   {filteredStudentList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center p-6 text-muted-foreground">
+                      <td colSpan={13} className="text-center p-6 text-muted-foreground">
                         {studentSearching
                           ? "検索中..."
                           : studentList.length === 0
@@ -854,28 +859,70 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                   ) : (
                     filteredStudentList.map((s) => {
                       const eff = getEffective(s.id)
-                      const subjName =
-                        subjects.find((sub) => sub.subjectCode === s.subjectCode)?.subjectName ||
-                        s.subjectCode ||
-                        "—"
                       // 行の背景色: pending 種別ごとに薄い色
                       const rowBg =
                         eff.pendingKind === "new" ? "bg-green-50" :
                         eff.pendingKind === "move" ? "bg-amber-50" :
                         eff.pendingKind === "unassign" ? "bg-red-50" :
-                        ""
+                        "bg-white"
+                      // 2026-05-19: その学生の effective room に assign されている
+                      // 教員(メール昇順) / 患者役 を slot 1/2 で表示
+                      const room = eff.effectiveRoom
+                      const teachersHere = room
+                        ? teachers
+                            .filter((t) => teacherRooms[t.id] === room)
+                            .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+                        : []
+                      const t1 = teachersHere[0]
+                      const t2 = teachersHere[1]
+                      const patientsHere = room
+                        ? patients
+                            .filter((p) => patientRooms[p.id] === room)
+                            .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+                        : []
+                      const p1 = patientsHere[0]
+                      const roleLabel = (role: string | undefined): string => {
+                        switch (role) {
+                          case "master_admin": return "マスター管理者"
+                          case "university_admin": return "大学管理者"
+                          case "university_master": return "大学管理者"
+                          case "subject_admin": return "教科管理者"
+                          case "general": return "一般"
+                          default: return role || ""
+                        }
+                      }
                       return (
-                        <tr key={s.id} className={`border-t hover:bg-muted/20 ${rowBg}`}>
+                        <tr key={s.id} className={`border-t hover:bg-blue-50/40 ${rowBg}`}>
                           <td className="p-2">
                             <Checkbox
                               checked={selectedStudentIds.has(s.id)}
                               onCheckedChange={(v) => toggleStudent(s.id, Boolean(v))}
                             />
                           </td>
-                          <td className="p-2 font-mono">{s.studentId}</td>
-                          <td className="p-2">{s.name}</td>
-                          <td className="p-2">{s.grade || "—"}</td>
-                          <td className="p-2">{subjName}</td>
+                          <td className="p-2 font-mono whitespace-nowrap">{s.studentId}</td>
+                          <td className="p-2 whitespace-nowrap">{s.name}</td>
+                          <td className="p-2 text-xs font-mono text-muted-foreground whitespace-nowrap">{s.email || "—"}</td>
+                          <td className="p-2 whitespace-nowrap">{s.grade || "—"}</td>
+                          <td className="p-2 font-mono text-xs whitespace-nowrap">
+                            {eff.pendingKind === "move" ? (
+                              <span>
+                                <span className="line-through text-muted-foreground">{eff.savedRoom}</span>
+                                {" → "}
+                                <span className="font-semibold">{eff.effectiveRoom}</span>
+                              </span>
+                            ) : eff.pendingKind === "new" ? (
+                              <span className="font-semibold">{eff.effectiveRoom}</span>
+                            ) : eff.pendingKind === "unassign" ? (
+                              <span className="line-through text-muted-foreground">{eff.savedRoom}</span>
+                            ) : (
+                              eff.savedRoom || "—"
+                            )}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">{t1?.name || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{t1 ? roleLabel(t1.role) : "—"}</td>
+                          <td className="p-2 whitespace-nowrap">{t2?.name || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{t2 ? roleLabel(t2.role) : "—"}</td>
+                          <td className="p-2 whitespace-nowrap">{p1?.name || <span className="text-muted-foreground">—</span>}</td>
                           <td className="p-2">
                             {eff.pendingKind === "new" && (
                               <span className="text-xs px-2 py-0.5 rounded bg-green-200 text-green-800">新規(保留)</span>
@@ -891,21 +938,6 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                             )}
                             {!eff.hasPending && !eff.savedRoom && (
                               <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">未割当</span>
-                            )}
-                          </td>
-                          <td className="p-2 font-mono text-xs">
-                            {eff.pendingKind === "move" ? (
-                              <span>
-                                <span className="line-through text-muted-foreground">{eff.savedRoom}</span>
-                                {" → "}
-                                <span className="font-semibold">{eff.effectiveRoom}</span>
-                              </span>
-                            ) : eff.pendingKind === "new" ? (
-                              <span className="font-semibold">{eff.effectiveRoom}</span>
-                            ) : eff.pendingKind === "unassign" ? (
-                              <span className="line-through text-muted-foreground">{eff.savedRoom}</span>
-                            ) : (
-                              eff.savedRoom || "—"
                             )}
                           </td>
                           <td className="p-2 text-right">
@@ -1038,7 +1070,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-[1400px] mx-auto space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-primary">試験セッション割当管理</h1>
@@ -1063,16 +1095,10 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           </div>
         )}
 
-        <Tabs defaultValue="teachers" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="teachers">教員</TabsTrigger>
-            <TabsTrigger value="patients">患者役</TabsTrigger>
-            <TabsTrigger value="students">学生</TabsTrigger>
-          </TabsList>
-          <TabsContent value="teachers" className="mt-4">{renderTeacherTab()}</TabsContent>
-          <TabsContent value="patients" className="mt-4">{renderPatientTab()}</TabsContent>
-          <TabsContent value="students" className="mt-4">{renderStudentTab()}</TabsContent>
-        </Tabs>
+        {/* 2026-05-19 副田さん仕様変更: 教員/患者役/学生 3 タブを学生中心 1 テーブルに統合
+            Step 1: 学生テーブルに 教員①/②/患者役 を read-only カラムとして表示
+            Step 2 (次 PR): 各セル inline edit ドロップダウン */}
+        {renderStudentTab()}
       </div>
     </div>
   )
