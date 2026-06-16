@@ -128,6 +128,11 @@ export function QuestionCreate() {
       alert("テスト名、実施日、大学を入力してください")
       return
     }
+    // 2026-05-20 副田さん仕様: 試験セッションは教科に属する必要がある (subject_admin スコープのため)
+    if (!selectedSubject) {
+      alert("教科を選択してください")
+      return
+    }
 
     const description = `${formatDateForDescription(newTestDate)}_${newTestName.trim()}`
 
@@ -682,13 +687,12 @@ export function QuestionCreate() {
 
                 {!isTeacher && !teacherSubjectCode && subjects.length > 0 && (
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">教科</Label>
-                    <Select value={selectedSubject || "none"} onValueChange={setSelectedSubject}>
+                    <Label className="text-xs text-muted-foreground">教科 *</Label>
+                    <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                       <SelectTrigger className="h-9 w-44">
-                        <SelectValue placeholder="教科を選択（任意）" />
+                        <SelectValue placeholder="教科を選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">教科なし</SelectItem>
                         {subjects.map((subject) => (
                           <SelectItem key={subject.code} value={subject.code}>
                             {subject.name}

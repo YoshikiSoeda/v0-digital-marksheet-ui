@@ -104,7 +104,12 @@ export function QuestionManagement() {
 
   const handleAddTestSession = async () => {
     if (!newTestName.trim() || !newTestDate || !newUniversityCode) {
-      alert("すべての項目を入力してください")
+      alert("テスト名、実施日、大学を入力してください")
+      return
+    }
+    // 2026-05-20 副田さん仕様: 試験セッションは教科に属する必要がある
+    if (!newSubjectCode) {
+      alert("教科を選択してください")
       return
     }
 
@@ -116,7 +121,7 @@ export function QuestionManagement() {
           description: newTestName,
           test_date: newTestDate,
           university_code: newUniversityCode,
-          subject_code: newSubjectCode || null,
+          subject_code: newSubjectCode,
         }),
       })
 
@@ -403,13 +408,12 @@ export function QuestionManagement() {
                       </Select>
                     </div>
                     <div>
-                      <Label>教科（任意）</Label>
+                      <Label>教科 *</Label>
                       <Select value={newSubjectCode} onValueChange={setNewSubjectCode}>
                         <SelectTrigger>
-                          <SelectValue placeholder="教科を選択（任意）" />
+                          <SelectValue placeholder="教科を選択" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">教科なし</SelectItem>
                           {subjects.map((subject) => (
                             <SelectItem key={subject.code} value={subject.code}>
                               {subject.name}
