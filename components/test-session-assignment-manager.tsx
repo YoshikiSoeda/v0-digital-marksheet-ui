@@ -1242,6 +1242,15 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
               <span className="font-medium">{testSession.description || "(名称未設定)"}</span>
               {testSession.testDate && ` — ${new Date(testSession.testDate).toLocaleDateString("ja-JP")}`}
             </p>
+            {testSession.universityCode && (
+              <p className="text-xs text-muted-foreground mt-1">
+                大学:{" "}
+                <span className="font-medium text-foreground">
+                  {universities[testSession.universityCode] || testSession.universityCode}
+                </span>
+                {" — "}この大学に属する教員・患者役・学生・部屋のみが候補に出ます
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => router.back()}>
