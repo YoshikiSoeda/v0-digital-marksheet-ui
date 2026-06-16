@@ -71,11 +71,14 @@ export default function StudentsListPage() {
 
       // 2026-05-19: 学生一覧も canonical 全件取得 (未割当の学生も含む)
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      // 2026-05-20 副田さん指摘: 大学スコープは維持。special_master のみ全大学。
+      const universityScope =
+        session.accountType === "special_master" ? undefined : session.universityCode || undefined
       // 案 Y: subject_admin は自教科のみ表示
       const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
       const [fetchedStudents, fetchedRooms, fetchedSubjects] = await Promise.all([
-        loadStudents(undefined, subjectScope, undefined),
-        loadRooms(undefined, undefined, testSessionId),
+        loadStudents(universityScope, subjectScope, undefined),
+        loadRooms(universityScope, undefined, testSessionId),
         loadSubjects(),
       ])
       setStudents(Array.isArray(fetchedStudents) ? fetchedStudents : [])
