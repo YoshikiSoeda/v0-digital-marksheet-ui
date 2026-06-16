@@ -1077,7 +1077,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                                     <SelectTrigger className="h-8 w-40 text-xs bg-white">
                                       <SelectValue placeholder={room ? "(未割当)" : "(部屋未定)"} />
                                     </SelectTrigger>
-                                    <SelectContent className="max-h-[300px] overflow-y-auto">
+                                    <SelectContent className="max-h-[400px] overflow-y-auto">
                                       <SelectItem value={UNASSIGNED}>(未割当)</SelectItem>
                                       {candidates.map((tt) => (
                                         <SelectItem key={tt.id} value={tt.id}>
