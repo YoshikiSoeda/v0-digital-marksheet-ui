@@ -67,11 +67,15 @@ export default function TeachersListPage() {
       //  「kyouka が表示されない」と報告された問題への対応)
       // 部屋一覧は現セッションでフィルタする (編集ダイアログの「担当部屋」選択肢用)。
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      // 2026-05-20 副田さん指摘: 大学スコープは維持する必要がある。
+      // special_master のみ全大学を見られる。それ以外は自大学のみ。
+      const universityScope =
+        session.accountType === "special_master" ? undefined : session.universityCode || undefined
       // 案 Y: subject_admin は自教科のみ表示
       const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
       const [fetchedTeachers, fetchedRooms, fetchedSubjects] = await Promise.all([
-        loadTeachers(undefined, subjectScope, undefined),
-        loadRooms(undefined, undefined, testSessionId),
+        loadTeachers(universityScope, subjectScope, undefined),
+        loadRooms(universityScope, undefined, testSessionId),
         loadSubjects(),
       ])
 
@@ -197,10 +201,14 @@ export default function TeachersListPage() {
 
   const handleRefresh = async () => {
     // 2026-05-19: 教員一覧は canonical 全件取得 (未割当の教員も含む)
+    // 2026-05-20: ただし大学スコープは維持 (special_master のみ全大学)
     const testSessionId = sessionStorage.getItem("testSessionId") || ""
+    const universityScope =
+      session?.accountType === "special_master" ? undefined : session?.universityCode || undefined
+    const subjectScope = session?.accountType === "subject_admin" ? session.subjectCode : undefined
     const [fetchedTeachers, fetchedRooms] = await Promise.all([
-      loadTeachers(undefined, undefined, undefined),
-      loadRooms(undefined, undefined, testSessionId),
+      loadTeachers(universityScope, subjectScope, undefined),
+      loadRooms(universityScope, undefined, testSessionId),
     ])
     setTeachers(Array.isArray(fetchedTeachers) ? fetchedTeachers : [])
     setRooms(Array.isArray(fetchedRooms) ? fetchedRooms : [])

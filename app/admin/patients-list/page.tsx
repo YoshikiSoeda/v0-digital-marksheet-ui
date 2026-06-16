@@ -63,11 +63,14 @@ export default function PatientsListPage() {
 
       // 2026-05-19: 患者役一覧も canonical 全件取得 (未割当の患者役も含む)
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      // 2026-05-20 副田さん指摘: 大学スコープは維持。special_master のみ全大学。
+      const universityScope =
+        session.accountType === "special_master" ? undefined : session.universityCode || undefined
       // 案 Y: subject_admin は自教科のみ表示
       const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
       const [loadedPatients, loadedRooms, loadedSubjects] = await Promise.all([
-        loadPatients(undefined, subjectScope, undefined),
-        loadRooms(undefined, undefined, testSessionId),
+        loadPatients(universityScope, subjectScope, undefined),
+        loadRooms(universityScope, undefined, testSessionId),
         loadSubjects(),
       ])
       setPatients(Array.isArray(loadedPatients) ? loadedPatients : [])
