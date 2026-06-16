@@ -235,7 +235,9 @@ export async function verifyCredentials(
 export function getRedirectTo(user: VerifiedUser): string {
   if (user.source === "admins") return "/admin/dashboard"
   if (user.source === "teachers") {
-    if (ADMIN_LIKE_ROLES.has(user.role)) return "/admin/dashboard"
+    // 2026-05-20 副田さん仕様: admin-like 教員 (master_admin / university_admin / subject_admin)
+    // は管理画面か試験セッションを選べる遷移先選択画面に飛ばす。
+    if (ADMIN_LIKE_ROLES.has(user.role)) return "/teacher/login-destination"
     return "/teacher/exam-info"
   }
   return "/patient/exam-info"
