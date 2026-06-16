@@ -685,7 +685,11 @@ export function QuestionCreate() {
                   </div>
                 )}
 
-                {!isTeacher && !teacherSubjectCode && subjects.length > 0 && (
+                {/* 2026-05-20 副田さん指摘: uni (university_admin, subject_code=NULL) で
+                    isTeacher=true だが教科 Select が出なかった問題を修正。
+                    教員でも subject_code が固定されていない場合 (university_admin / master_admin) は
+                    自由に教科を選べる必要がある。 */}
+                {!teacherSubjectCode && subjects.length > 0 && (
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">教科 *</Label>
                     <Select value={selectedSubject} onValueChange={setSelectedSubject}>
