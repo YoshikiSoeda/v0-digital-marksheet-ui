@@ -60,8 +60,13 @@ export function RoomManagement() {
     }
 
     const fetchRooms = async () => {
-      const testSessionId = sessionStorage.getItem("testSessionId") || ""
-      const loadedRooms = await loadRooms(undefined, undefined, testSessionId)
+      // 2026-05-20 副田さん指摘: 部屋マスター画面は「全部屋」を見るための画面なので、
+      // testSessionId フィルタは適用しない (ADR-007 C-6 で API が junction 経由になり
+      // 「そのセッションに割当のある部屋のみ」が返るため、マスター全件にならない問題)。
+      // 大学スコープは維持 (special_master のみ全大学)。
+      const universityScope =
+        accountType === "special_master" ? undefined : session.universityCode || undefined
+      const loadedRooms = await loadRooms(universityScope, undefined, undefined)
       setRooms(Array.isArray(loadedRooms) ? loadedRooms : [])
     }
     fetchRooms()
