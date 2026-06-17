@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import { saveTests, type Test, type Sheet, type Question } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
 
 export function QuestionCreate() {
   const router = useRouter()
@@ -533,20 +534,26 @@ export function QuestionCreate() {
       '医療面接評価シート1,シート1,1,カテゴリ1,2,アラート問題例,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,1,"1,3"\n' +
       "医療面接評価シート2,シート1,1,カテゴリ1,1,別のテストの問題,選択肢1,選択肢2,選択肢3,選択肢4,選択肢5,0,\n"
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const blob = csvDownloadBlob(csvContent)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = "問題登録テンプレート.csv"
     link.click()
   }
 
-  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target?.result as string
+    let text: string
+    try {
+      // 2026-05-20 副田さん報告: Excel 保存の Shift-JIS CSV が化けるため自動判定
+      text = await readCsvFile(file)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
+      return
+    }
+    {
       const lines = text.split("\n").slice(1) // ヘッダー行をスキップ
 
       const testMap = new Map<
@@ -637,8 +644,6 @@ export function QuestionCreate() {
       setShowPreview(true)
       alert("CSVファイルを読み込みました。プレビューを確認してください。")
     }
-
-    reader.readAsText(file)
   }
 
   const filteredTestSessions = testSessions.filter(

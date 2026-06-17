@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { loadRooms, saveRooms, loadSubjects, type Room, type Subject } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -174,13 +175,20 @@ export function RoomManagement() {
     }
   }
 
-  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      const csvText = event.target?.result as string
+    let csvText: string
+    try {
+      // 2026-05-20 副田さん報告: Excel 保存の Shift-JIS CSV が化けるため自動判定
+      csvText = await readCsvFile(file)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
+      e.target.value = ""
+      return
+    }
+    {
       const lines = csvText.split("\n").filter((line) => line.trim())
       const importedRooms: Room[] = []
 
@@ -225,7 +233,6 @@ export function RoomManagement() {
         }
       }
     }
-    reader.readAsText(file)
     e.target.value = ""
   }
 
@@ -242,7 +249,7 @@ export function RoomManagement() {
 
     const csv = [headers, ...rows].map((row) => row.join(",")).join("\n")
 
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    const blob = csvDownloadBlob(csv)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = `部屋マスター_${new Date().toISOString().split("T")[0]}.csv`
@@ -253,7 +260,7 @@ export function RoomManagement() {
     const csv = isSpecialMaster
       ? "部屋番号,部屋名,大学コード\n101,第1実習室,dentshowa\n102,第2実習室,dentshowa"
       : "部屋番号,部屋名\n101,第1実習室\n102,第2実習室"
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    const blob = csvDownloadBlob(csv)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = "部屋マスターテンプレート.csv"
