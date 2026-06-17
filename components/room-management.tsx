@@ -97,14 +97,15 @@ export function RoomManagement() {
 
     const universityCode = isSpecialMaster ? newUniversityCode : (session?.universityCode || "")
 
-    const testSessionId = sessionStorage.getItem("testSessionId") || ""
+    // 2026-05-20 副田さん指摘: 部屋は canonical (university+部屋番号) 単位で登録。
+    // 試験セッションへの紐付けは試験セッション割当画面で別途行うため、testSessionId は付けない。
     const newRoom: Room = {
       id: crypto.randomUUID(),
       roomNumber: newRoomNumber,
       roomName: newRoomName,
       universityCode: universityCode,
-      subjectCode: newSubjectCode || session?.subjectCode || undefined, // ADR-005: 未設定時は セッションの subject_code を fallback
-      testSessionId,
+      subjectCode: newSubjectCode || undefined,
+      testSessionId: "",
       createdAt: new Date().toISOString(),
     }
 
@@ -198,7 +199,8 @@ export function RoomManagement() {
       const importedRooms: Room[] = []
 
       const defaultUniversityCode = isSpecialMaster ? "" : (session?.universityCode || "")
-      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      // 2026-05-20 副田さん指摘: マスター登録なので testSessionId は付けない。
+      // 試験セッション割当は別画面で行う。
 
       for (let i = 1; i < lines.length; i++) {
         const columns = lines[i].split(",").map((s) => s.trim())
@@ -217,25 +219,29 @@ export function RoomManagement() {
             roomNumber,
             roomName,
             universityCode,
-            testSessionId,
+            testSessionId: "",
             createdAt: new Date().toISOString(),
           })
         }
       }
 
       if (importedRooms.length > 0) {
-        const previousRooms = rooms
-        const updatedRooms = [...rooms, ...importedRooms]
-        setRooms(updatedRooms)
         try {
-          await saveRooms(updatedRooms)
+          // 新規行のみ upsert (既存と一致した row は onConflict=university_code,room_number で update)
+          await saveRooms(importedRooms)
+          // 登録後に API から再取得して画面と DB を完全一致させる
+          // (sessionStorage testSessionId が紛れて 0 件表示になるバグ回避)
+          const universityScope = isSpecialMaster ? undefined : session?.universityCode || undefined
+          const reloaded = await loadRooms(universityScope, undefined, undefined)
+          setRooms(Array.isArray(reloaded) ? reloaded : [])
           alert(`${importedRooms.length}件の部屋をインポートしました`)
         } catch (e) {
-          setRooms(previousRooms)
           const msg = e instanceof Error ? e.message : String(e)
           console.error("[room-management] saveRooms (csv-import) failed:", msg)
           alert(`部屋の一括登録に失敗しました: ${msg}`)
         }
+      } else {
+        alert("CSV から有効な部屋データが読み取れませんでした(ヘッダー行のみ等)")
       }
     }
     e.target.value = ""
