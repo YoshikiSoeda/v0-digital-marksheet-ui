@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft, Search, Users } from "lucide-react"
 import { saveStudents, loadStudents, loadRooms, loadSubjects, type Student, type Room, type Subject } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
 
 export function StudentRegistration() {
   const router = useRouter()
@@ -173,16 +174,17 @@ export function StudentRegistration() {
     }
   }
 
-  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
+    // 2026-05-20 副田さん報告: Shift-JIS 自動判定
+    try {
+      const text = await readCsvFile(file)
       parseCSV(text)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
     }
-    reader.readAsText(file)
     event.target.value = ""
   }
 
@@ -203,19 +205,19 @@ export function StudentRegistration() {
     e.stopPropagation()
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
 
     const file = e.dataTransfer.files?.[0]
     if (file && file.name.endsWith(".csv")) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const text = event.target?.result as string
+      try {
+        const text = await readCsvFile(file)
         parseCSV(text)
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
       }
-      reader.readAsText(file)
     } else {
       alert("CSVファイルをアップロードしてください")
     }
@@ -244,7 +246,7 @@ export function StudentRegistration() {
           .join("\n")
     }
 
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const blob = csvDownloadBlob(csvContent)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = `学生一覧_${new Date().toISOString().split("T")[0]}.csv`
@@ -254,7 +256,7 @@ export function StudentRegistration() {
   const handleDownloadTemplate = () => {
     const template =
       "学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号,大学コード\n2024001,山田太郎,yamada@example.com,医学部医学科,4年,1,UNI001\n2024002,佐藤花子,,看護学部看護学科,5年,2,UNI002"
-    const blob = new Blob(["\uFEFF" + template], { type: "text/csv;charset=utf-8;" })
+    const blob = csvDownloadBlob(template)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = "学生登録テンプレート.csv"

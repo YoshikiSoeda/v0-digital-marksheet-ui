@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useToast } from "@/hooks/use-toast"
 import { Upload, Plus, Pencil, Trash2, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { readCsvFile } from "@/lib/csv"
 
 interface University {
   id: string
@@ -140,7 +141,15 @@ export function UniversityManagement() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const text = await file.text()
+    let text: string
+    try {
+      // 2026-05-20 副田さん報告: Excel 保存の Shift-JIS CSV が化けるため自動判定
+      text = await readCsvFile(file)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
+      e.target.value = ""
+      return
+    }
     const lines = text.split("\n").filter((line) => line.trim())
 
     // CSVヘッダーをスキップ

@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft } from "lucide-react"
 import { savePatients, loadPatients, loadRooms, loadSubjects, type Patient, type Room, type Subject } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
 import { Table, TableHead, TableRow, TableCell } from "@/components/ui/table"
 
 export function PatientRoleRegistration() {
@@ -171,16 +172,17 @@ export function PatientRoleRegistration() {
     alert(`${newPatients.length}名の患者役を追加しました`)
   }
 
-  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
+    // 2026-05-20 副田さん報告: Shift-JIS 自動判定
+    try {
+      const text = await readCsvFile(file)
       parseCSV(text)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
     }
-    reader.readAsText(file)
     event.target.value = ""
   }
 
@@ -201,19 +203,19 @@ export function PatientRoleRegistration() {
     e.stopPropagation()
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
 
     const file = e.dataTransfer.files?.[0]
     if (file && file.name.endsWith(".csv")) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const text = event.target?.result as string
+      try {
+        const text = await readCsvFile(file)
         parseCSV(text)
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
       }
-      reader.readAsText(file)
     } else {
       alert("CSVファイルをアップロードしてください")
     }
@@ -257,7 +259,7 @@ export function PatientRoleRegistration() {
   const handleDownloadTemplate = () => {
     const template =
       "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n東京大学,高橋様,takahashi@example.com,password123,一般,101\n京都大学,伊藤様,ito@example.com,password456,管理者,102"
-    const blob = new Blob([template], { type: "text/csv;charset=utf-8;" })
+    const blob = csvDownloadBlob(template)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
     link.download = "患者役登録テンプレート.csv"
