@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Home, UserPlus, Upload, Download, Trash2, ArrowLeft, Search, Users } from "lucide-react"
-import { saveStudents, loadStudents, loadRooms, loadSubjects, type Student, type Room, type Subject } from "@/lib/data-storage"
+import { saveStudents, loadStudents, loadRooms, loadSubjects, deleteStudent, type Student, type Room, type Subject } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
 
@@ -77,10 +77,17 @@ export function StudentRegistration() {
         } catch (error) {
         }
 
-        const testSessionId = sessionStorage.getItem("testSessionId") || ""
-        // Phase 9 Y-2 fix: subject_admin は自教科のみロード(全教科ロードすると保存時に Y-2 で 403)
+        // 2026-05-20 熊木さん指摘: 学生登録画面では canonical 全件 (自大学) を表示。
+        // testSessionId フィルタは外す (sessionStorage 依存で挙動が読めなくなる)。
+        // Phase 9 Y-2: subject_admin は自教科のみロード (保存時 Y-2 403 回避)
+        const universityScope =
+          session.accountType === "special_master" ? undefined : session.universityCode || undefined
         const subjectScope = session.accountType === "subject_admin" ? session.subjectCode : undefined
-        const [studentsData, roomsData, subjectsData] = await Promise.all([loadStudents(undefined, subjectScope, testSessionId), loadRooms(undefined, undefined, testSessionId), loadSubjects()])
+        const [studentsData, roomsData, subjectsData] = await Promise.all([
+          loadStudents(universityScope, subjectScope, undefined),
+          loadRooms(universityScope, undefined, undefined),
+          loadSubjects(),
+        ])
         setSubjects(Array.isArray(subjectsData) ? subjectsData : [])
         setStudents(Array.isArray(studentsData) ? studentsData : [])
         setRooms(Array.isArray(roomsData) ? roomsData : [])
@@ -101,7 +108,7 @@ export function StudentRegistration() {
     loadData()
   }, [session, isSessionLoading])
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (!formData.name || !formData.studentId || !formData.department || !formData.roomNumber) {
       alert("学籍番号、氏名、学部・学科、部屋番号は必須です")
       return
@@ -113,32 +120,50 @@ export function StudentRegistration() {
       return
     }
 
-  const newStudent: Student = {
-  id: crypto.randomUUID(),
-  studentId: formData.studentId,
-  name: formData.name,
-  email: formData.email || undefined,
-  department: formData.department,
-  grade: formData.grade || undefined,
-  roomNumber: formData.roomNumber,
-  universityCode: formData.university_code,
-  testSessionId: sessionStorage.getItem("testSessionId") || "",
-  createdAt: new Date().toISOString(),
+    // 2026-05-20 熊木さん指摘: 「追加」ボタンが旧仕様ではローカル state 追加だけで
+    // 「登録を確定」ボタンを押さないと DB に反映されない 2 段階フローだった。
+    // 確定ボタンの押し忘れで「登録したのに一覧に出ない」混乱が起きるため即時保存に変更。
+    const newStudent: Student = {
+      id: crypto.randomUUID(),
+      studentId: formData.studentId,
+      name: formData.name,
+      email: formData.email || undefined,
+      department: formData.department,
+      grade: formData.grade || undefined,
+      roomNumber: formData.roomNumber,
+      universityCode: formData.university_code,
+      testSessionId: "",
+      createdAt: new Date().toISOString(),
+    }
+
+    try {
+      await saveStudents([newStudent])
+      setStudents([...students, newStudent])
+      setFormData({ name: "", studentId: "", email: "", department: "", grade: "", roomNumber: "", university_code: "", subjectCode: "" })
+      alert(`${newStudent.name} を登録しました`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[student-registration] handleAddStudent failed:", msg, e)
+      alert(`学生の登録に失敗しました: ${msg}`)
+    }
   }
 
-    setStudents([...students, newStudent])
-    setFormData({ name: "", studentId: "", email: "", department: "", grade: "", roomNumber: "", university_code: "", subjectCode: "" })
+  const handleDeleteStudent = async (id: string) => {
+    if (!confirm("この学生を削除しますか?")) return
+    try {
+      await deleteStudent(id)
+      setStudents(students.filter((s) => s.id !== id))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[student-registration] handleDeleteStudent failed:", msg, e)
+      alert(`学生の削除に失敗しました: ${msg}`)
+    }
   }
 
-  const handleDeleteStudent = (id: string) => {
-    setStudents(students.filter((s) => s.id !== id))
-  }
-
-  const parseCSV = (text: string) => {
+  const parseCSV = async (text: string) => {
     const lines = text.split("\n").filter((line) => line.trim())
     const newStudents: Student[] = []
     const invalidRooms: string[] = []
-    const testSessionId = sessionStorage.getItem("testSessionId") || ""
 
     for (let i = 1; i < lines.length; i++) {
       const [studentId, name, email, department, grade, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
@@ -157,20 +182,32 @@ export function StudentRegistration() {
           grade: grade || undefined,
           roomNumber,
           universityCode: university_code || "",
-          testSessionId,
+          testSessionId: "",
           createdAt: new Date().toISOString(),
         })
       }
     }
 
-    setStudents([...students, ...newStudents])
+    if (newStudents.length === 0) {
+      alert("CSV から有効な学生データが読み取れませんでした(ヘッダー行のみ等)")
+      return
+    }
 
-    if (invalidRooms.length > 0) {
-      alert(
-        `${newStudents.length}名の学生を追加しました\n\n警告: 以下の部屋番号が部屋マスターに存在しません:\n${[...new Set(invalidRooms)].join(", ")}\n\n部屋マスターに登録後、学生一覧から修正してください。`,
-      )
-    } else {
-      alert(`${newStudents.length}名の学生を追加しました`)
+    // 2026-05-20 熊木さん指摘: CSV 一括も即時保存に変更 (確定ボタン押し忘れ防止)
+    try {
+      await saveStudents(newStudents)
+      setStudents([...students, ...newStudents])
+      if (invalidRooms.length > 0) {
+        alert(
+          `${newStudents.length}名の学生を登録しました\n\n警告: 以下の部屋番号が部屋マスターに存在しません:\n${[...new Set(invalidRooms)].join(", ")}\n\n部屋マスターに登録後、学生一覧から修正してください。`,
+        )
+      } else {
+        alert(`${newStudents.length}名の学生を登録しました`)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error("[student-registration] parseCSV save failed:", msg, e)
+      alert(`CSV 一括登録に失敗しました: ${msg}`)
     }
   }
 
@@ -181,7 +218,7 @@ export function StudentRegistration() {
     // 2026-05-20 副田さん報告: Shift-JIS 自動判定
     try {
       const text = await readCsvFile(file)
-      parseCSV(text)
+      await parseCSV(text)
     } catch (err) {
       alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
     }
@@ -355,22 +392,8 @@ export function StudentRegistration() {
     }
   }
 
-  const handleConfirmRegistration = async () => {
-    if (students.length === 0) {
-      alert("登録する学生がいません")
-      return
-    }
-
-    try {
-      await saveStudents(students)
-      alert(`${students.length}名の学生情報を保存しました`)
-      router.push("/admin/account-management")
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Unknown error"
-      console.error("[student-registration] save failed:", msg, error)
-      alert(`学生情報の保存に失敗しました: ${msg}`)
-    }
-  }
+  // 2026-05-20 熊木さん指摘により handleConfirmRegistration / 「登録を確定」ボタンは撤去。
+  // 「学生を追加」「CSV 取込」時に即時保存するようになった。
 
   if (isLoading) {
     return (
@@ -809,8 +832,10 @@ export function StudentRegistration() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <div>
-                <CardTitle>登録済み学生一覧</CardTitle>
-                <CardDescription>現在 {students.length} 名が登録されています</CardDescription>
+                <CardTitle>登録済み学生</CardTitle>
+                <CardDescription>
+                  現在 {students.length} 名が登録されています(追加・CSV 取込は即時保存されます)
+                </CardDescription>
               </div>
               {students.length > 0 && (
                 <Button onClick={handleExportCSV} variant="outline">
@@ -867,21 +892,8 @@ export function StudentRegistration() {
           </CardContent>
         </Card>
 
-        {students.length > 0 && (
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-lg">登録を確定しますか？</p>
-                  <p className="text-sm text-muted-foreground">{students.length}名の学生情報を保存します</p>
-                </div>
-                <Button size="lg" className="bg-primary hover:bg-primary/90" onClick={handleConfirmRegistration}>
-                  登録を確定
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* 2026-05-20 熊木さん指摘: 「登録を確定」ボタンは押し忘れの原因だったため
+            撤去。「学生を追加」「CSV 取込」時に即時保存される仕様に変更。 */}
       </div>
     </div>
   )
