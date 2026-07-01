@@ -181,7 +181,10 @@ export function StudentRegistration() {
           department,
           grade: grade || undefined,
           roomNumber,
-          universityCode: university_code || "",
+          // 2026-05-20 熊木さん指摘: CSV に「大学コード」列が空でも保存できるように
+          // session.universityCode を fallback。空文字列で保存すると
+          // ON CONFLICT (univ, student_id) が効かず canonical 化が破綻する。
+          universityCode: university_code || session?.universityCode || "",
           testSessionId: "",
           createdAt: new Date().toISOString(),
         })
@@ -414,6 +417,9 @@ export function StudentRegistration() {
           <div>
             <h1 className="text-3xl font-bold text-primary">学生登録</h1>
             <p className="text-muted-foreground">受験者情報を登録・管理</p>
+            <p className="text-xs mt-1 px-2 py-1 rounded bg-green-50 border border-green-200 text-green-800 inline-block">
+              ✅ 「学生を追加」「CSV 取込」は即時保存されます(確定ボタン不要)。
+            </p>
           </div>
           <div className="flex gap-2">
             {accountType === "special_master" && (
