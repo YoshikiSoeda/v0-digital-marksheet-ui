@@ -150,8 +150,19 @@ export function PatientRoleRegistration() {
     const newPatients: Patient[] = []
     const testSessionId = "" // ADR-007 C-4: canonical 登録
 
+    // 2026-05-20 副田さん仕様: 通常ユーザーは大学コード列なし、special_master のみあり
+    const isSpecialMasterUser = accountType === "special_master"
+
     for (let i = 1; i < lines.length; i++) {
-      const [name, email, password, role, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
+      const columns = lines[i].split(",").map((s) => s.trim())
+      let name: string, email: string, password: string, role: string
+      let roomNumber: string, universityCode: string
+      if (isSpecialMasterUser) {
+        ;[name, email, password, role, roomNumber, universityCode] = columns
+      } else {
+        ;[name, email, password, role, roomNumber] = columns
+        universityCode = session?.universityCode || ""
+      }
       if (name && email && password) {
         newPatients.push({
           id: `${Date.now()}-${i}`,
@@ -162,7 +173,7 @@ export function PatientRoleRegistration() {
           role: "general",
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
-          universityCode: university_code || "",
+          universityCode: universityCode || "",
           testSessionId,
         })
       }
@@ -257,8 +268,11 @@ export function PatientRoleRegistration() {
   }
 
   const handleDownloadTemplate = () => {
+    // 2026-05-20 副田さん仕様: 通常ユーザーは大学コード列なし、special_master のみあり
     const template =
-      "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n東京大学,高橋様,takahashi@example.com,password123,一般,101\n京都大学,伊藤様,ito@example.com,password456,管理者,102"
+      accountType === "special_master"
+        ? "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,大学コード\n高橋様,takahashi@example.com,password123,一般,101,dentshowa\n伊藤様,ito@example.com,password456,一般,102,kanagawadent"
+        : "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号\n高橋様,takahashi@example.com,password123,一般,101\n伊藤様,ito@example.com,password456,一般,102"
     const blob = csvDownloadBlob(template)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -427,16 +441,29 @@ export function PatientRoleRegistration() {
                   </div>
 
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
+                    <p className="text-sm font-semibold mb-2">CSV形式の例:</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-                      {accountType === "special_master"
-                        ? "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号"
-                        : "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号"}
-                      {"\n"}
-                      {accountType === "special_master"
-                        ? "東京大学,高橋様,takahashi@example.com,password123,一般,101"
-                        : "高橋様,takahashi@example.com,password123,一般,101"}
+                      {accountType === "special_master" ? (
+                        <>
+                          氏名,メールアドレス(ログインID),ログインパスワード,権限,担当部屋番号,大学コード{"\n"}
+                          高橋様,takahashi@example.com,password123,一般,101,dentshowa{"\n"}
+                          伊藤様,ito@example.com,password456,一般,102,kanagawadent
+                        </>
+                      ) : (
+                        <>
+                          氏名,メールアドレス(ログインID),ログインパスワード,権限,担当部屋番号{"\n"}
+                          高橋様,takahashi@example.com,password123,一般,101{"\n"}
+                          伊藤様,ito@example.com,password456,一般,102
+                        </>
+                      )}
                     </pre>
+                    {accountType !== "special_master" && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        ※ ログイン中の大学 (
+                        <span className="font-mono">{session?.universityCode || "-"}</span>
+                        ) に自動的に紐付きます
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

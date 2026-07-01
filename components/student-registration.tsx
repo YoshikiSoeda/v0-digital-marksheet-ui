@@ -164,14 +164,22 @@ export function StudentRegistration() {
     const lines = text.split("\n").filter((line) => line.trim())
     const newStudents: Student[] = []
     const invalidRooms: string[] = []
+    // 2026-05-20 副田さん仕様: 通常ユーザーは大学コード列なし (自大学強制)、
+    // special_master のみ CSV に大学コード列を含む。
+    const isSpecialMasterUser = accountType === "special_master"
 
     for (let i = 1; i < lines.length; i++) {
-      const [studentId, name, email, department, grade, roomNumber, university_code] = lines[i].split(",").map((s) => s.trim())
+      const columns = lines[i].split(",").map((s) => s.trim())
+      const [studentId, name, email, department, grade, roomNumber, university_code] = columns
       if (studentId && name && department && roomNumber) {
         const roomExists = rooms.some((r) => r.roomNumber === roomNumber)
         if (!roomExists) {
           invalidRooms.push(roomNumber)
         }
+
+        const universityCode = isSpecialMasterUser
+          ? university_code || ""
+          : session?.universityCode || ""
 
         newStudents.push({
           id: crypto.randomUUID(),
@@ -181,10 +189,7 @@ export function StudentRegistration() {
           department,
           grade: grade || undefined,
           roomNumber,
-          // 2026-05-20 熊木さん指摘: CSV に「大学コード」列が空でも保存できるように
-          // session.universityCode を fallback。空文字列で保存すると
-          // ON CONFLICT (univ, student_id) が効かず canonical 化が破綻する。
-          universityCode: university_code || session?.universityCode || "",
+          universityCode,
           testSessionId: "",
           createdAt: new Date().toISOString(),
         })
@@ -294,8 +299,11 @@ export function StudentRegistration() {
   }
 
   const handleDownloadTemplate = () => {
+    // 2026-05-20 副田さん仕様: special_master のみ大学コード列あり、通常ユーザーはなし
     const template =
-      "学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号,大学コード\n2024001,山田太郎,yamada@example.com,医学部医学科,4年,1,UNI001\n2024002,佐藤花子,,看護学部看護学科,5年,2,UNI002"
+      accountType === "special_master"
+        ? "学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号,大学コード\n2024001,山田太郎,yamada@example.com,医学部医学科,4年,1,dentshowa\n2024002,佐藤花子,,看護学部看護学科,5年,2,kanagawadent"
+        : "学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号\n2024001,山田太郎,yamada@example.com,医学部医学科,4年,1\n2024002,佐藤花子,,看護学部看護学科,5年,2"
     const blob = csvDownloadBlob(template)
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -604,10 +612,27 @@ export function StudentRegistration() {
                   <div className="bg-muted p-4 rounded-lg">
                     <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-                      学籍番号,氏名,メールアドレス,学部・学科,部屋番号,大学コード{"\n"}
-                      2024001,山田太郎,yamada@example.com,医学部医学科,1,UNI001{"\n"}
-                      2024002,佐藤花子,,看護学部看護学科,2,UNI002
+                      {accountType === "special_master" ? (
+                        <>
+                          学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号,大学コード{"\n"}
+                          2024001,山田太郎,yamada@example.com,医学部医学科,4年,1,dentshowa{"\n"}
+                          2024002,佐藤花子,,看護学部看護学科,5年,2,kanagawadent
+                        </>
+                      ) : (
+                        <>
+                          学籍番号,氏名,メールアドレス,学部・学科,学年,部屋番号{"\n"}
+                          2024001,山田太郎,yamada@example.com,医学部医学科,4年,1{"\n"}
+                          2024002,佐藤花子,,看護学部看護学科,5年,2
+                        </>
+                      )}
                     </pre>
+                    {accountType !== "special_master" && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        ※ ログイン中の大学 (
+                        <span className="font-mono">{session?.universityCode || "-"}</span>
+                        ) に自動的に紐付きます
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
