@@ -170,10 +170,23 @@ export function TeacherRegistration() {
     const newTeachers: Teacher[] = []
     const testSessionId = "" // ADR-007 C-4: canonical 登録
 
+    // 2026-05-20 副田さん仕様: 通常ユーザーは大学コード列なし (自大学強制)、
+    // special_master のみ CSV に大学コード列を含む。
+    const isSpecialMasterUser = accountType === "special_master"
+
     for (let i = 1; i < lines.length; i++) {
-      const [name, email, password, role, roomNumber, university_code, subjectCode] = lines[i]
-        .split(",")
-        .map((s) => s.trim())
+      const columns = lines[i].split(",").map((s) => s.trim())
+      // 通常ユーザー: 6 列 (name,email,password,role,roomNumber,subjectCode)
+      // special_master: 7 列 (name,email,password,role,roomNumber,university_code,subjectCode)
+      let name: string, email: string, password: string, role: string
+      let roomNumber: string, universityCode: string, subjectCode: string
+      if (isSpecialMasterUser) {
+        ;[name, email, password, role, roomNumber, universityCode, subjectCode] = columns
+      } else {
+        ;[name, email, password, role, roomNumber, subjectCode] = columns
+        universityCode = session?.universityCode || ""
+      }
+
       if (name && email && password) {
         let teacherRole: string = "general"
         if (role === "subject_admin" || role === "教科管理者") {
@@ -193,7 +206,7 @@ export function TeacherRegistration() {
           role: teacherRole as any,
           assignedRoomNumber: roomNumber || "",
           createdAt: new Date().toISOString(),
-          universityCode: university_code || "",
+          universityCode: universityCode || "",
           subjectCode: subjectCode || "",
           testSessionId,
         })
@@ -299,8 +312,11 @@ export function TeacherRegistration() {
   }
 
   const handleDownloadTemplate = () => {
+    // 2026-05-20 副田さん仕様: 通常ユーザーは大学コード列なし、special_master のみあり
     const template =
-      "大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n東京大学,田中先生,tanaka@example.com,password123,教科管理者,101,数学101\n京都大学,鈴木先生,suzuki@example.com,password456,一般,102,文学102"
+      accountType === "special_master"
+        ? "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,大学コード,教科コード\n田中先生,tanaka@example.com,password123,教科管理者,101,dentshowa,dent_anatomy\n鈴木先生,suzuki@example.com,password456,一般,102,kanagawadent,dent_physiology"
+        : "氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード\n田中先生,tanaka@example.com,password123,教科管理者,101,dent_anatomy\n鈴木先生,suzuki@example.com,password456,一般,102,dent_physiology"
     // BOM 付き UTF-8 で出力 (Excel で開いても文字化けしない)
     const blob = csvDownloadBlob(template)
     const link = document.createElement("a")
@@ -575,11 +591,27 @@ export function TeacherRegistration() {
                   <div className="bg-muted p-4 rounded-lg">
                     <p className="text-sm font-semibold mb-2">CSV形式の例：</p>
                     <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-大学名,氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,教科コード
-  {"\n"}
-  東京大学,田中先生,tanaka@example.com,password123,教科管理者,101,数学101{"\n"}
-  京都大学,鈴木先生,suzuki@example.com,password456,一般,102,文学102
+                      {accountType === "special_master" ? (
+                        <>
+                          氏名,メールアドレス（ログインID）,ログインパスワード,権限,担当部屋番号,大学コード,教科コード{"\n"}
+                          田中先生,tanaka@example.com,password123,教科管理者,101,dentshowa,dent_anatomy{"\n"}
+                          鈴木先生,suzuki@example.com,password456,一般,102,kanagawadent,dent_physiology
+                        </>
+                      ) : (
+                        <>
+                          氏名,メールアドレス(ログインID),ログインパスワード,権限,担当部屋番号,教科コード{"\n"}
+                          田中先生,tanaka@example.com,password123,教科管理者,101,dent_anatomy{"\n"}
+                          鈴木先生,suzuki@example.com,password456,一般,102,dent_physiology
+                        </>
+                      )}
                     </pre>
+                    {accountType !== "special_master" && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        ※ ログイン中の大学 (
+                        <span className="font-mono">{session?.universityCode || "-"}</span>
+                        ) に自動的に紐付きます
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
