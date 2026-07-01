@@ -22,8 +22,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Home, ArrowLeft, Save, Search, Trash2, CheckCircle2, RotateCcw } from "lucide-react"
+import { Home, ArrowLeft, Save, Search, Trash2, CheckCircle2, RotateCcw, Upload, Download, FileText } from "lucide-react"
 import { useSession } from "@/lib/auth/use-session"
+import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
 import {
   loadTeachers, loadPatients, loadRooms, loadTestSessions,
   loadStudents, loadSubjects, saveStudents, loadTests,
@@ -663,6 +664,197 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     }
   }
 
+  // ============================================================
+  // 2026-07-01 熊木先生要望: 試験セッション割当 CSV 取込 / エクスポート
+  // 案 A (統合 1 CSV): 学籍番号,氏名,部屋番号,教員①メール,教員②メール,患者役メール
+  // ============================================================
+  const CIRCLE_NUM = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧"]
+
+  const buildAssignmentCsv = (targetStudents: Student[]): string => {
+    const headers: string[] = ["学籍番号", "氏名", "部屋番号"]
+    for (let i = 0; i < teacherSlotCount; i++) {
+      headers.push(`教員${teacherSlotCount > 1 ? CIRCLE_NUM[i] || `(${i + 1})` : ""}メール`)
+    }
+    for (let i = 0; i < patientSlotCount; i++) {
+      headers.push(`患者役${patientSlotCount > 1 ? CIRCLE_NUM[i] || `(${i + 1})` : ""}メール`)
+    }
+    const rows: string[][] = [headers]
+    for (const s of targetStudents) {
+      const room = assignmentMap[s.id] || ""
+      const teachersHere = room
+        ? teachers
+            .filter((t) => teacherRooms[t.id] === room)
+            .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+        : []
+      const patientsHere = room
+        ? patients
+            .filter((p) => patientRooms[p.id] === room)
+            .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+        : []
+      const row: string[] = [s.studentId, s.name, room]
+      for (let i = 0; i < teacherSlotCount; i++) row.push(teachersHere[i]?.email || "")
+      for (let i = 0; i < patientSlotCount; i++) row.push(patientsHere[i]?.email || "")
+      rows.push(row)
+    }
+    return rows.map((r) => r.map((c) => (c ?? "").replace(/,/g, " ")).join(",")).join("\n")
+  }
+
+  const handleAssignmentTemplateDownload = () => {
+    // ヘッダー行だけ buildAssignmentCsv で流用し、データ行は空欄でテンプレ生成
+    const headerLine = buildAssignmentCsv([]).split("\n")[0]
+    const emptyCells = new Array(teacherSlotCount + patientSlotCount).fill("").join(",")
+    const tplLines: string[] = [headerLine]
+    for (const s of studentList) {
+      const row = [s.studentId, (s.name || "").replace(/,/g, " "), ""]
+      const dataRow = emptyCells ? `${row.join(",")},${emptyCells}` : row.join(",")
+      tplLines.push(dataRow)
+    }
+    const blob = csvDownloadBlob(tplLines.join("\n"))
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `試験セッション割当テンプレート_${testSession?.description || sessionId}.csv`
+    link.click()
+  }
+
+  const handleAssignmentExport = () => {
+    if (studentList.length === 0) {
+      alert("エクスポートする学生がいません")
+      return
+    }
+    const csv = buildAssignmentCsv(studentList)
+    const blob = csvDownloadBlob(csv)
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `試験セッション割当_${testSession?.description || sessionId}_${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+  }
+
+  const handleAssignmentCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+    event.target.value = ""
+    let text: string
+    try {
+      text = await readCsvFile(file)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "CSV ファイルの読み込みに失敗しました")
+      return
+    }
+    const lines = text.split("\n").filter((l) => l.trim())
+    if (lines.length < 2) {
+      alert("CSV にデータ行がありません(ヘッダー行のみ等)")
+      return
+    }
+    const headers = lines[0].split(",").map((s) => s.trim())
+    const stuIdIdx = headers.findIndex((h) => h.includes("学籍番号") || h.toLowerCase().includes("student"))
+    const roomIdx = headers.findIndex((h) => h.includes("部屋番号") || h.toLowerCase().includes("room"))
+    if (stuIdIdx < 0 || roomIdx < 0) {
+      alert("CSV に「学籍番号」列または「部屋番号」列が見つかりません")
+      return
+    }
+    const teacherColIdxs: number[] = []
+    const patientColIdxs: number[] = []
+    headers.forEach((h, i) => {
+      if (h.includes("教員") && h.includes("メール")) teacherColIdxs.push(i)
+      if (h.includes("患者") && h.includes("メール")) patientColIdxs.push(i)
+    })
+
+    const nextPendingMap = { ...pendingMap }
+    const nextTeacherRooms = { ...teacherRooms }
+    const nextPatientRooms = { ...patientRooms }
+    const foundStudentIds = new Set<string>()
+    const warnings: string[] = []
+    let assignCount = 0
+    let unassignCount = 0
+
+    for (let li = 1; li < lines.length; li++) {
+      const cols = lines[li].split(",").map((s) => s.trim())
+      const studentIdVal = cols[stuIdIdx]
+      const roomVal = cols[roomIdx] || ""
+      if (!studentIdVal) continue
+      const student = studentList.find((s) => s.studentId === studentIdVal)
+      if (!student) {
+        warnings.push(`行 ${li + 1}: 学籍番号 "${studentIdVal}" は学生一覧にありません`)
+        continue
+      }
+      foundStudentIds.add(student.id)
+
+      if (!roomVal) {
+        // 部屋番号空欄 → 割当解除 (saved が空なら noop)
+        const saved = assignmentMap[student.id] || ""
+        if (saved) nextPendingMap[student.id] = null
+        else delete nextPendingMap[student.id]
+        unassignCount++
+        continue
+      }
+
+      const roomExists = rooms.some((r) => r.roomNumber === roomVal)
+      if (!roomExists) {
+        warnings.push(`行 ${li + 1}: 部屋番号 "${roomVal}" は部屋マスターに存在しません`)
+        continue
+      }
+
+      // 学生の部屋 pending
+      const saved = assignmentMap[student.id] || ""
+      if (saved === roomVal) delete nextPendingMap[student.id]
+      else nextPendingMap[student.id] = roomVal
+
+      // 教員割当 (部屋単位)
+      for (const ci of teacherColIdxs) {
+        const email = (cols[ci] || "").trim()
+        if (!email) continue
+        const teacher = teachers.find((t) => (t.email || "").toLowerCase() === email.toLowerCase())
+        if (!teacher) {
+          warnings.push(`行 ${li + 1}: 教員メール "${email}" は見つかりません`)
+          continue
+        }
+        nextTeacherRooms[teacher.id] = roomVal
+      }
+      // 患者役割当
+      for (const ci of patientColIdxs) {
+        const email = (cols[ci] || "").trim()
+        if (!email) continue
+        const patient = patients.find((p) => (p.email || "").toLowerCase() === email.toLowerCase())
+        if (!patient) {
+          warnings.push(`行 ${li + 1}: 患者役メール "${email}" は見つかりません`)
+          continue
+        }
+        nextPatientRooms[patient.id] = roomVal
+      }
+      assignCount++
+    }
+
+    setPendingMap(nextPendingMap)
+    setSelectedStudentIds(foundStudentIds)  // 確定対象に自動セット
+
+    // 教員/患者役は即時 PUT (既存 UI と同じ挙動)
+    try {
+      await Promise.all([
+        persistTeacherRooms(nextTeacherRooms),
+        persistPatientRooms(nextPatientRooms),
+      ])
+      setTeacherRooms(nextTeacherRooms)
+      setPatientRooms(nextPatientRooms)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      alert(`教員/患者役割当の保存に失敗しました: ${msg}`)
+      return
+    }
+
+    const warnMsg = warnings.length
+      ? `\n\n警告:\n${warnings.slice(0, 10).join("\n")}${warnings.length > 10 ? `\n... 他 ${warnings.length - 10} 件` : ""}`
+      : ""
+    alert(
+      `CSV 取込完了\n` +
+        `- 学生 ${assignCount} 件を部屋割当 pending に追加\n` +
+        (unassignCount > 0 ? `- 学生 ${unassignCount} 件を割当解除 pending に追加\n` : "") +
+        `- 教員/患者役の部屋割当は保存済み\n\n` +
+        `続いて下部の「確定」ボタンで学生の割当を保存してください${warnMsg}`,
+    )
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-secondary/30 flex items-center justify-center">
@@ -808,17 +1000,60 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     return (
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">学生の割当</CardTitle>
-          <CardDescription className="space-y-1">
-            <span className="block">
-              行の「部屋」プルダウンで部屋を選び、対象学生のチェックボックスをオン(Shift で範囲選択可)にしてから
-              <strong>「確定」</strong> ボタンで一括保存します。確定するまで DB は変更されません。
-            </span>
-            <span className="block text-amber-700">
-              ⚠ 教員/患者役は <strong>部屋単位</strong> の割当です。同じ部屋にいる学生は同じ教員ペアで評価されるため、
-              ある学生の行で教員を変更すると、同じ部屋の他の学生行にも同じ教員が表示されます(セル選択と同時に保存)。
-            </span>
-          </CardDescription>
+          <div className="flex justify-between items-start gap-3 flex-wrap">
+            <div className="flex-1 min-w-[280px]">
+              <CardTitle className="text-base">学生の割当</CardTitle>
+              <CardDescription className="space-y-1">
+                <span className="block">
+                  行の「部屋」プルダウンで部屋を選び、対象学生のチェックボックスをオン(Shift で範囲選択可)にしてから
+                  <strong>「確定」</strong> ボタンで一括保存します。確定するまで DB は変更されません。
+                </span>
+                <span className="block text-amber-700">
+                  ⚠ 教員/患者役は <strong>部屋単位</strong> の割当です。同じ部屋にいる学生は同じ教員ペアで評価されるため、
+                  ある学生の行で教員を変更すると、同じ部屋の他の学生行にも同じ教員が表示されます(セル選択と同時に保存)。
+                </span>
+              </CardDescription>
+            </div>
+            {/* 2026-07-01 熊木先生要望: CSV 一括割当 (600 人規模対応) */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAssignmentTemplateDownload}
+                title="現在の学生一覧に基づく空欄テンプレートをダウンロード"
+              >
+                <FileText className="w-4 h-4 mr-1" />
+                CSV テンプレDL
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAssignmentExport}
+                title="現在の割当状態を CSV でエクスポート"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                CSV エクスポート
+              </Button>
+              <label>
+                <input
+                  id="assignment-csv-upload"
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleAssignmentCSVUpload}
+                />
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => document.getElementById("assignment-csv-upload")?.click()}
+                  title="CSV で学生-部屋-教員-患者役の割当を一括登録"
+                >
+                  <Upload className="w-4 h-4 mr-1" />
+                  CSV 一括取込
+                </Button>
+              </label>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* フィルタ */}
