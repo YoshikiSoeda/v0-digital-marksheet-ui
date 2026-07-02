@@ -1054,6 +1054,26 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
               </label>
             </div>
           </div>
+          {/* 2026-07-01 副田さん指摘: 自動切替の挙動を UI 上明示 */}
+          <div className="mt-2 text-xs text-muted-foreground bg-blue-50 border border-blue-100 rounded px-2 py-1 inline-block">
+            現セッションの構成
+            <span className="font-semibold text-blue-800 mx-1">
+              教員側 {teacherSlotCount} 個
+              {patientSlotCount > 0 && ` + 患者役 ${patientSlotCount} 個`}
+            </span>
+            に応じて、CSV テンプレの列は
+            <span className="font-semibold text-blue-800 mx-1">
+              {[
+                ...Array.from({ length: teacherSlotCount }, (_, i) =>
+                  teacherSlotCount > 1 ? `教員${["①", "②", "③"][i] || `(${i + 1})`}` : "教員",
+                ),
+                ...Array.from({ length: patientSlotCount }, (_, i) =>
+                  patientSlotCount > 1 ? `患者役${["①", "②", "③"][i] || `(${i + 1})`}` : "患者役",
+                ),
+              ].join("・") || "(なし)"}
+            </span>
+            のメールを含む形で自動生成されます。
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* フィルタ */}
