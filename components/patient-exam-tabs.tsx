@@ -180,15 +180,19 @@ export default function PatientExamTabs({
     return () => clearInterval(pollAttendance)
   }, [testId, patientRoomNumber, patientEmail, router])
 
-  const handleAnswerChange = async (compositeKey: string, value: number) => {
+  const handleAnswerChange = async (compositeKey: string, value: number | null) => {
     const student = assignedStudents[activeStudentIndex]
     if (!student) return
 
     const previousAnswers = studentAnswers
-    const updatedAnswers = {
-      ...studentAnswers[student.id],
-      [compositeKey]: value,
+    // 2026-07-03 副田さん要望: value=null は選択解除
+    const nextForStudent = { ...(studentAnswers[student.id] || {}) }
+    if (value === null) {
+      delete nextForStudent[compositeKey]
+    } else {
+      nextForStudent[compositeKey] = value
     }
+    const updatedAnswers = nextForStudent
 
     setStudentAnswers((prev) => ({
       ...prev,

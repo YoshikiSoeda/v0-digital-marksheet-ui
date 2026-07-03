@@ -31,8 +31,9 @@ interface ExamQuestionsRendererProps {
   inputDisabled: boolean
   /** 出席状態が present でない場合は入力不可 */
   attendancePresent: boolean
-  /** ボタンクリック時のハンドラ (compositeKey を渡す) */
-  onAnswer: (compositeKey: string, optionValue: number) => void
+  /** ボタンクリック時のハンドラ (compositeKey を渡す)。
+   *  value=null で選択解除 (2026-07-03 副田さん要望) */
+  onAnswer: (compositeKey: string, optionValue: number | null) => void
 }
 
 export function ExamQuestionsRenderer({
@@ -88,8 +89,16 @@ export function ExamQuestionsRenderer({
                             variant={selectedOption === option ? "default" : "outline"}
                             size="sm"
                             className="w-10 h-10 p-0 text-sm rounded-md"
-                            onClick={() => onAnswer(compositeKey, option)}
+                            onClick={() => {
+                              // 2026-07-03 副田さん要望: 同じボタンを再押しで選択解除
+                              if (selectedOption === option) {
+                                onAnswer(compositeKey, null)
+                              } else {
+                                onAnswer(compositeKey, option)
+                              }
+                            }}
                             disabled={inputDisabled || !attendancePresent}
+                            title={selectedOption === option ? "もう一度押すと解除" : undefined}
                           >
                             {option}
                           </Button>
