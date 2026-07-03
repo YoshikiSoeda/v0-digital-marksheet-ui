@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Download, StopCircle } from "lucide-react"
+import { Download, StopCircle, ChevronDown, ChevronRight } from "lucide-react"
 import {
   loadStudents,
   loadEvaluationResults,
@@ -57,6 +57,8 @@ export default function StudentsDetailPage() {
   const [isEndingTest, setIsEndingTest] = useState(false)
   const [filterUniversity, setFilterUniversity] = useState<string>("")
   const [filterTestSessionId, setFilterTestSessionId] = useState<string>("")
+  // 2026-07-03 副田さん要望: 「内容」列 (問題ごとの点数) をアコーディオン開閉
+  const [contentExpanded, setContentExpanded] = useState(false)
 
   useEffect(() => {
     // URLパラメータを取得
@@ -98,6 +100,66 @@ export default function StudentsDetailPage() {
     ? tests.filter((test) => test.testSessionId === filterTestSessionId)
     : tests
 
+  // 2026-07-03 副田さん要望: 現セッションのテストから教員① / 教員② / 患者役 slot を割り出す
+  const sessionTests = filteredTests.slice().sort((a, b) => {
+    // teacher を先に、その中で createdAt 昇順
+    const ra = ((a as any).roleType || "teacher") === "teacher" ? 0 : 1
+    const rb = ((b as any).roleType || "teacher") === "teacher" ? 0 : 1
+    if (ra !== rb) return ra - rb
+    return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+  })
+  const teacherSlotTests = sessionTests.filter((t) => ((t as any).roleType || "teacher") === "teacher")
+  const patientSlotTests = sessionTests.filter((t) => (t as any).roleType === "patient")
+
+  // 2026-07-03: 「内容」列 (問題別点数) の列を組み立てる
+  //   問題文を列名にする。教員側テストの全問題 + 患者側テストの全問題を横に並べる。
+  interface ContentColumn {
+    testId: string
+    testTitle: string
+    roleType: "teacher" | "patient"
+    sheetTitle: string
+    categoryNumber: number
+    categoryTitle: string
+    questionNumber: number
+    questionText: string
+    compositeKey: string  // カテゴリ跨ぎで一意
+    maxScore: number  // 常に 5 (5 段階評価)
+  }
+  const contentColumns: ContentColumn[] = []
+  for (const test of sessionTests) {
+    const role: "teacher" | "patient" = ((test as any).roleType || "teacher") === "teacher" ? "teacher" : "patient"
+    for (const sheet of test.sheets || []) {
+      for (const cat of sheet.categories || []) {
+        for (const q of (cat as any).questions || []) {
+          contentColumns.push({
+            testId: test.id,
+            testTitle: test.title,
+            roleType: role,
+            sheetTitle: sheet.title,
+            categoryNumber: cat.number,
+            categoryTitle: cat.title,
+            questionNumber: q.number,
+            questionText: q.text || "",
+            compositeKey: `${cat.number}-${q.number}`,
+            maxScore: 5,
+          })
+        }
+      }
+    }
+  }
+  // カテゴリ+質問の重複を除去
+  const seenKeys = new Set<string>()
+  const dedupedContentColumns: ContentColumn[] = []
+  for (const col of contentColumns) {
+    const k = `${col.testId}::${col.compositeKey}`
+    if (seenKeys.has(k)) continue
+    seenKeys.add(k)
+    dedupedContentColumns.push(col)
+  }
+
+  // セッションの合計満点 (5 × 全質問数)
+  const sessionMaxTotal = dedupedContentColumns.reduce((sum, c) => sum + c.maxScore, 0)
+
   const getStudentData = (student: Student) => {
     // ADR-005 F5: attendance_records.student_id / exam_results.student_id は students.id (UUID) を参照する。
     // student.studentId(学籍番号 text)で比較していたため常に miss して全員「未受験」扱いになっていた。
@@ -124,6 +186,57 @@ export default function StudentsDetailPage() {
     const teacherScore = teacherEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     const patientScore = patientEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     const combinedScore = teacherScore + patientScore
+
+    // 2026-07-03 副田さん要望: 教員①/教員②/患者役 の個別点数
+    // メール昇順で slot 順に採点者を並べ、それぞれの合計スコアを取得。
+    // 部屋内の教員/患者役のメール昇順が UI と一致するように。
+    const roomTeacherEmails = teacherEvals
+      .map((e: any) => e.evaluatorEmail || e.evaluatorId || "")
+      .filter((email, idx, arr) => email && arr.indexOf(email) === idx)
+      .sort((a, b) => a.localeCompare(b))
+    const roomPatientEmails = patientEvals
+      .map((e: any) => e.evaluatorEmail || e.evaluatorId || "")
+      .filter((email, idx, arr) => email && arr.indexOf(email) === idx)
+      .sort((a, b) => a.localeCompare(b))
+
+    const teacherSlotScores: (number | "")[] = teacherSlotTests.map((_, slotIdx) => {
+      const email = roomTeacherEmails[slotIdx]
+      if (!email) return ""
+      const evalsForSlot = teacherEvals.filter((e: any) => (e.evaluatorEmail || e.evaluatorId) === email)
+      if (evalsForSlot.length === 0) return ""
+      return evalsForSlot.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+    })
+    const patientSlotScores: (number | "")[] = patientSlotTests.map((_, slotIdx) => {
+      const email = roomPatientEmails[slotIdx]
+      if (!email) return ""
+      const evalsForSlot = patientEvals.filter((e: any) => (e.evaluatorEmail || e.evaluatorId) === email)
+      if (evalsForSlot.length === 0) return ""
+      return evalsForSlot.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+    })
+
+    // 2026-07-03 副田さん要望: 問題別スコア (「内容」列用)。
+    //   evaluation.answers (compositeKey → optionValue) から compositeKey で照合。
+    //   複数評価者 (教員① と 教員②) が同じテストを採点している場合は合計。
+    const contentScores: Record<string, number | ""> = {}
+    for (const col of dedupedContentColumns) {
+      let matchCount = 0
+      let sum = 0
+      for (const ev of completedEvaluations) {
+        if ((ev as any).testId !== col.testId) continue
+        const answers = (ev as any).answers as Record<string, number> | undefined
+        if (!answers) continue
+        const v = answers[col.compositeKey] ?? answers[col.questionNumber as any]
+        if (typeof v === "number") {
+          sum += v
+          matchCount++
+        }
+      }
+      contentScores[`${col.testId}::${col.compositeKey}`] = matchCount > 0 ? sum : ""
+    }
+
+    // 2026-07-03 副田さん要望: 割合 = 合計得点 / セッション満点 × 100
+    const percentage = sessionMaxTotal > 0 ? Math.round((combinedScore / sessionMaxTotal) * 100) : null
+    const isBelow50 = percentage !== null && percentage < 50 && completedEvaluations.length > 0
 
     // ADR-006: 合格判定を passing_score (% 0-100) で行う
     const currentSessionId = sessionStorage.getItem("testSessionId") || filterTestSessionId
@@ -162,11 +275,18 @@ export default function StudentsDetailPage() {
     return {
       testTitle,
       progress,
-      score: averageScore > 0 ? averageScore : "",
+      score: combinedScore > 0 ? combinedScore : "",
       teacherScore: teacherEvals.length > 0 ? teacherScore : "",
       patientScore: patientEvals.length > 0 ? patientScore : "",
       passResult,
       status,
+      // 2026-07-03: 新項目
+      teacherSlotScores,
+      patientSlotScores,
+      contentScores,
+      percentage,
+      isBelow50,
+      combinedScore,
     }
   }
 
@@ -231,7 +351,29 @@ export default function StudentsDetailPage() {
   }
 
   const handleExportCSV = () => {
-    const headers = ["学籍番号", "氏名", "部屋", "メールアドレス", "テスト名", "進捗", "点数", "教員", "患者", "合否", "ステータス"]
+    // 2026-07-03 副田さん要望に合わせて列を再構成
+    const CIRCLE = ["①", "②", "③", "④", "⑤"]
+    const teacherHeaders = teacherSlotTests.map((_, i) =>
+      `教員${teacherSlotTests.length > 1 ? CIRCLE[i] || `(${i + 1})` : ""}`,
+    )
+    const patientHeaders = patientSlotTests.map((_, i) =>
+      `患者役${patientSlotTests.length > 1 ? CIRCLE[i] || `(${i + 1})` : ""}`,
+    )
+    const contentHeaders = dedupedContentColumns.map(
+      (col) => `${col.categoryTitle}/${col.questionText}`,
+    )
+    const headers = [
+      "学籍番号",
+      "氏名",
+      "部屋",
+      "メールアドレス",
+      ...contentHeaders,
+      "点数",
+      ...teacherHeaders,
+      ...patientHeaders,
+      "割合",
+      "ステータス",
+    ]
     const rows = students.map((student) => {
       const data = getStudentData(student)
       return [
@@ -239,12 +381,14 @@ export default function StudentsDetailPage() {
         student.name,
         student.roomNumber || "",
         student.email || "",
-        data.testTitle || "",
-        data.progress || "",
-        data.score !== "" ? String(data.score) : "",
-        data.teacherScore !== "" ? String(data.teacherScore) : "",
-        data.patientScore !== "" ? String(data.patientScore) : "",
-        data.passResult || "",
+        ...dedupedContentColumns.map((col) => {
+          const val = data.contentScores[`${col.testId}::${col.compositeKey}`]
+          return typeof val === "number" ? String(val) : ""
+        }),
+        typeof data.score === "number" ? String(data.score) : "",
+        ...data.teacherSlotScores.map((s) => (typeof s === "number" ? String(s) : "")),
+        ...data.patientSlotScores.map((s) => (typeof s === "number" ? String(s) : "")),
+        data.percentage != null ? `${data.percentage}%` : "",
         data.status,
       ]
     })
@@ -331,48 +475,127 @@ export default function StudentsDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>全受験者</CardTitle>
+            <div className="flex flex-wrap items-baseline gap-3">
+              <CardTitle>全受験者</CardTitle>
+              {/* 2026-07-03 副田さん要望: セッションタイトル + 合計点表示 */}
+              {currentSession?.description && (
+                <span className="text-base font-medium text-primary">
+                  {currentSession.description}
+                </span>
+              )}
+              {sessionMaxTotal > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  合計点: <span className="font-semibold text-foreground">{sessionMaxTotal}</span> 点満点
+                </span>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
+            {/* 2026-07-03 副田さん要望: 内容 (問題別点数) の表示切替 */}
+            <div className="mb-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setContentExpanded((v) => !v)}
+                className="h-8 text-xs"
+              >
+                {contentExpanded ? (
+                  <ChevronDown className="w-3 h-3 mr-1" />
+                ) : (
+                  <ChevronRight className="w-3 h-3 mr-1" />
+                )}
+                内容 (全 {dedupedContentColumns.length} 問) を{contentExpanded ? "非表示" : "表示"}
+              </Button>
+            </div>
+            {/* 2026-07-03: 横スクロール + ヘッダー sticky */}
+            <div className="border rounded-md overflow-auto max-h-[70vh]">
+              <Table className="w-max min-w-full">
+                <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
                   <TableRow>
-                    <TableHead>学籍番号</TableHead>
-                    <TableHead>氏名</TableHead>
-                    <TableHead>部屋</TableHead>
-                    <TableHead>メールアドレス</TableHead>
-                    <TableHead>タイトル１</TableHead>
-                    <TableHead>進捗</TableHead>
-                    <TableHead>点数</TableHead>
-                    <TableHead>教員</TableHead>
-                    <TableHead>患者</TableHead>
-                    <TableHead>合否</TableHead>
-                    <TableHead>ステータス</TableHead>
+                    <TableHead className="whitespace-nowrap bg-white">学籍番号</TableHead>
+                    <TableHead className="whitespace-nowrap bg-white">氏名</TableHead>
+                    <TableHead className="whitespace-nowrap bg-white">部屋</TableHead>
+                    <TableHead className="whitespace-nowrap bg-white">メールアドレス</TableHead>
+                    {/* 内容 (問題別) - accordion で表示切替 */}
+                    {contentExpanded && dedupedContentColumns.map((col) => (
+                      <TableHead
+                        key={`${col.testId}::${col.compositeKey}`}
+                        className="whitespace-nowrap bg-white text-xs max-w-[240px]"
+                        title={`${col.testTitle} / ${col.sheetTitle} / ${col.categoryTitle} / ${col.questionText}`}
+                      >
+                        <span className="text-[10px] text-muted-foreground block">
+                          {col.roleType === "teacher" ? "教員側" : "患者側"} {col.categoryTitle}
+                        </span>
+                        <span className="block truncate max-w-[220px]">{col.questionText}</span>
+                      </TableHead>
+                    ))}
+                    <TableHead className="whitespace-nowrap bg-white">点数</TableHead>
+                    {teacherSlotTests.map((_, i) => (
+                      <TableHead key={`th-t-${i}`} className="whitespace-nowrap bg-white">
+                        教員{teacherSlotTests.length > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}
+                      </TableHead>
+                    ))}
+                    {patientSlotTests.map((_, i) => (
+                      <TableHead key={`th-p-${i}`} className="whitespace-nowrap bg-white">
+                        患者役{patientSlotTests.length > 1 ? ["①", "②"][i] || `(${i + 1})` : ""}
+                      </TableHead>
+                    ))}
+                    <TableHead className="whitespace-nowrap bg-white">割合</TableHead>
+                    <TableHead className="whitespace-nowrap bg-white">ステータス</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {students.map((student) => {
                     const data = getStudentData(student)
                     return (
-                      <TableRow key={student.id}>
-                        <TableCell>{student.studentId}</TableCell>
-                        <TableCell>{student.name}</TableCell>
-                        <TableCell>{student.roomNumber || "-"}</TableCell>
-                        <TableCell>{student.email || "-"}</TableCell>
-                        <TableCell>{data.testTitle || "-"}</TableCell>
-                        <TableCell>{data.progress || "-"}</TableCell>
-                        <TableCell>{data.score || "-"}</TableCell>
-                        <TableCell>{data.teacherScore !== "" ? data.teacherScore : "-"}</TableCell>
-                        <TableCell>{data.patientScore !== "" ? data.patientScore : "-"}</TableCell>
-                        <TableCell>
-                          {data.passResult ? (
-                            <span className={`font-semibold ${data.passResult === "合格" ? "text-red-600" : "text-blue-600"}`}>
-                              {data.passResult}
-                            </span>
-                          ) : "-"}
+                      <TableRow
+                        key={student.id}
+                        className={data.isBelow50 ? "bg-red-50 hover:bg-red-100" : ""}
+                      >
+                        <TableCell className="whitespace-nowrap">{student.studentId}</TableCell>
+                        <TableCell className="whitespace-nowrap">{student.name}</TableCell>
+                        <TableCell className="whitespace-nowrap">{student.roomNumber || "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs font-mono">{student.email || "-"}</TableCell>
+                        {contentExpanded && dedupedContentColumns.map((col) => {
+                          const val = data.contentScores[`${col.testId}::${col.compositeKey}`]
+                          return (
+                            <TableCell
+                              key={`${student.id}-${col.testId}-${col.compositeKey}`}
+                              className="text-center text-sm"
+                            >
+                              {typeof val === "number" ? val : "-"}
+                            </TableCell>
+                          )
+                        })}
+                        <TableCell className="whitespace-nowrap font-semibold">
+                          {typeof data.score === "number" ? data.score : "-"}
                         </TableCell>
-                        <TableCell>
+                        {data.teacherSlotScores.map((s, i) => (
+                          <TableCell key={`td-t-${student.id}-${i}`} className="whitespace-nowrap">
+                            {typeof s === "number" ? s : "-"}
+                          </TableCell>
+                        ))}
+                        {data.patientSlotScores.map((s, i) => (
+                          <TableCell key={`td-p-${student.id}-${i}`} className="whitespace-nowrap">
+                            {typeof s === "number" ? s : "-"}
+                          </TableCell>
+                        ))}
+                        <TableCell className="whitespace-nowrap">
+                          {data.percentage != null ? (
+                            <span
+                              className={
+                                data.isBelow50
+                                  ? "font-bold text-red-700"
+                                  : "font-semibold"
+                              }
+                            >
+                              {data.percentage}%
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <Badge
                             variant={
                               data.status === "完了"
