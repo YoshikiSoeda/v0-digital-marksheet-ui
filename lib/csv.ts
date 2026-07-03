@@ -41,3 +41,15 @@ export function csvDownloadBlob(csvText: string): Blob {
   const BOM = "﻿"
   return new Blob([BOM + csvText], { type: "text/csv;charset=utf-8;" })
 }
+
+/**
+ * 2026-07-03 副田さん指摘: CSV に全角の英数字 (例: "showaD4sp４") が含まれると、
+ * DB の半角メール "showaD4sp4" にマッチせずスキップされる問題があった。
+ * 全角英数字 [Ａ-Ｚａ-ｚ０-９] を半角に正規化する。
+ * (部屋番号の丸数字 ①②③④⑤ は別 Unicode 領域なので影響なし)
+ */
+export function normalizeHalfwidth(s: string): string {
+  return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) =>
+    String.fromCharCode(c.charCodeAt(0) - 0xfee0),
+  )
+}

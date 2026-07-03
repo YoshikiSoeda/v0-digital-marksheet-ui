@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Home, ArrowLeft, Save, Search, Trash2, CheckCircle2, RotateCcw, Upload, Download, FileText } from "lucide-react"
 import { useSession } from "@/lib/auth/use-session"
-import { readCsvFile, csvDownloadBlob } from "@/lib/csv"
+import { readCsvFile, csvDownloadBlob, normalizeHalfwidth } from "@/lib/csv"
 import {
   loadTeachers, loadPatients, loadRooms, loadTestSessions,
   loadStudents, loadSubjects, saveStudents, loadTests,
@@ -833,7 +833,9 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     let unassignCount = 0
 
     for (let li = 1; li < lines.length; li++) {
-      const cols = lines[li].split(",").map((s) => s.trim())
+      // 2026-07-03 副田さん指摘: 全角英数字が混入しているとメール/学籍番号がマッチしない。
+      // 各セルを半角に normalize してから解釈する (部屋番号の丸数字 ①②... は影響なし)。
+      const cols = lines[li].split(",").map((s) => normalizeHalfwidth(s.trim()))
       const studentIdVal = cols[stuIdIdx]
       const roomVal = cols[roomIdx] || ""
       if (!studentIdVal) continue
