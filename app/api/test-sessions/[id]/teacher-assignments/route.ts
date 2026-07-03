@@ -62,35 +62,45 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const supabase = getServiceClient()
 
-  // 1. 提供されていない既存 assignment を削除 (replace 動作)
-  const providedIds = items.map((i) => i.teacherId).filter(Boolean)
-  let deleteQuery = supabase
+  // 2026-07-02 熊木先生指摘対応: PK が (teacher_id, test_session_id, assigned_room_number)
+  // に変更されたため、1 教員が複数部屋を担当可能に。
+  // シンプル実装: セッション内の全 assignment を DELETE → provided items を INSERT。
+  // (小規模データを想定、DELETE + INSERT でトランザクション代替)
+
+  const { error: delErr } = await supabase
     .from("teacher_test_session_assignments")
     .delete()
     .eq("test_session_id", sessionId)
-  if (providedIds.length > 0) {
-    deleteQuery = deleteQuery.not("teacher_id", "in", `(${providedIds.join(",")})`)
-  }
-  const { error: delErr } = await deleteQuery
   if (delErr) {
     console.error("[teacher-assignments] DELETE error:", delErr)
     return NextResponse.json({ error: delErr.message }, { status: 500 })
   }
 
-  // 2. provided items を upsert
   if (items.length > 0) {
-    const rows = items.map((i) => ({
+    // 同一 (teacher, room) が重複していないよう de-dup
+    const dedup = new Map<string, { teacherId: string; assignedRoomNumber: string }>()
+    for (const i of items) {
+      const room = (i.assignedRoomNumber || "").trim()
+      if (!i.teacherId || !room) continue
+      dedup.set(`${i.teacherId}::${room}`, {
+        teacherId: i.teacherId,
+        assignedRoomNumber: room,
+      })
+    }
+    const rows = Array.from(dedup.values()).map((i) => ({
       teacher_id: i.teacherId,
       test_session_id: sessionId,
-      assigned_room_number: (i.assignedRoomNumber || null) as string | null,
+      assigned_room_number: i.assignedRoomNumber,
       updated_at: new Date().toISOString(),
     }))
-    const { error: upErr } = await supabase
-      .from("teacher_test_session_assignments")
-      .upsert(rows as never, { onConflict: "teacher_id,test_session_id" })
-    if (upErr) {
-      console.error("[teacher-assignments] UPSERT error:", upErr)
-      return NextResponse.json({ error: upErr.message }, { status: 500 })
+    if (rows.length > 0) {
+      const { error: insErr } = await supabase
+        .from("teacher_test_session_assignments")
+        .insert(rows as never)
+      if (insErr) {
+        console.error("[teacher-assignments] INSERT error:", insErr)
+        return NextResponse.json({ error: insErr.message }, { status: 500 })
+      }
     }
   }
 
