@@ -105,13 +105,20 @@ export default function TeacherExamTabs({
             setTeacherName(teacher.name)
           }
           // 2026-07-03 副田さん要望: 部屋内の教員をメール昇順で 1 番目なら教員①
+          // 更新: 管理者ロール (university_admin / subject_admin / master_admin) は
+          // 教員①でなくても出席登録/評価編集可能。
           if (activeRoomNumber) {
             const teachersInRoom = fetchedTeachers
               .filter((t) => t.assignedRoomNumber === activeRoomNumber)
               .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
             const first = teachersInRoom[0]
+            const isAdminRole =
+              teacherRole === "university_admin" ||
+              teacherRole === "subject_admin" ||
+              teacherRole === "master_admin"
             setIsPrimaryTeacher(
-              !first ||
+              isAdminRole ||
+                !first ||
                 (first.email || "").toLowerCase() === (teacherEmail || "").toLowerCase(),
             )
           }
@@ -197,7 +204,7 @@ export default function TeacherExamTabs({
 
   // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: getTestSessionId は @/lib/exam/utils から import
 
-  const handleAnswerChange = async (compositeKey: string, optionValue: number) => {
+  const handleAnswerChange = async (compositeKey: string, optionValue: number | null) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
 
@@ -206,12 +213,16 @@ export default function TeacherExamTabs({
     }
 
     const previousAnswers = studentAnswers
+    // 2026-07-03 副田さん要望: value=null は選択解除 (compositeKey を削除)
+    const nextForStudent = { ...(studentAnswers[activeStudent.id] || {}) }
+    if (optionValue === null) {
+      delete nextForStudent[compositeKey]
+    } else {
+      nextForStudent[compositeKey] = optionValue
+    }
     const updatedAnswers: Record<string, Record<string, number>> = {
       ...studentAnswers,
-      [activeStudent.id]: {
-        ...(studentAnswers[activeStudent.id] || {}),
-        [compositeKey]: optionValue,
-      },
+      [activeStudent.id]: nextForStudent,
     }
     setStudentAnswers(updatedAnswers)
 
