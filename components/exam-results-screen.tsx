@@ -161,7 +161,7 @@ export function ExamResultsScreen() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <Button onClick={handleBackToExam} variant="outline">
             <ArrowLeft className="w-4 h-4 mr-2" />

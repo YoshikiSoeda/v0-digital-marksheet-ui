@@ -6,7 +6,7 @@ import { Users, UserCog, UserPlus, List, Home, Plus } from "lucide-react"
 export default function AccountManagementPage() {
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-primary">アカウント管理</h1>

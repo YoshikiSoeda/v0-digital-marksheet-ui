@@ -771,7 +771,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto ">
         <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
           <h1 className="text-2xl font-bold text-[#00417A]">管理者ダッシュボード</h1>
 
@@ -1043,7 +1043,7 @@ const AdminDashboard = () => {
       </div>
 
       <Dialog open={!!selectedRoom} onOpenChange={(open) => !open && setSelectedRoom(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>部屋 {selectedRoom} の詳細</DialogTitle>
           </DialogHeader>

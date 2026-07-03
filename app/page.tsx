@@ -13,7 +13,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-secondary/30">
       <main className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full space-y-10">
+        <div className="w-full space-y-10">
           <div className="text-center space-y-4">
             <h1 className="text-4xl md:text-5xl font-bold text-primary tracking-tight">
               {/*
@@ -51,7 +51,7 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t bg-background">
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="mx-auto px-4 py-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <Link href="https://www.ediand.co.jp/" target="_blank" rel="noopener noreferrer">
               <Image

@@ -305,8 +305,8 @@ export function PatientRoleRegistration() {
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
       {(() => {  return null })()}
-      <div className="max-w-7xl mx-auto space-y-6">
-        <Card className="mx-auto max-w-6xl">
+      <div className="mx-auto space-y-6">
+        <Card className="mx-auto ">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>

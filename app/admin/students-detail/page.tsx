@@ -417,7 +417,7 @@ export default function StudentsDetailPage() {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3">
@@ -530,13 +530,13 @@ export default function StudentsDetailPage() {
                     {contentExpanded && dedupedContentColumns.map((col) => (
                       <th
                         key={`${col.testId}::${col.compositeKey}`}
-                        className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white text-xs max-w-[240px]"
+                        className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white text-xs "
                         title={`${col.testTitle} / ${col.sheetTitle} / ${col.categoryTitle} / ${col.questionText}`}
                       >
                         <span className="text-[10px] text-muted-foreground block">
                           {col.roleType === "teacher" ? "教員側" : "患者側"} {col.categoryTitle}
                         </span>
-                        <span className="block truncate max-w-[220px]">{col.questionText}</span>
+                        <span className="block truncate ">{col.questionText}</span>
                       </th>
                     ))}
                     <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">点数</th>
