@@ -59,33 +59,43 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const supabase = getServiceClient()
 
-  const providedIds = items.map((i) => i.patientId).filter(Boolean)
-  let deleteQuery = supabase
+  // 2026-07-02 熊木先生指摘対応: PK が (patient_id, test_session_id, assigned_room_number)
+  // に変更されたため、1 患者役が複数部屋を担当可能に。
+  // シンプル実装: セッション内の全 assignment を DELETE → provided items を INSERT。
+
+  const { error: delErr } = await supabase
     .from("patient_test_session_assignments")
     .delete()
     .eq("test_session_id", sessionId)
-  if (providedIds.length > 0) {
-    deleteQuery = deleteQuery.not("patient_id", "in", `(${providedIds.join(",")})`)
-  }
-  const { error: delErr } = await deleteQuery
   if (delErr) {
     console.error("[patient-assignments] DELETE error:", delErr)
     return NextResponse.json({ error: delErr.message }, { status: 500 })
   }
 
   if (items.length > 0) {
-    const rows = items.map((i) => ({
+    const dedup = new Map<string, { patientId: string; assignedRoomNumber: string }>()
+    for (const i of items) {
+      const room = (i.assignedRoomNumber || "").trim()
+      if (!i.patientId || !room) continue
+      dedup.set(`${i.patientId}::${room}`, {
+        patientId: i.patientId,
+        assignedRoomNumber: room,
+      })
+    }
+    const rows = Array.from(dedup.values()).map((i) => ({
       patient_id: i.patientId,
       test_session_id: sessionId,
-      assigned_room_number: (i.assignedRoomNumber || null) as string | null,
+      assigned_room_number: i.assignedRoomNumber,
       updated_at: new Date().toISOString(),
     }))
-    const { error: upErr } = await supabase
-      .from("patient_test_session_assignments")
-      .upsert(rows as never, { onConflict: "patient_id,test_session_id" })
-    if (upErr) {
-      console.error("[patient-assignments] UPSERT error:", upErr)
-      return NextResponse.json({ error: upErr.message }, { status: 500 })
+    if (rows.length > 0) {
+      const { error: insErr } = await supabase
+        .from("patient_test_session_assignments")
+        .insert(rows as never)
+      if (insErr) {
+        console.error("[patient-assignments] INSERT error:", insErr)
+        return NextResponse.json({ error: insErr.message }, { status: 500 })
+      }
     }
   }
 

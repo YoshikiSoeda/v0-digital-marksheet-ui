@@ -762,8 +762,11 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     })
 
     const nextPendingMap = { ...pendingMap }
-    const nextTeacherRooms = { ...teacherRooms }
-    const nextPatientRooms = { ...patientRooms }
+    // 2026-07-02 熊木先生指摘対応: 教員/患者役は 1 セッション内で複数部屋を担当可能に
+    // なった (DB PK 変更 scripts/246)。CSV 取込では (教員 id, 部屋) の全ペアを集めて
+    // 完全置換 PUT する。
+    const teacherAssignSet = new Map<string, { teacherId: string; assignedRoomNumber: string }>()
+    const patientAssignSet = new Map<string, { patientId: string; assignedRoomNumber: string }>()
     const foundStudentIds = new Set<string>()
     const warnings: string[] = []
     let assignCount = 0
@@ -801,7 +804,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
       if (saved === roomVal) delete nextPendingMap[student.id]
       else nextPendingMap[student.id] = roomVal
 
-      // 教員割当 (部屋単位)
+      // 教員割当 (複数部屋担当可: Map の key に (teacherId, room) を使い dedup)
       for (const ci of teacherColIdxs) {
         const email = (cols[ci] || "").trim()
         if (!email) continue
@@ -810,9 +813,12 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           warnings.push(`行 ${li + 1}: 教員メール "${email}" は見つかりません`)
           continue
         }
-        nextTeacherRooms[teacher.id] = roomVal
+        teacherAssignSet.set(`${teacher.id}::${roomVal}`, {
+          teacherId: teacher.id,
+          assignedRoomNumber: roomVal,
+        })
       }
-      // 患者役割当
+      // 患者役割当 (複数部屋担当可)
       for (const ci of patientColIdxs) {
         const email = (cols[ci] || "").trim()
         if (!email) continue
@@ -821,7 +827,10 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           warnings.push(`行 ${li + 1}: 患者役メール "${email}" は見つかりません`)
           continue
         }
-        nextPatientRooms[patient.id] = roomVal
+        patientAssignSet.set(`${patient.id}::${roomVal}`, {
+          patientId: patient.id,
+          assignedRoomNumber: roomVal,
+        })
       }
       assignCount++
     }
@@ -829,14 +838,42 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     setPendingMap(nextPendingMap)
     setSelectedStudentIds(foundStudentIds)  // 確定対象に自動セット
 
-    // 教員/患者役は即時 PUT (既存 UI と同じ挙動)
+    // 教員/患者役は即時 PUT (完全置換 = 既存 assignment を全て削除して CSV 内容で作り直す)
     try {
+      const teacherItems = Array.from(teacherAssignSet.values())
+      const patientItems = Array.from(patientAssignSet.values())
       await Promise.all([
-        persistTeacherRooms(nextTeacherRooms),
-        persistPatientRooms(nextPatientRooms),
+        fetch(`/api/test-sessions/${sessionId}/teacher-assignments`, {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: teacherItems }),
+        }).then(async (r) => {
+          if (!r.ok) {
+            const err = await r.json().catch(() => null)
+            throw new Error(err?.error || `教員: ${r.status}`)
+          }
+        }),
+        fetch(`/api/test-sessions/${sessionId}/patient-assignments`, {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: patientItems }),
+        }).then(async (r) => {
+          if (!r.ok) {
+            const err = await r.json().catch(() => null)
+            throw new Error(err?.error || `患者役: ${r.status}`)
+          }
+        }),
       ])
-      setTeacherRooms(nextTeacherRooms)
-      setPatientRooms(nextPatientRooms)
+      // 表示側 state を「教員/患者役の最後にセットされた部屋」で近似更新
+      // (現状の UI は 1 教員 = 1 部屋前提。複数部屋の UI 対応は別 PR)
+      const displayTeacherRooms: Record<string, string> = {}
+      for (const item of teacherItems) displayTeacherRooms[item.teacherId] = item.assignedRoomNumber
+      const displayPatientRooms: Record<string, string> = {}
+      for (const item of patientItems) displayPatientRooms[item.patientId] = item.assignedRoomNumber
+      setTeacherRooms(displayTeacherRooms)
+      setPatientRooms(displayPatientRooms)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       alert(`教員/患者役割当の保存に失敗しました: ${msg}`)
