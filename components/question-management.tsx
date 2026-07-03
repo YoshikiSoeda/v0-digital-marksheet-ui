@@ -141,6 +141,47 @@ export function QuestionManagement() {
     }
   }
 
+  // 2026-07-03 副田さん要望: 試験セッション削除機能
+  // - 依存 (テスト/割当/評価結果) があれば 409 で件数を返す
+  // - 副田さんが確認ダイアログで OK すれば cascade=true で強制削除
+  const handleDeleteTestSession = async (sessionId: string, sessionLabel: string) => {
+    // 誤クリック防止の初回確認
+    if (!confirm(`試験セッション「${sessionLabel}」を削除しますか?`)) return
+    // 1st try: cascade なしで依存 pre-check
+    try {
+      const preRes = await fetch(`/api/test-sessions/${sessionId}`, { method: "DELETE" })
+      if (preRes.ok) {
+        alert(`「${sessionLabel}」を削除しました`)
+        await Promise.all([fetchTestSessions(), fetchTests()])
+        return
+      }
+      if (preRes.status === 409) {
+        const j = await preRes.json().catch(() => null)
+        const detail = j?.error || "依存データが存在します"
+        if (!confirm(`「${sessionLabel}」の削除:\n\n${detail}\n\n関連データを全て削除しますか? (この操作は取り消せません)`)) {
+          return
+        }
+        const forceRes = await fetch(`/api/test-sessions/${sessionId}?cascade=true`, {
+          method: "DELETE",
+        })
+        if (!forceRes.ok) {
+          const err = await forceRes.json().catch(() => null)
+          alert(`削除に失敗しました: ${err?.error || forceRes.status}`)
+          return
+        }
+        alert(`「${sessionLabel}」を関連データと共に削除しました`)
+        await Promise.all([fetchTestSessions(), fetchTests()])
+        return
+      }
+      // 依存無しなのに 500 等
+      const err = await preRes.json().catch(() => null)
+      alert(`削除に失敗しました: ${err?.error || preRes.status}`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      alert(`削除中にエラー: ${msg}`)
+    }
+  }
+
   const fetchSubjects = async (universityCode: string | null) => {
     try {
       const res = await fetch(`/api/subjects${universityCode ? `?university_code=${universityCode}` : ""}`)
@@ -592,12 +633,24 @@ export function QuestionManagement() {
                       <div className="px-4 py-3 bg-[#00417A]/5 border-b flex items-center justify-between gap-2">
                         <h4 className="text-base font-bold text-[#00417A]">{sessionLabel}</h4>
                         {sessionId !== "unassigned" && (
-                          <Link href={`/admin/test-sessions/${sessionId}/assignments`}>
-                            <Button variant="outline" size="sm" className="h-7 text-xs">
-                              <Users className="w-3 h-3 mr-1" />
-                              割当を編集
+                          <div className="flex gap-2">
+                            <Link href={`/admin/test-sessions/${sessionId}/assignments`}>
+                              <Button variant="outline" size="sm" className="h-7 text-xs">
+                                <Users className="w-3 h-3 mr-1" />
+                                割当を編集
+                              </Button>
+                            </Link>
+                            {/* 2026-07-03 副田さん要望: 試験セッション削除ボタン */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
+                              onClick={() => handleDeleteTestSession(sessionId, sessionLabel)}
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              削除
                             </Button>
-                          </Link>
+                          </div>
                         )}
                       </div>
                       <div className="divide-y">
