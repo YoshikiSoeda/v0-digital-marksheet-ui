@@ -46,8 +46,13 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
-  const [teacherRooms, setTeacherRooms] = useState<Record<string, string>>({}) // teacher.id → roomNumber("" = unassigned)
+  const [teacherRooms, setTeacherRooms] = useState<Record<string, string>>({}) // teacher.id → roomNumber("" = unassigned) [互換用/主部屋のみ]
   const [patientRooms, setPatientRooms] = useState<Record<string, string>>({})
+  // 2026-07-03 熊木先生指摘対応: 1 教員/1 患者役が複数部屋を担当できる。
+  // pairs は "${id}::${roomNumber}" の Set で全 assignment を持つ。
+  // 部屋 R に教員 t がいるか判定は teacherPairs.has(`${t.id}::${R}`)。
+  const [teacherPairs, setTeacherPairs] = useState<Set<string>>(new Set())
+  const [patientPairs, setPatientPairs] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState<string>("")
@@ -186,18 +191,26 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
         if (teacherAssignsRes.ok) {
           const tj = await teacherAssignsRes.json()
           const map: Record<string, string> = {}
+          const pairs = new Set<string>()
           for (const a of tj.items || []) {
-            map[a.teacherId] = a.assignedRoomNumber || ""
+            const room = a.assignedRoomNumber || ""
+            map[a.teacherId] = room  // 最後の部屋で上書き (互換用)
+            if (room) pairs.add(`${a.teacherId}::${room}`)
           }
           setTeacherRooms(map)
+          setTeacherPairs(pairs)
         }
         if (patientAssignsRes.ok) {
           const pj = await patientAssignsRes.json()
           const map: Record<string, string> = {}
+          const pairs = new Set<string>()
           for (const a of pj.items || []) {
-            map[a.patientId] = a.assignedRoomNumber || ""
+            const room = a.assignedRoomNumber || ""
+            map[a.patientId] = room
+            if (room) pairs.add(`${a.patientId}::${room}`)
           }
           setPatientRooms(map)
+          setPatientPairs(pairs)
         }
 
         // 初回 auto-search: 初期フィルタで学生 list をロード(status は render 時に絞る)
@@ -275,7 +288,47 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     }
   }
 
-  // 教員 slot inline edit: room の slot N (メール昇順) の教員を newId に置き換え
+  // 2026-07-03: 複数部屋対応 (Set<pair>) ベースの inline edit
+  //   教員 slot inline edit: 部屋 R の slot N (メール昇順) の教員を newId に置き換え
+  //   - 旧 slot 教員は R からのみ外す (他部屋の担当は維持)
+  //   - 新教員は R にも追加 (他部屋の担当は維持)
+  const persistTeacherPairs = async (nextPairs: Set<string>) => {
+    const items: Array<{ teacherId: string; assignedRoomNumber: string }> = []
+    for (const key of nextPairs) {
+      const idx = key.indexOf("::")
+      if (idx < 0) continue
+      items.push({ teacherId: key.slice(0, idx), assignedRoomNumber: key.slice(idx + 2) })
+    }
+    const res = await fetch(`/api/test-sessions/${sessionId}/teacher-assignments`, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => null)
+      throw new Error(err?.error || `${res.status}`)
+    }
+  }
+  const persistPatientPairs = async (nextPairs: Set<string>) => {
+    const items: Array<{ patientId: string; assignedRoomNumber: string }> = []
+    for (const key of nextPairs) {
+      const idx = key.indexOf("::")
+      if (idx < 0) continue
+      items.push({ patientId: key.slice(0, idx), assignedRoomNumber: key.slice(idx + 2) })
+    }
+    const res = await fetch(`/api/test-sessions/${sessionId}/patient-assignments`, {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => null)
+      throw new Error(err?.error || `${res.status}`)
+    }
+  }
+
   const handleSlotChangeTeacher = async (
     room: string,
     slotIndex: number,
@@ -287,20 +340,21 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     setSavedMsg("")
     try {
       const existing = teachers
-        .filter((t) => teacherRooms[t.id] === room)
+        .filter((t) => teacherPairs.has(`${t.id}::${room}`))
         .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
       const old = existing[slotIndex]
-      const next = { ...teacherRooms }
-      if (old) {
-        // 旧 slot N の教員を unassign (この room から外す)
-        next[old.id] = ""
-      }
-      if (newTeacherId) {
-        // 新教員を同 room に (他部屋にいたら移動)
-        next[newTeacherId] = room
-      }
-      await persistTeacherRooms(next)
-      setTeacherRooms(next)
+      const nextPairs = new Set(teacherPairs)
+      if (old) nextPairs.delete(`${old.id}::${room}`)
+      if (newTeacherId) nextPairs.add(`${newTeacherId}::${room}`)
+      await persistTeacherPairs(nextPairs)
+      setTeacherPairs(nextPairs)
+      // 互換用: teacherRooms も更新 (最後の部屋を記憶)
+      setTeacherRooms((prev) => {
+        const next = { ...prev }
+        if (old) next[old.id] = ""
+        if (newTeacherId) next[newTeacherId] = room
+        return next
+      })
       setSavedMsg(`部屋 ${room} の教員${slotIndex + 1}を更新しました`)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error"
@@ -321,14 +375,20 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
     setSavedMsg("")
     try {
       const existing = patients
-        .filter((p) => patientRooms[p.id] === room)
+        .filter((p) => patientPairs.has(`${p.id}::${room}`))
         .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
       const old = existing[slotIndex]
-      const next = { ...patientRooms }
-      if (old) next[old.id] = ""
-      if (newPatientId) next[newPatientId] = room
-      await persistPatientRooms(next)
-      setPatientRooms(next)
+      const nextPairs = new Set(patientPairs)
+      if (old) nextPairs.delete(`${old.id}::${room}`)
+      if (newPatientId) nextPairs.add(`${newPatientId}::${room}`)
+      await persistPatientPairs(nextPairs)
+      setPatientPairs(nextPairs)
+      setPatientRooms((prev) => {
+        const next = { ...prev }
+        if (old) next[old.id] = ""
+        if (newPatientId) next[newPatientId] = room
+        return next
+      })
       setSavedMsg(`部屋 ${room} の患者役${slotIndex + 1}を更新しました`)
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error"
@@ -683,12 +743,12 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
       const room = assignmentMap[s.id] || ""
       const teachersHere = room
         ? teachers
-            .filter((t) => teacherRooms[t.id] === room)
+            .filter((t) => teacherPairs.has(`${t.id}::${room}`))
             .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
         : []
       const patientsHere = room
         ? patients
-            .filter((p) => patientRooms[p.id] === room)
+            .filter((p) => patientPairs.has(`${p.id}::${room}`))
             .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
         : []
       const row: string[] = [s.studentId, s.name, room]
@@ -866,14 +926,24 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
           }
         }),
       ])
-      // 表示側 state を「教員/患者役の最後にセットされた部屋」で近似更新
-      // (現状の UI は 1 教員 = 1 部屋前提。複数部屋の UI 対応は別 PR)
+      // 2026-07-03: UI 表示 state を更新。pairs で複数部屋担当を保持、
+      // teacherRooms/patientRooms は互換用に「最後の部屋」で埋める。
       const displayTeacherRooms: Record<string, string> = {}
-      for (const item of teacherItems) displayTeacherRooms[item.teacherId] = item.assignedRoomNumber
+      const newTeacherPairs = new Set<string>()
+      for (const item of teacherItems) {
+        displayTeacherRooms[item.teacherId] = item.assignedRoomNumber
+        newTeacherPairs.add(`${item.teacherId}::${item.assignedRoomNumber}`)
+      }
       const displayPatientRooms: Record<string, string> = {}
-      for (const item of patientItems) displayPatientRooms[item.patientId] = item.assignedRoomNumber
+      const newPatientPairs = new Set<string>()
+      for (const item of patientItems) {
+        displayPatientRooms[item.patientId] = item.assignedRoomNumber
+        newPatientPairs.add(`${item.patientId}::${item.assignedRoomNumber}`)
+      }
       setTeacherRooms(displayTeacherRooms)
       setPatientRooms(displayPatientRooms)
+      setTeacherPairs(newTeacherPairs)
+      setPatientPairs(newPatientPairs)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       alert(`教員/患者役割当の保存に失敗しました: ${msg}`)
@@ -1287,12 +1357,12 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
                       const room = eff.effectiveRoom
                       const teachersHere = room
                         ? teachers
-                            .filter((t) => teacherRooms[t.id] === room)
+                            .filter((t) => teacherPairs.has(`${t.id}::${room}`))
                             .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
                         : []
                       const patientsHere = room
                         ? patients
-                            .filter((p) => patientRooms[p.id] === room)
+                            .filter((p) => patientPairs.has(`${p.id}::${room}`))
                             .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
                         : []
                       const roleLabel = (role: string | undefined): string => {
