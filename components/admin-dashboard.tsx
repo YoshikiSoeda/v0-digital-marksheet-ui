@@ -30,8 +30,11 @@ interface RoleStats {
 interface RoomData {
   roomNumber: string
   roomName: string
-  teacherName: string
+  teacherName: string  // 互換用: 主 (1 名目) の名前
   patientName: string
+  // 2026-07-03 副田さん要望: 教員①②/患者役 の名前を可変 slot で表示
+  teacherNames: string[]  // メール昇順で全員
+  patientNames: string[]
   presentCount: number
   absentCount: number
   completedCount: number
@@ -350,12 +353,19 @@ const AdminDashboard = () => {
             const teacherStats = calcRoleStats(teacherEvals)
             const patientStats = calcRoleStats(patientEvals)
 
-            const teacherForRoom = Array.isArray(teachersData)
-              ? teachersData.find((t) => t.assignedRoomNumber === room.roomNumber)
-              : undefined
-            const patientForRoom = Array.isArray(patientsData)
-              ? patientsData.find((p) => p.assignedRoomNumber === room.roomNumber)
-              : undefined
+            // 2026-07-03 副田さん要望: 複数教員/患者役を全員名前で表示 (メール昇順)
+            const teachersInRoom = Array.isArray(teachersData)
+              ? teachersData
+                  .filter((t) => t.assignedRoomNumber === room.roomNumber)
+                  .sort((a, b) => ((a as any).email || "").localeCompare((b as any).email || ""))
+              : []
+            const patientsInRoom = Array.isArray(patientsData)
+              ? patientsData
+                  .filter((p) => p.assignedRoomNumber === room.roomNumber)
+                  .sort((a, b) => ((a as any).email || "").localeCompare((b as any).email || ""))
+              : []
+            const teacherForRoom = teachersInRoom[0]  // 互換用 (主 = 1 名目)
+            const patientForRoom = patientsInRoom[0]
 
             // Count alerts per student
             const studentAlertCountMap = new Map<string, number>()
@@ -425,6 +435,8 @@ const AdminDashboard = () => {
               roomName: room.roomName,
               teacherName: teacherForRoom?.name || "未割当",
               patientName: patientForRoom?.name || "未割当",
+              teacherNames: teachersInRoom.map((t) => t.name),
+              patientNames: patientsInRoom.map((p) => p.name),
               presentCount,
               absentCount,
               completedCount,
@@ -598,12 +610,19 @@ const AdminDashboard = () => {
           const teacherStatsP = calcRoleStatsP(teacherEvalsP)
           const patientStatsP = calcRoleStatsP(patientEvalsP)
 
-          const teacherForRoom = Array.isArray(fetchedTeachers)
-            ? fetchedTeachers.find((t) => t.assignedRoomNumber === room.roomNumber)
-            : undefined
-          const patientForRoom = Array.isArray(fetchedPatients)
-            ? fetchedPatients.find((p) => p.assignedRoomNumber === room.roomNumber)
-            : undefined
+          // 2026-07-03 副田さん要望: 複数教員/患者役を全員名前で表示 (refresh path)
+          const teachersInRoom = Array.isArray(fetchedTeachers)
+            ? fetchedTeachers
+                .filter((t) => t.assignedRoomNumber === room.roomNumber)
+                .sort((a, b) => ((a as any).email || "").localeCompare((b as any).email || ""))
+            : []
+          const patientsInRoom = Array.isArray(fetchedPatients)
+            ? fetchedPatients
+                .filter((p) => p.assignedRoomNumber === room.roomNumber)
+                .sort((a, b) => ((a as any).email || "").localeCompare((b as any).email || ""))
+            : []
+          const teacherForRoom = teachersInRoom[0]
+          const patientForRoom = patientsInRoom[0]
 
           // Count alerts per student
           const studentAlertCountMap = new Map<string, number>()
@@ -674,6 +693,8 @@ const AdminDashboard = () => {
             roomName: room.roomName,
             teacherName: teacherForRoom?.name || "未割当",
             patientName: patientForRoom?.name || "未割当",
+            teacherNames: teachersInRoom.map((t) => t.name),
+            patientNames: patientsInRoom.map((p) => p.name),
             presentCount,
             absentCount,
             completedCount,
@@ -912,14 +933,45 @@ const AdminDashboard = () => {
                           {room.roomName && <div className="text-xs text-muted-foreground truncate">{room.roomName}</div>}
                         </div>
                         <div className="text-xs space-y-0.5">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">教員:</span>
-                            <span className="font-medium truncate ml-1">{room.teacherName}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">患者:</span>
-                            <span className="font-medium truncate ml-1">{room.patientName}</span>
-                          </div>
+                          {/* 2026-07-03 副田さん要望: 教員①②/患者役 の全員名を可変表示 */}
+                          {room.teacherNames.length === 0 ? (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">教員:</span>
+                              <span className="font-medium truncate ml-1 text-muted-foreground">未割当</span>
+                            </div>
+                          ) : (
+                            room.teacherNames.map((name, i) => (
+                              <div key={`t-${i}`} className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                  教員
+                                  {room.teacherNames.length > 1
+                                    ? ["①", "②", "③", "④", "⑤"][i] || `(${i + 1})`
+                                    : ""}
+                                  :
+                                </span>
+                                <span className="font-medium truncate ml-1">{name}</span>
+                              </div>
+                            ))
+                          )}
+                          {room.patientNames.length === 0 ? (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">患者:</span>
+                              <span className="font-medium truncate ml-1 text-muted-foreground">未割当</span>
+                            </div>
+                          ) : (
+                            room.patientNames.map((name, i) => (
+                              <div key={`p-${i}`} className="flex justify-between">
+                                <span className="text-muted-foreground">
+                                  患者
+                                  {room.patientNames.length > 1
+                                    ? ["①", "②", "③"][i] || `(${i + 1})`
+                                    : ""}
+                                  :
+                                </span>
+                                <span className="font-medium truncate ml-1">{name}</span>
+                              </div>
+                            ))
+                          )}
                           <div className="border-t pt-1.5 mt-1 space-y-0.5">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">出席:</span>
