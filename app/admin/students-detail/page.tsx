@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+// 2026-07-03 副田さん再要望対応: shadcn Table の overflow-x-auto ラッパーが
+// sticky を妨げるため、raw <table> で書き換え。unused import を削除。
+// import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
@@ -507,80 +509,90 @@ export default function StudentsDetailPage() {
                 内容 (全 {dedupedContentColumns.length} 問) を{contentExpanded ? "非表示" : "表示"}
               </Button>
             </div>
-            {/* 2026-07-03: 横スクロール + ヘッダー sticky */}
-            <div className="border rounded-md overflow-auto max-h-[70vh]">
-              <Table className="w-max min-w-full">
-                <TableHeader className="sticky top-0 bg-white z-10 shadow-sm">
-                  <TableRow>
-                    <TableHead className="whitespace-nowrap bg-white">学籍番号</TableHead>
-                    <TableHead className="whitespace-nowrap bg-white">氏名</TableHead>
-                    <TableHead className="whitespace-nowrap bg-white">部屋</TableHead>
-                    <TableHead className="whitespace-nowrap bg-white">メールアドレス</TableHead>
-                    {/* 内容 (問題別) - accordion で表示切替 */}
+            {/* 2026-07-03 副田さん再要望: 列名スクロール固定 + 横スクロール常に表示
+                shadcn <Table> は内部で overflow-x-auto の div を wrap するため、
+                縦スクロール container 内で thead の sticky が効かない。
+                生の <table> で書き換えて sticky を確実に効かせる。 */}
+            <div
+              className="border rounded-md max-h-[70vh]"
+              style={{
+                overflowX: "scroll",   // 横スクロールバー常時表示
+                overflowY: "auto",     // 縦は必要時のみ
+              }}
+            >
+              <table className="w-max min-w-full text-sm caption-bottom">
+                <thead className="sticky top-0 z-20 bg-white shadow-sm">
+                  <tr className="border-b">
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">学籍番号</th>
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">氏名</th>
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">部屋</th>
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">メールアドレス</th>
                     {contentExpanded && dedupedContentColumns.map((col) => (
-                      <TableHead
+                      <th
                         key={`${col.testId}::${col.compositeKey}`}
-                        className="whitespace-nowrap bg-white text-xs max-w-[240px]"
+                        className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white text-xs max-w-[240px]"
                         title={`${col.testTitle} / ${col.sheetTitle} / ${col.categoryTitle} / ${col.questionText}`}
                       >
                         <span className="text-[10px] text-muted-foreground block">
                           {col.roleType === "teacher" ? "教員側" : "患者側"} {col.categoryTitle}
                         </span>
                         <span className="block truncate max-w-[220px]">{col.questionText}</span>
-                      </TableHead>
+                      </th>
                     ))}
-                    <TableHead className="whitespace-nowrap bg-white">点数</TableHead>
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">点数</th>
                     {teacherSlotTests.map((_, i) => (
-                      <TableHead key={`th-t-${i}`} className="whitespace-nowrap bg-white">
+                      <th key={`th-t-${i}`} className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">
                         教員{teacherSlotTests.length > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}
-                      </TableHead>
+                      </th>
                     ))}
                     {patientSlotTests.map((_, i) => (
-                      <TableHead key={`th-p-${i}`} className="whitespace-nowrap bg-white">
+                      <th key={`th-p-${i}`} className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">
                         患者役{patientSlotTests.length > 1 ? ["①", "②"][i] || `(${i + 1})` : ""}
-                      </TableHead>
+                      </th>
                     ))}
-                    <TableHead className="whitespace-nowrap bg-white">割合</TableHead>
-                    <TableHead className="whitespace-nowrap bg-white">ステータス</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">割合</th>
+                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">ステータス</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {students.map((student) => {
                     const data = getStudentData(student)
                     return (
-                      <TableRow
+                      <tr
                         key={student.id}
-                        className={data.isBelow50 ? "bg-red-50 hover:bg-red-100" : ""}
+                        className={`border-b hover:bg-muted/50 transition-colors ${
+                          data.isBelow50 ? "bg-red-50 hover:bg-red-100" : ""
+                        }`}
                       >
-                        <TableCell className="whitespace-nowrap">{student.studentId}</TableCell>
-                        <TableCell className="whitespace-nowrap">{student.name}</TableCell>
-                        <TableCell className="whitespace-nowrap">{student.roomNumber || "-"}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs font-mono">{student.email || "-"}</TableCell>
+                        <td className="p-2 align-middle whitespace-nowrap">{student.studentId}</td>
+                        <td className="p-2 align-middle whitespace-nowrap">{student.name}</td>
+                        <td className="p-2 align-middle whitespace-nowrap">{student.roomNumber || "-"}</td>
+                        <td className="p-2 align-middle whitespace-nowrap text-xs font-mono">{student.email || "-"}</td>
                         {contentExpanded && dedupedContentColumns.map((col) => {
                           const val = data.contentScores[`${col.testId}::${col.compositeKey}`]
                           return (
-                            <TableCell
+                            <td
                               key={`${student.id}-${col.testId}-${col.compositeKey}`}
-                              className="text-center text-sm"
+                              className="p-2 align-middle text-center text-sm whitespace-nowrap"
                             >
                               {typeof val === "number" ? val : "-"}
-                            </TableCell>
+                            </td>
                           )
                         })}
-                        <TableCell className="whitespace-nowrap font-semibold">
+                        <td className="p-2 align-middle whitespace-nowrap font-semibold">
                           {typeof data.score === "number" ? data.score : "-"}
-                        </TableCell>
+                        </td>
                         {data.teacherSlotScores.map((s, i) => (
-                          <TableCell key={`td-t-${student.id}-${i}`} className="whitespace-nowrap">
+                          <td key={`td-t-${student.id}-${i}`} className="p-2 align-middle whitespace-nowrap">
                             {typeof s === "number" ? s : "-"}
-                          </TableCell>
+                          </td>
                         ))}
                         {data.patientSlotScores.map((s, i) => (
-                          <TableCell key={`td-p-${student.id}-${i}`} className="whitespace-nowrap">
+                          <td key={`td-p-${student.id}-${i}`} className="p-2 align-middle whitespace-nowrap">
                             {typeof s === "number" ? s : "-"}
-                          </TableCell>
+                          </td>
                         ))}
-                        <TableCell className="whitespace-nowrap">
+                        <td className="p-2 align-middle whitespace-nowrap">
                           {data.percentage != null ? (
                             <span
                               className={
@@ -594,8 +606,8 @@ export default function StudentsDetailPage() {
                           ) : (
                             "-"
                           )}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        </td>
+                        <td className="p-2 align-middle whitespace-nowrap">
                           <Badge
                             variant={
                               data.status === "完了"
@@ -609,12 +621,12 @@ export default function StudentsDetailPage() {
                           >
                             {data.status}
                           </Badge>
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     )
                   })}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
