@@ -5,10 +5,12 @@
  */
 
 /**
- * answers (questionNumber → optionValue) の合計点を返す。
- * patient/teacher 共通の素朴 sum。
+ * answers (compositeKey → optionValue) の合計点を返す。
+ * patient/teacher 共通の素朴 sum。値の合計のみなのでキー型に依存しない。
  */
-export function calculateScore(answers: Record<number, number> | undefined): number {
+export function calculateScore(
+  answers: Record<string | number, number> | undefined,
+): number {
   if (!answers) return 0
   return Object.values(answers).reduce((sum, val) => sum + val, 0)
 }
@@ -38,6 +40,9 @@ export interface FlattenedQuestion {
   categoryTitle: string
   categoryNumber: number
   number: number
+  // 2026-07-03 副田さんバグ報告修正: カテゴリ跨ぎで number が被って answers が
+  // 同期していたため、`${categoryNumber}-${number}` の compositeKey を追加。
+  compositeKey: string
   text?: string
   isAlertTarget?: boolean
   alertOptions?: number[]
@@ -45,6 +50,11 @@ export interface FlattenedQuestion {
   displayNumber?: number
   // 元の question の他のフィールドは pass-through で保持
   [extra: string]: unknown
+}
+
+/** 2026-07-03: カテゴリ跨ぎで一意な回答キーを生成する */
+export function makeAnswerKey(categoryNumber: number, questionNumber: number): string {
+  return `${categoryNumber}-${questionNumber}`
 }
 
 export interface FlattenTestOptions {
@@ -79,18 +89,20 @@ interface MinimalTest {
  */
 interface QuestionWithAlert {
   number: number
+  compositeKey?: string  // 2026-07-03: カテゴリ跨ぎで一意な key。flatten 後は必ずある
   isAlertTarget?: boolean | null
   alertOptions?: number[] | null
 }
 
 export function computeHasAlert(
-  answers: Record<number, number> | undefined,
+  answers: Record<string | number, number> | undefined,
   questions: ReadonlyArray<QuestionWithAlert>,
 ): boolean {
   if (!answers || !questions) return false
   for (const q of questions) {
     if (!q.isAlertTarget || !q.alertOptions || q.alertOptions.length === 0) continue
-    const selected = answers[q.number]
+    // 2026-07-03: compositeKey があれば優先、なければ従来の number で fallback
+    const selected = q.compositeKey != null ? answers[q.compositeKey] : answers[q.number]
     if (selected != null && q.alertOptions.includes(selected)) return true
   }
   return false
@@ -105,7 +117,8 @@ export function computeHasAlert(
  * から導出する想定。
  */
 export interface EvaluationMaps {
-  answers: Record<string, Record<number, number>>
+  // 2026-07-03: compositeKey (`${categoryNumber}-${questionNumber}`) ベース
+  answers: Record<string, Record<string, number>>
   completion: Record<string, boolean>
   alerts: Record<string, boolean>
 }
@@ -114,7 +127,9 @@ interface EvaluationResultLike {
   studentId: string
   evaluatorType?: string | null
   evaluatorId?: string | null
-  answers?: Record<number, number> | null
+  // 過去データは Record<number, number>、新規は Record<string, number> の混在があり得る。
+  // JSONB なので JS 上はどちらもオブジェクトで取得できる。
+  answers?: Record<string | number, number> | null
   isCompleted?: boolean | null
   hasAlert?: boolean | null
 }
@@ -134,7 +149,9 @@ export function buildEvaluationMaps(
     if (r.evaluatorType !== opts.evaluatorType) continue
     if (opts.evaluatorEmail && r.evaluatorId !== opts.evaluatorEmail) continue
     if (!r.studentId) continue
-    out.answers[r.studentId] = r.answers || {}
+    // 過去データが Record<number,...> でも Record<string,...> でも、JS 上では
+    // string キー扱いで問題なく取得できる。型は string にキャストして保存。
+    out.answers[r.studentId] = (r.answers || {}) as Record<string, number>
     out.completion[r.studentId] = r.isCompleted || false
     out.alerts[r.studentId] = r.hasAlert || false
   }
@@ -169,6 +186,7 @@ export function flattenTestQuestions(
           sheetTitle: sheet.title,
           categoryTitle: category.title,
           categoryNumber: category.number,
+          compositeKey: makeAnswerKey(category.number, num),
         }
         if (options.addDisplayNumber) {
           flattened.displayNumber = displayNumber++

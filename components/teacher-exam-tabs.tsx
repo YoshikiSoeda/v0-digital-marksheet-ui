@@ -65,7 +65,9 @@ export default function TeacherExamTabs({
   const [selectedTest, setSelectedTest] = useState<any>(null)
   const [assignedStudents, setAssignedStudents] = useState<any[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
+  // 2026-07-03 副田さんバグ報告: カテゴリ跨ぎで number=1 が同期していた。
+  // key を compositeKey (string "${categoryNumber}-${questionNumber}") に変更。
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<string, number>>>({})
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "pending">>({})
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [editMode, setEditMode] = useState<Record<string, boolean>>({})
@@ -195,7 +197,7 @@ export default function TeacherExamTabs({
 
   // 2026-05-08 ADR-001 §1.2 F4 Phase A.1: getTestSessionId は @/lib/exam/utils から import
 
-  const handleAnswerChange = async (questionNumber: number, optionValue: number) => {
+  const handleAnswerChange = async (compositeKey: string, optionValue: number) => {
     const activeStudent = assignedStudents[activeStudentIndex]
     if (!activeStudent) return
 
@@ -204,18 +206,18 @@ export default function TeacherExamTabs({
     }
 
     const previousAnswers = studentAnswers
-    const updatedAnswers: Record<string, Record<number, number>> = {
+    const updatedAnswers: Record<string, Record<string, number>> = {
       ...studentAnswers,
       [activeStudent.id]: {
         ...(studentAnswers[activeStudent.id] || {}),
-        [questionNumber]: optionValue,
+        [compositeKey]: optionValue,
       },
     }
     setStudentAnswers(updatedAnswers)
 
     const universityCode = (session?.universityCode || "")
     const testSessionId = getTestSessionId()
-    const studentAnswersData: Record<number, number> = updatedAnswers[activeStudent.id] || {}
+    const studentAnswersData: Record<string, number> = updatedAnswers[activeStudent.id] || {}
     const totalScore = Object.values(studentAnswersData).reduce((sum, val) => sum + val, 0)
 
     // 2026-05-13: 単一問題だけでなく学生の全 answers から hasAlert を再計算

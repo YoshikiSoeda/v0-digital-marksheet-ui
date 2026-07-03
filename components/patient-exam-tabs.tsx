@@ -56,7 +56,8 @@ export default function PatientExamTabs({
   const [tests, setTests] = useState<Test[]>([])
   const [assignedStudents, setAssignedStudents] = useState<Student[]>([])
   const [activeStudentIndex, setActiveStudentIndex] = useState(0)
-  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<number, number>>>({})
+  // 2026-07-03: compositeKey (`${categoryNumber}-${questionNumber}`) ベースに変更
+  const [studentAnswers, setStudentAnswers] = useState<Record<string, Record<string, number>>>({})
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, "present" | "absent" | "pending">>({})
   const [completionStatus, setCompletionStatus] = useState<Record<string, boolean>>({})
   const [questions, setQuestions] = useState<QuestionWithMeta[]>([])
@@ -179,14 +180,14 @@ export default function PatientExamTabs({
     return () => clearInterval(pollAttendance)
   }, [testId, patientRoomNumber, patientEmail, router])
 
-  const handleAnswerChange = async (questionNumber: number, value: number) => {
+  const handleAnswerChange = async (compositeKey: string, value: number) => {
     const student = assignedStudents[activeStudentIndex]
     if (!student) return
 
     const previousAnswers = studentAnswers
     const updatedAnswers = {
       ...studentAnswers[student.id],
-      [questionNumber]: value,
+      [compositeKey]: value,
     }
 
     setStudentAnswers((prev) => ({
