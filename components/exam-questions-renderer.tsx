@@ -25,14 +25,14 @@ interface RenderableQuestion extends QuestionWithGroupingMeta {
 
 interface ExamQuestionsRendererProps {
   groupedQuestions: GroupedQuestions<RenderableQuestion>[]
-  /** studentId → questionNumber → optionValue。当該学生の回答 map */
-  answers: Record<number, number>
+  /** 2026-07-03: compositeKey (`${categoryNumber}-${questionNumber}`) → optionValue */
+  answers: Record<string, number>
   /** 入力ボタンを無効化するか(完了済み or 編集モード OFF) */
   inputDisabled: boolean
   /** 出席状態が present でない場合は入力不可 */
   attendancePresent: boolean
-  /** ボタンクリック時のハンドラ */
-  onAnswer: (questionNumber: number, optionValue: number) => void
+  /** ボタンクリック時のハンドラ (compositeKey を渡す) */
+  onAnswer: (compositeKey: string, optionValue: number) => void
 }
 
 export function ExamQuestionsRenderer({
@@ -58,12 +58,14 @@ export function ExamQuestionsRenderer({
 
               <div className="space-y-1 px-4">
                 {category.questions.map((question) => {
-                  const selectedOption = answers[question.number]
+                  // 2026-07-03 副田さんバグ報告: カテゴリ跨ぎ同期を防ぐため compositeKey で参照
+                  const compositeKey = `${category.categoryNumber}-${question.number}`
+                  const selectedOption = answers[compositeKey]
                   const isAlertTarget = question.isAlertTarget
 
                   return (
                     <div
-                      key={`${category.categoryNumber}-${question.number}`}
+                      key={compositeKey}
                       className="flex items-center gap-4 py-2 border-b border-gray-200/40"
                     >
                       <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
@@ -86,7 +88,7 @@ export function ExamQuestionsRenderer({
                             variant={selectedOption === option ? "default" : "outline"}
                             size="sm"
                             className="w-10 h-10 p-0 text-sm rounded-md"
-                            onClick={() => onAnswer(question.number, option)}
+                            onClick={() => onAnswer(compositeKey, option)}
                             disabled={inputDisabled || !attendancePresent}
                           >
                             {option}
