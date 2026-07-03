@@ -17,7 +17,7 @@ export function AdminQuestions() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="mx-auto space-y-6">
         <div>
           <Link href="/admin/dashboard">
             <Button variant="ghost" size="sm" className="mb-2">

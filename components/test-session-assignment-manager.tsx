@@ -1598,7 +1598,7 @@ export function TestSessionAssignmentManager({ sessionId }: Props) {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-[1400px] mx-auto space-y-6">
+      <div className="mx-auto space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-primary">試験セッション割当管理</h1>

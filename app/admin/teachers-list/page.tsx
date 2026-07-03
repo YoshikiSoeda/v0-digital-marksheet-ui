@@ -216,7 +216,7 @@ export default function TeachersListPage() {
 
   return (
     <div className="min-h-screen bg-secondary/30 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-primary">教員一覧</h1>
@@ -383,7 +383,7 @@ export default function TeachersListPage() {
 
       {editingTeacher && (
         <Dialog open={!!editingTeacher} onOpenChange={() => setEditingTeacher(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="">
             <DialogHeader>
               <DialogTitle>教員情報の編集</DialogTitle>
               <DialogDescription>教員の登録情報を編集できます</DialogDescription>

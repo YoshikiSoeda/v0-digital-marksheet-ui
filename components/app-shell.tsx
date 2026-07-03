@@ -72,7 +72,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
     return (
       <div className="min-h-screen flex flex-col bg-secondary/30">
         <header className="border-b bg-background">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2">
+          <div className="mx-auto px-4 py-3 flex items-center gap-2">
             <BrandingIcon branding={branding} className="text-xl w-6 h-6" alt="" />
             <span className="text-primary font-semibold">{branding.title}</span>
           </div>
@@ -94,7 +94,7 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
   return (
     <div className="min-h-screen flex flex-col bg-secondary/30">
       <header className="border-b bg-background">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+        <div className="mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 text-primary font-semibold text-lg">
             <BrandingIcon branding={branding} className="text-2xl w-7 h-7" alt="" />
             <span>{branding.title}</span>
