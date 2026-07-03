@@ -82,6 +82,10 @@ export default function TeacherExamTabs({
   const [availableRooms, setAvailableRooms] = useState<Room[]>([])
   const activeRoomNumber = isFlexibleRoom ? pickedRoomNumber : teacherRoomNumber
 
+  // 2026-07-03 副田さん要望: 教員①のみ出席操作可、教員②以降は読み取り専用
+  // 部屋内の教員をメール昇順にソートし、1 番目 (index 0) と自分のメールが一致すれば教員①
+  const [isPrimaryTeacher, setIsPrimaryTeacher] = useState(true)
+
   // Phase 9b-β2b: sessionStorage("loginInfo") parse を useSession() に置換
   const { session, isLoading: isSessionLoading } = useSession()
 
@@ -97,6 +101,17 @@ export default function TeacherExamTabs({
           const teacher = fetchedTeachers.find((t) => t.email === teacherEmail)
           if (teacher) {
             setTeacherName(teacher.name)
+          }
+          // 2026-07-03 副田さん要望: 部屋内の教員をメール昇順で 1 番目なら教員①
+          if (activeRoomNumber) {
+            const teachersInRoom = fetchedTeachers
+              .filter((t) => t.assignedRoomNumber === activeRoomNumber)
+              .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+            const first = teachersInRoom[0]
+            setIsPrimaryTeacher(
+              !first ||
+                (first.email || "").toLowerCase() === (teacherEmail || "").toLowerCase(),
+            )
           }
         }
 
@@ -443,7 +458,8 @@ export default function TeacherExamTabs({
                       e.stopPropagation()
                       handleAttendanceChange(student.id, "present")
                     }}
-                    disabled={isStudentCompleted}
+                    disabled={isStudentCompleted || !isPrimaryTeacher}
+                    title={!isPrimaryTeacher ? "出席登録は教員①のみが操作できます" : undefined}
                   >
                     出席
                   </Button>
@@ -457,7 +473,8 @@ export default function TeacherExamTabs({
                       e.stopPropagation()
                       handleAttendanceChange(student.id, "absent")
                     }}
-                    disabled={isStudentCompleted}
+                    disabled={isStudentCompleted || !isPrimaryTeacher}
+                    title={!isPrimaryTeacher ? "欠席登録は教員①のみが操作できます" : undefined}
                   >
                     欠席
                   </Button>
