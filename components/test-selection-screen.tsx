@@ -122,8 +122,15 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     return Array.from(codes)
   }, [testSessions])
 
-  // Is subject filter locked (teacher with specific subject)
-  const isSubjectLocked = userType === "teacher" && teacherSubjectCode !== ""
+  // 2026-07-03 副田さん報告: 熊木先生 (university_admin, subject_code=dent_education)
+  // で教科プルダウンが押せない。旧判定は「teacher かつ subject_code あり」で全 teacher
+  // をロックしていたが、university_admin / master_admin は複数教科を扱えるべき。
+  // subject_admin / general の教員のみロックする。
+  const isSubjectLocked =
+    userType === "teacher" &&
+    teacherSubjectCode !== "" &&
+    teacherRole !== "university_admin" &&
+    teacherRole !== "master_admin"
 
   // Filter sessions
   const filteredSessions = useMemo(() => {
