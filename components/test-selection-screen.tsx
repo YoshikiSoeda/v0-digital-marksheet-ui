@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronRight, Shield, Filter, AlertTriangle } from "lucide-react"
+import { ChevronRight, Shield, Filter, AlertTriangle, UserCog, Users } from "lucide-react"
 import { loadTests, loadTestSessions, type Test, type TestSession, type TestSessionStatus } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 
 interface TestSelectionScreenProps {
@@ -35,6 +36,22 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   //   /api/my-assigned-sessions から自分がアサインされている test_session_id を
   //   取得し、subject フィルタを素通しさせる判定に使う。
   const [assignedSessionIds, setAssignedSessionIds] = useState<Set<string>>(new Set())
+
+  // 2026-07-10 副田さん要望: 大学管理者/教科管理者/マスター管理者が「教員①/②/患者役」を
+  //   選んで代理入力できるようにする。session クリック時にモーダルを開き、部屋 × 役の
+  //   組合わせを提示する。
+  interface AssignSlot {
+    roomNumber: string
+    roleType: "teacher" | "patient"
+    slotIndex: number // 部屋内の何番目 (0-based)
+    testId: string
+    testTitle: string
+  }
+  const [roleModalOpen, setRoleModalOpen] = useState(false)
+  const [roleModalSessionId, setRoleModalSessionId] = useState<string>("")
+  const [roleModalSessionName, setRoleModalSessionName] = useState<string>("")
+  const [roleModalSlots, setRoleModalSlots] = useState<AssignSlot[]>([])
+  const [roleModalLoading, setRoleModalLoading] = useState(false)
 
   // Filters
   const [filterSubject, setFilterSubject] = useState<string>("all")
@@ -240,7 +257,147 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     return matchingTests[0]
   }
 
+  // 2026-07-10 副田さん要望: 大学管理者/教科管理者/マスター管理者は「代理入力」として
+  //   教員①/教員②/患者役 のいずれかを選んで入れるようにする。判定は teacherRole を見る。
+  //   userType="teacher" 経由 (login-destination で /teacher/exam-info を選んだ管理者) の
+  //   み代理役選択モーダルを出す。patient で入ってきた場合は従来通り 1 テストへ直行。
+  const isAdminLikeTeacher =
+    userType === "teacher" &&
+    (teacherRole === "master_admin" ||
+      teacherRole === "university_admin" ||
+      teacherRole === "subject_admin")
+
+  const openRoleModal = async (sessionId: string, sessionName: string) => {
+    setRoleModalSessionId(sessionId)
+    setRoleModalSessionName(sessionName)
+    setRoleModalOpen(true)
+    setRoleModalLoading(true)
+    setRoleModalSlots([])
+
+    try {
+      const [teacherRes, patientRes] = await Promise.all([
+        fetch(`/api/test-sessions/${sessionId}/teacher-assignments`, { credentials: "same-origin" }),
+        fetch(`/api/test-sessions/${sessionId}/patient-assignments`, { credentials: "same-origin" }),
+      ])
+      const teacherData = teacherRes.ok ? await teacherRes.json() : { items: [] }
+      const patientData = patientRes.ok ? await patientRes.json() : { items: [] }
+
+      // 部屋ごとに教員/患者役の email 昇順でスロットを組み立てる
+      const teacherByRoom = new Map<string, string[]>()
+      for (const it of teacherData.items || []) {
+        const room = (it.assignedRoomNumber || "").trim()
+        if (!room) continue
+        const email = (it.teacher?.email || "").toLowerCase()
+        const arr = teacherByRoom.get(room) || []
+        arr.push(email)
+        teacherByRoom.set(room, arr)
+      }
+      const patientByRoom = new Map<string, string[]>()
+      for (const it of patientData.items || []) {
+        const room = (it.assignedRoomNumber || "").trim()
+        if (!room) continue
+        const email = (it.patient?.email || "").toLowerCase()
+        const arr = patientByRoom.get(room) || []
+        arr.push(email)
+        patientByRoom.set(room, arr)
+      }
+
+      // テスト一覧を role_type / createdAt 順で確定
+      const teacherTests = tests
+        .filter((t) => t.testSessionId === sessionId && (t.roleType || "teacher") === "teacher")
+        .slice()
+        .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+      const patientTests = tests
+        .filter((t) => t.testSessionId === sessionId && (t.roleType || "teacher") === "patient")
+        .slice()
+        .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+
+      const rooms = new Set<string>([...teacherByRoom.keys(), ...patientByRoom.keys()])
+      const roomsSorted = Array.from(rooms).sort()
+      const slots: AssignSlot[] = []
+      for (const room of roomsSorted) {
+        const teachers = (teacherByRoom.get(room) || []).slice().sort()
+        for (let i = 0; i < teachers.length; i++) {
+          const test = teacherTests[i]
+          if (!test) continue
+          slots.push({
+            roomNumber: room,
+            roleType: "teacher",
+            slotIndex: i,
+            testId: test.id,
+            testTitle: test.title || `教員側テスト${i + 1}`,
+          })
+        }
+        const patients = (patientByRoom.get(room) || []).slice().sort()
+        for (let i = 0; i < patients.length; i++) {
+          const test = patientTests[i]
+          if (!test) continue
+          slots.push({
+            roomNumber: room,
+            roleType: "patient",
+            slotIndex: i,
+            testId: test.id,
+            testTitle: test.title || `患者側テスト${i + 1}`,
+          })
+        }
+      }
+      setRoleModalSlots(slots)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "ネットワークエラー"
+      setNoTestMessage(`役の候補取得中にエラー: ${msg}`)
+      setTimeout(() => setNoTestMessage(""), 5000)
+      setRoleModalOpen(false)
+    } finally {
+      setRoleModalLoading(false)
+    }
+  }
+
+  const handleAdminRoleSelect = async (slot: AssignSlot) => {
+    setRoleModalOpen(false)
+    try {
+      const res = await fetch("/api/auth/select-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          testSessionId: roleModalSessionId,
+          assignedRoomNumber: slot.roomNumber,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        setNoTestMessage(err?.error || `セッションの選択に失敗しました (status ${res.status})`)
+        setTimeout(() => setNoTestMessage(""), 6000)
+        return
+      }
+      try {
+        const { invalidateSessionCache } = await import("@/lib/auth/use-session")
+        invalidateSessionCache()
+      } catch {}
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "ネットワークエラー"
+      setNoTestMessage(`セッションの選択中にエラー: ${msg}`)
+      setTimeout(() => setNoTestMessage(""), 6000)
+      return
+    }
+
+    if (slot.roleType === "patient") {
+      sessionStorage.setItem("patient_selected_test", slot.testId)
+      sessionStorage.setItem("testSessionId", roleModalSessionId)
+      router.push("/patient/exam")
+    } else {
+      sessionStorage.setItem("teacher_selected_test", slot.testId)
+      sessionStorage.setItem("testSessionId", roleModalSessionId)
+      router.push("/teacher/exam")
+    }
+  }
+
   const handleSelectSession = async (sessionId: string) => {
+    if (isAdminLikeTeacher) {
+      const s = testSessions.find((x) => x.id === sessionId)
+      await openRoleModal(sessionId, s?.description || "")
+      return
+    }
     const matchingTest = await resolveMatchingTest(sessionId)
     if (!matchingTest) {
       const roleLabel = userType === "teacher" ? "教員用" : "患者用"
@@ -482,6 +639,70 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
           </CardContent>
         </Card>
       </div>
+
+      {/* 2026-07-10 副田さん要望: 管理者代理入力の役選択モーダル */}
+      <Dialog open={roleModalOpen} onOpenChange={setRoleModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>代理入力する役を選択</DialogTitle>
+            <DialogDescription>
+              {roleModalSessionName ? `${roleModalSessionName} で ` : ""}
+              担当する部屋 × 役を選んでください。選んだ役として試験画面が開きます。
+            </DialogDescription>
+          </DialogHeader>
+          {roleModalLoading ? (
+            <p className="text-sm text-muted-foreground py-4">候補を読み込み中...</p>
+          ) : roleModalSlots.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              このセッションには教員/患者役の割当が登録されていません。先に割当を登録してください。
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {(() => {
+                const byRoom = new Map<string, AssignSlot[]>()
+                for (const s of roleModalSlots) {
+                  const arr = byRoom.get(s.roomNumber) || []
+                  arr.push(s)
+                  byRoom.set(s.roomNumber, arr)
+                }
+                return Array.from(byRoom.entries()).map(([room, slotsInRoom]) => (
+                  <div key={room} className="border rounded-md p-3">
+                    <div className="font-semibold text-sm text-primary mb-2">部屋: {room}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {slotsInRoom.map((s) => {
+                        const label =
+                          s.roleType === "patient"
+                            ? `患者役${slotsInRoom.filter((x) => x.roleType === "patient").length > 1 ? s.slotIndex + 1 : ""}`
+                            : `教員${["①", "②", "③", "④"][s.slotIndex] || `${s.slotIndex + 1}`}`
+                        return (
+                          <Button
+                            key={`${s.roleType}-${s.slotIndex}`}
+                            variant="outline"
+                            className="justify-start h-auto py-2"
+                            onClick={() => handleAdminRoleSelect(s)}
+                          >
+                            {s.roleType === "patient" ? (
+                              <Users className="w-4 h-4 mr-2 text-blue-600" />
+                            ) : (
+                              <UserCog className="w-4 h-4 mr-2 text-emerald-600" />
+                            )}
+                            <div className="text-left">
+                              <div className="font-medium">{label}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {s.testTitle}
+                              </div>
+                            </div>
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

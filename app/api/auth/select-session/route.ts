@@ -28,6 +28,10 @@ import { getServiceClient } from "@/lib/api/_shared"
 
 interface RequestBody {
   testSessionId?: string
+  // 2026-07-10 副田さん要望: elevated ロール (master_admin/university_admin/
+  //   subject_admin) が代理入力で特定部屋の教員①/②/患者役として入るケース。
+  //   Cookie の assignedRoomNumber を明示指定した部屋に上書きする。
+  assignedRoomNumber?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -85,6 +89,12 @@ export async function POST(request: NextRequest) {
   // 患者役 / 一般教員で assignment が無い場合は 404 を返す (admin 兼任ロールは素通し)
   const ELEVATED_ROLES = new Set(["master_admin", "university_admin", "subject_admin"])
   const isElevated = ELEVATED_ROLES.has(session.role)
+
+  // Elevated ロールが代理入力用に部屋を明示指定した場合は上書き
+  const requestedRoom = (body.assignedRoomNumber || "").trim()
+  if (isElevated && requestedRoom) {
+    nextRoom = requestedRoom
+  }
   if (session.loginType === "patient" && !nextRoom) {
     return NextResponse.json(
       {
