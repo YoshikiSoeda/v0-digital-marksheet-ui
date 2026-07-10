@@ -28,6 +28,18 @@ interface RoleStats {
   averageScore: number
 }
 
+// 2026-07-10 副田さん要望: 部屋詳細モーダルで教員①/教員②/患者役をそれぞれ独立集計。
+interface SlotStats {
+  roleType: "teacher" | "patient"
+  slotIndex: number
+  label: string          // "教員①" / "教員②" / "患者役" / "患者役②"
+  personName: string
+  personEmail: string
+  completedCount: number
+  alertCount: number
+  averageScore: number
+}
+
 interface RoomData {
   roomNumber: string
   roomName: string
@@ -44,8 +56,67 @@ interface RoomData {
   passCount: number
   teacherStats: RoleStats
   patientStats: RoleStats
+  // 2026-07-10 副田さん要望: slot 別 (教員①/教員②/患者役) 集計
+  teacherSlots: SlotStats[]
+  patientSlots: SlotStats[]
   students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number; passResult?: "合格" | "不合格" | "" }>
   universityCode?: string
+}
+
+const SLOT_LABELS_TEACHER = ["教員①", "教員②", "教員③", "教員④"]
+const SLOT_LABELS_PATIENT = ["患者役", "患者役②", "患者役③", "患者役④"]
+
+interface PersonWithEmail {
+  name: string
+  assignedRoomNumber: string
+  email?: string
+}
+
+interface EvalRow {
+  studentId: string
+  evaluatorType?: string
+  evaluatorId?: string
+  isCompleted?: boolean
+  hasAlert?: boolean
+  totalScore?: number | null
+}
+
+function buildSlotStats(
+  personsInRoom: PersonWithEmail[],
+  roleType: "teacher" | "patient",
+  roomEvaluations: EvalRow[],
+): SlotStats[] {
+  const labels = roleType === "teacher" ? SLOT_LABELS_TEACHER : SLOT_LABELS_PATIENT
+  return personsInRoom.map((p, i) => {
+    const email = (p.email || "").toLowerCase()
+    const slotEvals = roomEvaluations.filter(
+      (e) =>
+        e.evaluatorType === roleType &&
+        (e.evaluatorId || "").toLowerCase() === email,
+    )
+    const completed = new Set<string>()
+    const alerts = new Set<string>()
+    const scoreMap = new Map<string, number>()
+    for (const e of slotEvals) {
+      if (e.isCompleted) {
+        completed.add(e.studentId)
+        scoreMap.set(e.studentId, e.totalScore || 0)
+      }
+      if (e.hasAlert) alerts.add(e.studentId)
+    }
+    const scores = Array.from(scoreMap.values())
+    const avg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+    return {
+      roleType,
+      slotIndex: i,
+      label: labels[i] || `${roleType === "teacher" ? "教員" : "患者役"}${i + 1}`,
+      personName: p.name,
+      personEmail: email,
+      completedCount: completed.size,
+      alertCount: alerts.size,
+      averageScore: avg,
+    }
+  })
 }
 
 interface Student {
@@ -368,6 +439,10 @@ const AdminDashboard = () => {
             const teacherForRoom = teachersInRoom[0]  // 互換用 (主 = 1 名目)
             const patientForRoom = patientsInRoom[0]
 
+            // 2026-07-10 副田さん要望: slot 別集計 (教員①/教員②/患者役)
+            const teacherSlots = buildSlotStats(teachersInRoom as PersonWithEmail[], "teacher", roomEvaluations)
+            const patientSlots = buildSlotStats(patientsInRoom as PersonWithEmail[], "patient", roomEvaluations)
+
             // Count alerts per student
             const studentAlertCountMap = new Map<string, number>()
             roomEvaluations.forEach((evaluation) => {
@@ -446,6 +521,8 @@ const AdminDashboard = () => {
               passCount,
               teacherStats,
               patientStats,
+              teacherSlots,
+              patientSlots,
               students: studentsWithStatus,
               universityCode: room.universityCode,
             })
@@ -631,6 +708,10 @@ const AdminDashboard = () => {
           const teacherForRoom = teachersInRoom[0]
           const patientForRoom = patientsInRoom[0]
 
+          // 2026-07-10 副田さん要望: slot 別集計 (refresh path)
+          const teacherSlotsR = buildSlotStats(teachersInRoom as PersonWithEmail[], "teacher", roomEvaluations)
+          const patientSlotsR = buildSlotStats(patientsInRoom as PersonWithEmail[], "patient", roomEvaluations)
+
           // Count alerts per student
           const studentAlertCountMap = new Map<string, number>()
           roomEvaluations.forEach((evaluation) => {
@@ -710,6 +791,8 @@ const AdminDashboard = () => {
             passCount: passCountR,
             teacherStats: teacherStatsP,
             patientStats: patientStatsP,
+            teacherSlots: teacherSlotsR,
+            patientSlots: patientSlotsR,
             students: studentsWithStatus,
             universityCode: room.universityCode,
           })
@@ -1075,11 +1158,33 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">担当教員</p>
-                  <p className="text-base">{selectedRoomData.teacherName}</p>
+                  {selectedRoomData.teacherSlots && selectedRoomData.teacherSlots.length > 0 ? (
+                    <div className="text-base space-y-0.5">
+                      {selectedRoomData.teacherSlots.map((s) => (
+                        <div key={`t-${s.slotIndex}`}>
+                          <span className="text-xs text-muted-foreground mr-1">{s.label}</span>
+                          {s.personName}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-base text-muted-foreground">未割当</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">患者担当</p>
-                  <p className="text-base">{selectedRoomData.patientName}</p>
+                  {selectedRoomData.patientSlots && selectedRoomData.patientSlots.length > 0 ? (
+                    <div className="text-base space-y-0.5">
+                      {selectedRoomData.patientSlots.map((s) => (
+                        <div key={`p-${s.slotIndex}`}>
+                          <span className="text-xs text-muted-foreground mr-1">{s.label}</span>
+                          {s.personName}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-base text-muted-foreground">未割当</p>
+                  )}
                 </div>
               </div>
 
@@ -1096,32 +1201,83 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-1 text-muted-foreground font-medium"></th>
-                        <th className="text-center py-1 text-blue-700 font-medium">教員側</th>
-                        <th className="text-center py-1 text-pink-700 font-medium">患者役側</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b">
-                        <td className="py-1.5 text-muted-foreground">完了</td>
-                        <td className="text-center font-bold text-blue-600">{selectedRoomData.teacherStats.completedCount}</td>
-                        <td className="text-center font-bold text-pink-600">{selectedRoomData.patientStats.completedCount}</td>
-                      </tr>
-                      <tr className="border-b">
-                        <td className="py-1.5 text-muted-foreground">アラート</td>
-                        <td className="text-center font-bold text-red-600">{selectedRoomData.teacherStats.alertCount}</td>
-                        <td className="text-center font-bold text-red-600">{selectedRoomData.patientStats.alertCount}</td>
-                      </tr>
-                      <tr>
-                        <td className="py-1.5 text-muted-foreground">平均点</td>
-                        <td className="text-center font-bold text-blue-700">{selectedRoomData.teacherStats.averageScore}点</td>
-                        <td className="text-center font-bold text-pink-700">{selectedRoomData.patientStats.averageScore}点</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  {/* 2026-07-10 副田さん要望: slot 別 (教員①/教員②/患者役) の集計を表示 */}
+                  {(() => {
+                    const slots = [
+                      ...(selectedRoomData.teacherSlots || []),
+                      ...(selectedRoomData.patientSlots || []),
+                    ]
+                    if (slots.length === 0) {
+                      return (
+                        <p className="text-xs text-muted-foreground text-center py-2">
+                          この部屋の教員/患者役の割当がありません
+                        </p>
+                      )
+                    }
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-1 text-muted-foreground font-medium"></th>
+                              {slots.map((s) => (
+                                <th
+                                  key={`${s.roleType}-${s.slotIndex}`}
+                                  className={`text-center py-1 font-medium whitespace-nowrap ${
+                                    s.roleType === "teacher" ? "text-blue-700" : "text-pink-700"
+                                  }`}
+                                >
+                                  <div>{s.label}</div>
+                                  <div className="text-xs font-normal text-muted-foreground">
+                                    {s.personName || "未割当"}
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="border-b">
+                              <td className="py-1.5 text-muted-foreground">完了</td>
+                              {slots.map((s) => (
+                                <td
+                                  key={`c-${s.roleType}-${s.slotIndex}`}
+                                  className={`text-center font-bold ${
+                                    s.roleType === "teacher" ? "text-blue-600" : "text-pink-600"
+                                  }`}
+                                >
+                                  {s.completedCount}
+                                </td>
+                              ))}
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-1.5 text-muted-foreground">アラート</td>
+                              {slots.map((s) => (
+                                <td
+                                  key={`a-${s.roleType}-${s.slotIndex}`}
+                                  className="text-center font-bold text-red-600"
+                                >
+                                  {s.alertCount}
+                                </td>
+                              ))}
+                            </tr>
+                            <tr>
+                              <td className="py-1.5 text-muted-foreground">平均点</td>
+                              {slots.map((s) => (
+                                <td
+                                  key={`s-${s.roleType}-${s.slotIndex}`}
+                                  className={`text-center font-bold ${
+                                    s.roleType === "teacher" ? "text-blue-700" : "text-pink-700"
+                                  }`}
+                                >
+                                  {s.averageScore}点
+                                </td>
+                              ))}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
                 </div>
 
               </div>
