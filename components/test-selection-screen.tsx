@@ -31,6 +31,10 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const [teacherSubjectCode, setTeacherSubjectCode] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [noTestMessage, setNoTestMessage] = useState<string>("")
+  // 2026-07-10 副田さん報告: 割当されていれば他教科のセッションも参加可能に。
+  //   /api/my-assigned-sessions から自分がアサインされている test_session_id を
+  //   取得し、subject フィルタを素通しさせる判定に使う。
+  const [assignedSessionIds, setAssignedSessionIds] = useState<Set<string>>(new Set())
 
   // Filters
   const [filterSubject, setFilterSubject] = useState<string>("all")
@@ -84,6 +88,18 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
         } else {
           setTests([])
         }
+
+        // 自分がアサインされている session ID (subject フィルタ緩和用)
+        try {
+          const res = await fetch("/api/my-assigned-sessions", { credentials: "same-origin" })
+          if (res.ok) {
+            const json = await res.json()
+            const ids = Array.isArray(json?.sessionIds) ? (json.sessionIds as string[]) : []
+            setAssignedSessionIds(new Set(ids))
+          }
+        } catch {
+          // network error はサイレント (フォールバック = 空 Set = 従来通り subject ロック)
+        }
       } catch (error) {
       } finally {
         setIsLoading(false)
@@ -136,14 +152,16 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const filteredSessions = useMemo(() => {
     return testSessions.filter((session) => {
       // Subject filter
-      // 2026-07-10 副田さん報告: 過去の教科削除等でセッションの subject_code が NULL
-      //   のままになっているケースがある。自教科ロックされた教員/患者役から NULL
-      //   セッションが完全に見えなくなる問題を避けるため、subject_code が空/NULL の
-      //   セッションは教科フィルタを素通しさせる。
+      // 2026-07-10 副田さん報告:
+      //   (a) 過去の教科なしセッションで subject_code が NULL のままのケース。
+      //       NULL セッションは教科フィルタを素通し。
+      //   (b) 「割当されていれば他教科のセッションも参加できる」ようにしたい。
+      //       assignedSessionIds に含まれるセッションも教科フィルタを素通し。
       if (
         filterSubject !== "all" &&
         session.subjectCode &&
-        session.subjectCode !== filterSubject
+        session.subjectCode !== filterSubject &&
+        !assignedSessionIds.has(session.id)
       ) return false
       // Status filter
       if (filterStatus !== "all" && session.status !== filterStatus) return false
@@ -163,7 +181,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       const dateB = b.testDate ? new Date(b.testDate).getTime() : 0
       return dateB - dateA
     })
-  }, [testSessions, filterSubject, filterStatus, filterTestDate, filterCreatedDate])
+  }, [testSessions, filterSubject, filterStatus, filterTestDate, filterCreatedDate, assignedSessionIds])
 
   // Find matching test for a session (UI 表示上の可否判定用 = 1 個目でよい)
   const findTestForSession = (sessionId: string): Test | undefined => {
