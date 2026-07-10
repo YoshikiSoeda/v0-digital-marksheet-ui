@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -484,10 +485,14 @@ const AdminDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTestCode])
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-
-    try {
+  // 2026-07-10 副田さん要望 (案 C ハイブリッド自動更新): handleRefresh を
+  //   useCallback でラップして useAutoRefresh の deps に載せられるようにする。
+  //   silent=true で auto refresh 時は「更新中...」表示を出さず、state リセット
+  //   もスキップしてフリッカーを避ける。
+  const handleRefreshInner = useCallback(async (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) {
+      setIsRefreshing(true)
+      // 明示的な手動更新のみ空 → 再ロード の遷移を可視化する
       setRooms([])
       setStudents([])
       setTeachers([])
@@ -495,7 +500,9 @@ const AdminDashboard = () => {
       setAttendanceRecords([])
       setEvaluations([])
       setTests([])
+    }
 
+    try {
       if (!session) return
       const universityCodes = session.universityCodes && session.universityCodes.length > 0
         ? session.universityCodes
@@ -719,9 +726,14 @@ const AdminDashboard = () => {
       setUpdateCounter((prev) => prev + 1)
     } catch (error) {
     } finally {
-      setIsRefreshing(false)
+      if (!opts.silent) setIsRefreshing(false)
     }
-  }
+  }, [session])
+
+  const handleRefresh = () => handleRefreshInner()
+  const autoRefreshHandler = useCallback(() => handleRefreshInner({ silent: true }), [handleRefreshInner])
+  // 案 C: visibilitychange (タブに戻った瞬間) + 30 秒間隔 polling
+  useAutoRefresh(autoRefreshHandler, 30000)
 
   // 2026-05-07: special_master 以外のロールでは自大学に固定して絞り込む
   // (これまで非 special_master では試験セッションセレクタ自体が無かったので問題化していなかった)
