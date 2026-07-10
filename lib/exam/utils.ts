@@ -46,6 +46,9 @@ export interface FlattenedQuestion {
   text?: string
   isAlertTarget?: boolean
   alertOptions?: number[]
+  // 2026-07-10 副田さん要望 Phase 1: 有効な配点マップ (シート → 問題個別で解決済み)
+  //   flattenTestQuestions が sheet.scoreMap / question.scoreMap から解決して入れる。
+  scoreMap?: number[]
   // displayNumber は addDisplayNumber=true のときのみ
   displayNumber?: number
   // 元の question の他のフィールドは pass-through で保持
@@ -67,6 +70,7 @@ export interface FlattenTestOptions {
 // caller は必要に応じて as any でキャストして渡す前提。
 interface MinimalSheet {
   title: string
+  scoreMap?: number[] | null
   categories?: ReadonlyArray<MinimalCategory>
 }
 interface MinimalCategory {
@@ -180,6 +184,15 @@ export function flattenTestQuestions(
           if (seen.has(key)) continue
           seen.add(key)
         }
+        // 2026-07-10 副田さん要望 Phase 1: scoreMap を sheet → question の順で解決して注入
+        const qScoreMap = question.scoreMap as number[] | null | undefined
+        const sScoreMap = sheet.scoreMap
+        const resolvedScoreMap =
+          Array.isArray(qScoreMap) && qScoreMap.length > 0
+            ? qScoreMap
+            : Array.isArray(sScoreMap) && sScoreMap.length > 0
+            ? sScoreMap
+            : [1, 2, 3, 4, 5]
         const flattened: FlattenedQuestion = {
           ...question,
           number: num,
@@ -187,6 +200,7 @@ export function flattenTestQuestions(
           categoryTitle: category.title,
           categoryNumber: category.number,
           compositeKey: makeAnswerKey(category.number, num),
+          scoreMap: resolvedScoreMap,
         }
         if (options.addDisplayNumber) {
           flattened.displayNumber = displayNumber++

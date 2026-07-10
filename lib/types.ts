@@ -113,7 +113,10 @@ export interface Question {
   option4: string // 選択肢4
   option5: string // 選択肢5
   isAlertTarget: boolean // アラート対象ON/OFF
-  alertOptions: number[] // アラート対象の選択肢番号（1-5）
+  alertOptions: number[] // アラート対象の選択肢番号（配点値）
+  // 2026-07-10 副田さん要望 Phase 1: 問題ごとの scoreMap 個別上書き (optional)
+  //   未指定なら属するシートの scoreMap を使用。Phase 3 で UI 追加予定。
+  scoreMap?: number[]
   universityCode?: string // 大学コード
 }
 
@@ -129,7 +132,22 @@ export interface Sheet {
   id: string
   title: string // タイトル2（シート名）
   categories: Category[]
+  // 2026-07-10 副田さん要望 Phase 1: シート単位の N 段階配点 (optional)
+  //   未指定なら [1,2,3,4,5] (従来の 5 段階) として動作。
+  //   Phase 2 で問題作成/編集画面に UI 追加予定。
+  scoreMap?: number[]
   universityCode?: string // 大学コード
+}
+
+// 2026-07-10 副田さん要望 Phase 1: scoreMap のデフォルト値と解決ヘルパ
+export const DEFAULT_SCORE_MAP: number[] = [1, 2, 3, 4, 5]
+
+export function resolveScoreMap(sheet?: { scoreMap?: number[] | null }, question?: { scoreMap?: number[] | null }): number[] {
+  const q = question?.scoreMap
+  if (Array.isArray(q) && q.length > 0) return q
+  const s = sheet?.scoreMap
+  if (Array.isArray(s) && s.length > 0) return s
+  return DEFAULT_SCORE_MAP
 }
 
 export interface Test {

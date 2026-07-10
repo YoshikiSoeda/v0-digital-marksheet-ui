@@ -21,7 +21,11 @@ interface RenderableQuestion extends QuestionWithGroupingMeta {
   text?: string
   isAlertTarget?: boolean
   alertOptions?: number[]
+  // 2026-07-10 副田さん要望 Phase 1: 有効な配点マップ (flatten 側で解決済み)
+  scoreMap?: number[]
 }
+
+const DEFAULT_SCORE_MAP = [1, 2, 3, 4, 5]
 
 interface ExamQuestionsRendererProps {
   groupedQuestions: GroupedQuestions<RenderableQuestion>[]
@@ -83,7 +87,12 @@ export function ExamQuestionsRenderer({
                       </div>
 
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {[1, 2, 3, 4, 5].map((option) => (
+                        {/* 2026-07-10 副田さん要望 Phase 1: scoreMap ベースのボタン描画
+                            未指定なら従来通り [1,2,3,4,5]。将来 [1,3,5] 等の任意配点に対応。 */}
+                        {(question.scoreMap && question.scoreMap.length > 0
+                          ? question.scoreMap
+                          : DEFAULT_SCORE_MAP
+                        ).map((option) => (
                           <Button
                             key={option}
                             variant={selectedOption === option ? "default" : "outline"}
