@@ -115,6 +115,45 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
     setSheets(sheets.map((s) => (s.id === sheetId ? { ...s, title } : s)))
   }
 
+  // 2026-07-10 副田さん要望 Phase 2: シート単位の N 段階配点編集 (question-create と同じ)
+  const updateSheetScoreMapLength = (sheetId: string, rawLength: number) => {
+    const nextLen = Math.max(2, Math.min(10, Math.floor(rawLength) || 5))
+    setSheets(
+      sheets.map((s) => {
+        if (s.id !== sheetId) return s
+        const current = (s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap?: number[] }).scoreMap!.length > 0
+          ? (s as { scoreMap: number[] }).scoreMap
+          : [1, 2, 3, 4, 5]
+        const nextMap = Array.from({ length: nextLen }, (_, i) => current[i] ?? i + 1)
+        return {
+          ...s,
+          scoreMap: nextMap,
+          categories: s.categories.map((c) => ({
+            ...c,
+            questions: c.questions.map((q) => ({
+              ...q,
+              alertOptions: (q.alertOptions || []).filter((pos) => pos < nextLen),
+            })),
+          })),
+        } as typeof s
+      }),
+    )
+  }
+
+  const updateSheetScoreValue = (sheetId: string, index: number, value: number) => {
+    const clamped = Math.max(0, Math.floor(Number(value) || 0))
+    setSheets(
+      sheets.map((s) => {
+        if (s.id !== sheetId) return s
+        const current = ((s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap?: number[] }).scoreMap!.length > 0
+          ? (s as { scoreMap: number[] }).scoreMap
+          : [1, 2, 3, 4, 5]).slice()
+        current[index] = clamped
+        return { ...s, scoreMap: current } as typeof s
+      }),
+    )
+  }
+
   const addCategory = (sheetId: string) => {
     setSheets(
       sheets.map((s) =>
@@ -491,6 +530,37 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* 2026-07-10 副田さん要望 Phase 2: シート単位の N 段階配点 */}
+                {(() => {
+                  const scoreMap = (sheet as { scoreMap?: number[] }).scoreMap && (sheet as { scoreMap: number[] }).scoreMap.length > 0
+                    ? (sheet as { scoreMap: number[] }).scoreMap
+                    : [1, 2, 3, 4, 5]
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-3 text-sm">
+                      <Label className="text-xs font-semibold text-blue-700">段階数</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={10}
+                        value={scoreMap.length}
+                        onChange={(e) => updateSheetScoreMapLength(sheet.id, Number(e.target.value))}
+                        className="w-16 h-8"
+                      />
+                      <span className="mx-1 text-blue-700">段階、配点:</span>
+                      {scoreMap.map((val, i) => (
+                        <Input
+                          key={i}
+                          type="number"
+                          min={0}
+                          value={val}
+                          onChange={(e) => updateSheetScoreValue(sheet.id, i, Number(e.target.value))}
+                          className="w-14 h-8"
+                        />
+                      ))}
+                      <span className="ml-1 text-xs text-muted-foreground">(負数不可、0 は許可)</span>
+                    </div>
+                  )
+                })()}
                 {sheet.categories.map((category) => (
                   <Card key={category.id} className="bg-gray-50">
                     <CardHeader className="flex flex-row items-center justify-between py-3">
@@ -574,23 +644,30 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-medium text-gray-600">アラート対象の選択肢:</span>
                                   <div className="flex items-center gap-2">
-                                    {[1, 2, 3, 4, 5].map((optNum) => (
-                                      <div key={optNum} className="flex items-center space-x-1">
-                                        <Checkbox
-                                          id={`alert-opt-${question.id}-${optNum}`}
-                                          checked={question.alertOptions?.includes(optNum) || false}
-                                          onCheckedChange={() =>
-                                            toggleAlertOption(sheet.id, category.id, question.id, optNum)
-                                          }
-                                        />
-                                        <label
-                                          htmlFor={`alert-opt-${question.id}-${optNum}`}
-                                          className="text-xs cursor-pointer"
-                                        >
-                                          {optNum}
-                                        </label>
-                                      </div>
-                                    ))}
+                                    {/* 2026-07-10 副田さん要望 Phase 2:
+                                        alertOptions は「選択肢の位置 (0-indexed)」、ラベルは実配点値。 */}
+                                    {(() => {
+                                      const scoreMap = (sheet as { scoreMap?: number[] }).scoreMap && (sheet as { scoreMap: number[] }).scoreMap.length > 0
+                                        ? (sheet as { scoreMap: number[] }).scoreMap
+                                        : [1, 2, 3, 4, 5]
+                                      return scoreMap.map((val, position) => (
+                                        <div key={position} className="flex items-center space-x-1">
+                                          <Checkbox
+                                            id={`alert-opt-${question.id}-${position}`}
+                                            checked={question.alertOptions?.includes(position) || false}
+                                            onCheckedChange={() =>
+                                              toggleAlertOption(sheet.id, category.id, question.id, position)
+                                            }
+                                          />
+                                          <label
+                                            htmlFor={`alert-opt-${question.id}-${position}`}
+                                            className="text-xs cursor-pointer"
+                                          >
+                                            {val}
+                                          </label>
+                                        </div>
+                                      ))
+                                    })()}
                                   </div>
                                 </div>
                                 <Button

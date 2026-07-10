@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
     sheets: ((test.sheets as Record<string, unknown>[]) || []).map((sheet) => ({
       id: sheet.id as string,
       title: sheet.title as string,
+      // 2026-07-10 副田さん要望 Phase 2: シート単位配点マップ
+      scoreMap: sheet.score_map as number[] | undefined,
       categories: ((sheet.categories as Record<string, unknown>[]) || [])
         .sort((a, b) => (a.number as number) - (b.number as number))
         .map((category) => ({
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
               option5: question.option5 as string | undefined,
               isAlertTarget: question.is_alert_target as boolean | undefined,
               alertOptions: question.alert_options as number[] | undefined,
+              // 2026-07-10 副田さん要望 Phase 2: 問題個別の配点上書き (nullable)
+              scoreMap: question.score_map as number[] | undefined,
             })),
         })),
     })),
@@ -81,9 +85,17 @@ interface UpsertQuestion {
   option5?: string
   isAlertTarget?: boolean
   alertOptions?: number[]
+  // 2026-07-10 Phase 2: 問題個別の配点上書き
+  scoreMap?: number[] | null
 }
 interface UpsertCategory { id: string; title: string; number: number; questions: UpsertQuestion[] }
-interface UpsertSheet { id: string; title: string; categories: UpsertCategory[] }
+interface UpsertSheet {
+  id: string
+  title: string
+  // 2026-07-10 Phase 2: シート単位配点
+  scoreMap?: number[] | null
+  categories: UpsertCategory[]
+}
 interface UpsertTest {
   id: string
   title: string
@@ -182,9 +194,17 @@ export async function POST(request: NextRequest) {
     //    (2026-05-05 通しテストで複製テストの編集不可として観測)。
     //    最初のエラーを返して 500 で fail するように変更。
     for (const sheet of test.sheets) {
+      // 2026-07-10 副田さん要望 Phase 2: scoreMap を保存 (未指定はデフォルト [1,2,3,4,5])
+      const sheetScoreMap =
+        Array.isArray(sheet.scoreMap) && sheet.scoreMap.length > 0
+          ? sheet.scoreMap.map((n) => Math.max(0, Math.floor(Number(n) || 0)))
+          : [1, 2, 3, 4, 5]
       const { error: sheetError } = await supabase
         .from("sheets")
-        .upsert({ id: sheet.id, test_id: test.id, title: sheet.title } as never, { onConflict: "id" })
+        .upsert(
+          { id: sheet.id, test_id: test.id, title: sheet.title, score_map: sheetScoreMap } as never,
+          { onConflict: "id" },
+        )
       if (sheetError) {
         console.error("[api/tests] sheet upsert error:", sheetError, { sheetId: sheet.id })
         return NextResponse.json(
@@ -207,6 +227,11 @@ export async function POST(request: NextRequest) {
           )
         }
         for (const question of category.questions) {
+          // 2026-07-10 副田さん要望 Phase 2: 問題ごとの scoreMap 個別上書き (nullable)
+          const questionScoreMap =
+            Array.isArray(question.scoreMap) && question.scoreMap.length > 0
+              ? question.scoreMap.map((n) => Math.max(0, Math.floor(Number(n) || 0)))
+              : null
           const { error: questionError } = await supabase.from("questions").upsert(
             ({
               id: question.id,
@@ -220,6 +245,7 @@ export async function POST(request: NextRequest) {
               option5: question.option5,
               is_alert_target: question.isAlertTarget,
               alert_options: question.alertOptions || [],
+              score_map: questionScoreMap,
             }) as never,
             { onConflict: "id" },
           )

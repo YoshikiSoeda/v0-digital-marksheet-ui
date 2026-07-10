@@ -96,8 +96,21 @@ interface QuestionWithAlert {
   compositeKey?: string  // 2026-07-03: カテゴリ跨ぎで一意な key。flatten 後は必ずある
   isAlertTarget?: boolean | null
   alertOptions?: number[] | null
+  // 2026-07-10 副田さん要望 Phase 2: 有効な配点マップ (flatten 側で解決済み)
+  scoreMap?: number[] | null
 }
 
+/**
+ * アラート発火判定 (副田さん要望 Phase 2: 位置ベース化)
+ *
+ * `alertOptions` は「選択肢の位置 (0-indexed)」で持つ仕様に変更。
+ * 例: scoreMap=[1,3,5] で alertOptions=[0] なら「1 点を選ぶとアラート」。
+ *
+ * 判定手順:
+ *   1. 回答の値 selectedValue を取得
+ *   2. scoreMap 内で selectedValue の位置 (indexOf) を求める
+ *   3. alertOptions にその位置が含まれていればアラート
+ */
 export function computeHasAlert(
   answers: Record<string | number, number> | undefined,
   questions: ReadonlyArray<QuestionWithAlert>,
@@ -105,9 +118,11 @@ export function computeHasAlert(
   if (!answers || !questions) return false
   for (const q of questions) {
     if (!q.isAlertTarget || !q.alertOptions || q.alertOptions.length === 0) continue
-    // 2026-07-03: compositeKey があれば優先、なければ従来の number で fallback
-    const selected = q.compositeKey != null ? answers[q.compositeKey] : answers[q.number]
-    if (selected != null && q.alertOptions.includes(selected)) return true
+    const selectedValue = q.compositeKey != null ? answers[q.compositeKey] : answers[q.number]
+    if (selectedValue == null) continue
+    const scoreMap = Array.isArray(q.scoreMap) && q.scoreMap.length > 0 ? q.scoreMap : [1, 2, 3, 4, 5]
+    const position = scoreMap.indexOf(selectedValue)
+    if (position >= 0 && q.alertOptions.includes(position)) return true
   }
   return false
 }

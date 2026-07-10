@@ -61,7 +61,13 @@ interface UpsertEvaluation {
 }
 
 /**
- * ADR-006 R-2-F6-0: (test_session_id, role_type) から max_score (= 設問数 × 5) を算出
+ * ADR-006 R-2-F6-0: (test_session_id, role_type) から max_score を算出。
+ *
+ * 2026-07-10 副田さん要望 Phase 2: シート単位の scoreMap を反映して満点計算を変更。
+ *   - 問題ごとに score_map が上書きされていればそれの max
+ *   - なければ属するシートの score_map の max
+ *   - どちらも未指定なら 5 (従来の 5 段階前提)
+ *
  * 同一バッチ内では cache を共有してクエリ回数を抑える。
  */
 async function buildMaxScoreLookup(
@@ -69,7 +75,6 @@ async function buildMaxScoreLookup(
   pairs: Array<{ testSessionId: string | null; role: "teacher" | "patient" }>,
 ): Promise<Map<string, number | null>> {
   const cache = new Map<string, number | null>()
-  // 重複除去
   const uniq = Array.from(
     new Set(
       pairs
@@ -79,7 +84,6 @@ async function buildMaxScoreLookup(
   )
   for (const key of uniq) {
     const [testSessionId, role] = key.split("::") as [string, "teacher" | "patient"]
-    // 該当 test を取得
     const { data: tests, error: testErr } = await supabase
       .from("tests")
       .select("id")
@@ -89,21 +93,34 @@ async function buildMaxScoreLookup(
       cache.set(key, null)
       continue
     }
-    // Sum questions across all tests for this role (通常 1 だが防御的)
     let total = 0
     for (const t of tests) {
       const { data: sheets } = await supabase
         .from("sheets")
-        .select("categories(questions(id))")
+        .select("score_map, categories(questions(id, score_map))")
         .eq("test_id", t.id as string)
       if (!sheets) continue
-      for (const sheet of sheets as Array<{ categories?: Array<{ questions?: Array<unknown> }> }>) {
+      for (const sheet of sheets as Array<{
+        score_map?: number[] | null
+        categories?: Array<{
+          questions?: Array<{ score_map?: number[] | null }>
+        }>
+      }>) {
+        const sheetMap =
+          Array.isArray(sheet.score_map) && sheet.score_map.length > 0
+            ? sheet.score_map
+            : [1, 2, 3, 4, 5]
+        const sheetMax = Math.max(...sheetMap)
         for (const cat of sheet.categories || []) {
-          total += (cat.questions || []).length
+          for (const q of cat.questions || []) {
+            const qMap =
+              Array.isArray(q.score_map) && q.score_map.length > 0 ? q.score_map : null
+            total += qMap ? Math.max(...qMap) : sheetMax
+          }
         }
       }
     }
-    cache.set(key, total > 0 ? total * 5 : null)
+    cache.set(key, total > 0 ? total : null)
   }
   return cache
 }
