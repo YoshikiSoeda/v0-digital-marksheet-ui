@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
+import { useAutoRefresh } from "@/hooks/use-auto-refresh"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 // 2026-07-03 副田さん再要望対応: shadcn Table の overflow-x-auto ラッパーが
@@ -62,41 +63,45 @@ export default function StudentsDetailPage() {
   // 2026-07-03 副田さん要望: 「内容」列 (問題ごとの点数) をアコーディオン開閉
   const [contentExpanded, setContentExpanded] = useState(false)
 
-  useEffect(() => {
-    // URLパラメータを取得
+  // 2026-07-10 副田さん要望 (案 C ハイブリッド自動更新): 受験者一覧を
+  //   タブフォーカス時 + 30 秒 polling で自動再取得。fetchData を useCallback
+  //   でラップして stable な参照にする。
+  const fetchData = useCallback(async (opts: { silent?: boolean } = {}) => {
     const params = new URLSearchParams(window.location.search)
     const university = params.get("university") || ""
-    const testSessionId = params.get("testSessionId") || ""
+    try {
+      const testSessionId = sessionStorage.getItem("testSessionId") || ""
+      const [studentsData, evaluationsData, attendanceData, testsData, testSessionsData] = await Promise.all([
+        loadStudents(university || undefined, undefined, testSessionId),
+        loadEvaluationResults(university || undefined, testSessionId),
+        loadAttendanceRecords(university || undefined, testSessionId),
+        loadTests(university || undefined),
+        fetch("/api/test-sessions")
+          .then((res) => res.json())
+          .catch(() => []),
+      ])
 
-    setFilterUniversity(university)
-    setFilterTestSessionId(testSessionId)
-
-    const fetchData = async () => {
-      try {
-        const testSessionId = sessionStorage.getItem("testSessionId") || ""
-        const [studentsData, evaluationsData, attendanceData, testsData, testSessionsData] = await Promise.all([
-          loadStudents(university || undefined, undefined, testSessionId),
-          loadEvaluationResults(university || undefined, testSessionId),
-          loadAttendanceRecords(university || undefined, testSessionId),
-          loadTests(university || undefined),
-          fetch("/api/test-sessions")
-            .then((res) => res.json())
-            .catch(() => []),
-        ])
-
-        setStudents(Array.isArray(studentsData) ? studentsData : [])
-        setEvaluations(Array.isArray(evaluationsData) ? evaluationsData : [])
-        setAttendanceRecords(Array.isArray(attendanceData) ? attendanceData : [])
-        setTests(Array.isArray(testsData) ? testsData : [])
-        setTestSessions(Array.isArray(testSessionsData) ? testSessionsData : [])
-      } catch (error) {
-      } finally {
-        setIsLoading(false)
-      }
+      setStudents(Array.isArray(studentsData) ? studentsData : [])
+      setEvaluations(Array.isArray(evaluationsData) ? evaluationsData : [])
+      setAttendanceRecords(Array.isArray(attendanceData) ? attendanceData : [])
+      setTests(Array.isArray(testsData) ? testsData : [])
+      setTestSessions(Array.isArray(testSessionsData) ? testSessionsData : [])
+    } catch (error) {
+    } finally {
+      if (!opts.silent) setIsLoading(false)
     }
-
-    fetchData()
   }, [])
+
+  useEffect(() => {
+    // URL パラメータ初期化 (初回のみ)
+    const params = new URLSearchParams(window.location.search)
+    setFilterUniversity(params.get("university") || "")
+    setFilterTestSessionId(params.get("testSessionId") || "")
+    void fetchData()
+  }, [fetchData])
+
+  const autoRefreshHandler = useCallback(() => fetchData({ silent: true }), [fetchData])
+  useAutoRefresh(autoRefreshHandler, 30000)
 
   const filteredTests = filterTestSessionId
     ? tests.filter((test) => test.testSessionId === filterTestSessionId)
