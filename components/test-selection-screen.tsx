@@ -31,6 +31,10 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const [teacherSubjectCode, setTeacherSubjectCode] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [noTestMessage, setNoTestMessage] = useState<string>("")
+  // 2026-07-10 副田さん報告: 割当されていれば他教科のセッションも参加可能に。
+  //   /api/my-assigned-sessions から自分がアサインされている test_session_id を
+  //   取得し、subject フィルタを素通しさせる判定に使う。
+  const [assignedSessionIds, setAssignedSessionIds] = useState<Set<string>>(new Set())
 
   // Filters
   const [filterSubject, setFilterSubject] = useState<string>("all")
@@ -84,6 +88,18 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
         } else {
           setTests([])
         }
+
+        // 自分がアサインされている session ID (subject フィルタ緩和用)
+        try {
+          const res = await fetch("/api/my-assigned-sessions", { credentials: "same-origin" })
+          if (res.ok) {
+            const json = await res.json()
+            const ids = Array.isArray(json?.sessionIds) ? (json.sessionIds as string[]) : []
+            setAssignedSessionIds(new Set(ids))
+          }
+        } catch {
+          // network error はサイレント (フォールバック = 空 Set = 従来通り subject ロック)
+        }
       } catch (error) {
       } finally {
         setIsLoading(false)
@@ -136,7 +152,17 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const filteredSessions = useMemo(() => {
     return testSessions.filter((session) => {
       // Subject filter
-      if (filterSubject !== "all" && session.subjectCode !== filterSubject) return false
+      // 2026-07-10 副田さん報告:
+      //   (a) 過去の教科なしセッションで subject_code が NULL のままのケース。
+      //       NULL セッションは教科フィルタを素通し。
+      //   (b) 「割当されていれば他教科のセッションも参加できる」ようにしたい。
+      //       assignedSessionIds に含まれるセッションも教科フィルタを素通し。
+      if (
+        filterSubject !== "all" &&
+        session.subjectCode &&
+        session.subjectCode !== filterSubject &&
+        !assignedSessionIds.has(session.id)
+      ) return false
       // Status filter
       if (filterStatus !== "all" && session.status !== filterStatus) return false
       // Test date filter
@@ -155,9 +181,9 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       const dateB = b.testDate ? new Date(b.testDate).getTime() : 0
       return dateB - dateA
     })
-  }, [testSessions, filterSubject, filterStatus, filterTestDate, filterCreatedDate])
+  }, [testSessions, filterSubject, filterStatus, filterTestDate, filterCreatedDate, assignedSessionIds])
 
-  // Find matching test for a session
+  // Find matching test for a session (UI 表示上の可否判定用 = 1 個目でよい)
   const findTestForSession = (sessionId: string): Test | undefined => {
     const expectedRoleType = userType === "patient" ? "patient" : "teacher"
     return tests.find(
@@ -165,8 +191,57 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     )
   }
 
+  // 2026-07-10 副田さん報告: 砂川先生 (①（11/5） 内の 2 番目 = 教員②) が試験を選ぶと
+  //   教員①用テストに飛ばされていた。教員側テストが複数ある場合、部屋内の教員を
+  //   メール昇順で並べたときの自分の index (0 origin) に対応するテスト (created_at
+  //   昇順で N 番目) を選ぶ。患者役側も同ロジックで動く (患者役は通常 1 種類だが将来
+  //   複数対応時も破綻しない)。
+  const resolveMatchingTest = async (sessionId: string): Promise<Test | undefined> => {
+    const expectedRoleType = userType === "patient" ? "patient" : "teacher"
+    const matchingTests = tests
+      .filter((t) => t.testSessionId === sessionId && (t.roleType || "teacher") === expectedRoleType)
+      .slice()
+      .sort((a, b) => {
+        const at = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return at - bt
+      })
+    if (matchingTests.length === 0) return undefined
+    if (matchingTests.length === 1) return matchingTests[0]
+
+    const myEmail = (session?.email || "").toLowerCase()
+    const myRoom = session?.assignedRoomNumber || ""
+    if (!myEmail || !myRoom) return matchingTests[0]
+
+    const endpoint =
+      userType === "teacher"
+        ? `/api/test-sessions/${sessionId}/teacher-assignments`
+        : `/api/test-sessions/${sessionId}/patient-assignments`
+    const nestedKey = userType === "teacher" ? "teacher" : "patient"
+
+    try {
+      const res = await fetch(endpoint, { credentials: "same-origin" })
+      if (!res.ok) return matchingTests[0]
+      const data = await res.json()
+      const items = Array.isArray(data?.items) ? data.items : []
+      const roomPeers: string[] = items
+        .filter((a: { assignedRoomNumber?: string }) => (a.assignedRoomNumber || "") === myRoom)
+        .map((a: Record<string, unknown>) => {
+          const nested = a[nestedKey] as { email?: string } | undefined
+          return (nested?.email || "").toLowerCase()
+        })
+        .filter((e: string) => e)
+        .sort()
+      const myIndex = roomPeers.indexOf(myEmail)
+      if (myIndex >= 0 && matchingTests[myIndex]) return matchingTests[myIndex]
+    } catch {
+      // network error はサイレント (fallback で 1 個目のテストを返す)
+    }
+    return matchingTests[0]
+  }
+
   const handleSelectSession = async (sessionId: string) => {
-    const matchingTest = findTestForSession(sessionId)
+    const matchingTest = await resolveMatchingTest(sessionId)
     if (!matchingTest) {
       const roleLabel = userType === "teacher" ? "教員用" : "患者用"
       setNoTestMessage(`このセッションには${roleLabel}テストが登録されていません。管理者にお問い合わせください。`)
