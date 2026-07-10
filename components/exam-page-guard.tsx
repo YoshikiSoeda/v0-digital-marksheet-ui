@@ -32,6 +32,15 @@ const ADMIN_ROLES = new Set([
   "university_master",
 ])
 
+// 2026-07-10 副田さん要望: 大学管理者/教科管理者/マスター管理者は代理入力として
+//   /teacher/exam だけでなく /patient/exam にも入れる。teachers.role がこのいずれかで
+//   /patient/exam にアクセスした場合は loginType 不一致でも通す。
+const ADMIN_LIKE_TEACHER_ROLES = new Set([
+  "master_admin",
+  "university_admin",
+  "subject_admin",
+])
+
 interface ExamErrorScreenProps {
   title: string
   message: string
@@ -114,7 +123,14 @@ export function useExamPageGuard(opts: UseExamPageGuardOptions): ExamPageGuardOu
   }
 
   // ロール不一致 → エラー UI
-  if (session.loginType !== opts.expectedLoginType) {
+  // 2026-07-10 副田さん要望: admin-like teacher (univ_admin/subject_admin/master_admin)
+  //   が /patient/exam に代理入力目的で入るケースは通す。
+  const isAdminLikeTeacherAccessing =
+    session.loginType === "teacher" &&
+    ADMIN_LIKE_TEACHER_ROLES.has(session.role) &&
+    (opts.expectedLoginType === "teacher" || opts.expectedLoginType === "patient")
+
+  if (session.loginType !== opts.expectedLoginType && !isAdminLikeTeacherAccessing) {
     const isAdmin =
       ADMIN_ROLES.has(session.role) || ADMIN_ROLES.has(session.accountType) || session.loginType === "admin"
     return {

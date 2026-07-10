@@ -63,21 +63,33 @@ export function UnifiedLoginForm() {
   const [sessions, setSessions] = useState<TestSession[]>([])
 
   const callLogin = async (testSessionId?: string): Promise<UnifiedLoginResponse | null> => {
+    // 2026-07-10 副田さん報告: 「ログイン中...」でボタンが固まりリロードが必要に
+    //   なる問題。fetch にタイムアウト (20 秒) を入れて、応答が来ない場合は
+    //   エラー表示に戻して再入力可能にする。
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ loginId, password, testSessionId }),
         credentials: "same-origin",
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
       const result = (await res.json()) as UnifiedLoginResponse
       if (!res.ok) {
         setError(result?.error || "認証エラーが発生しました")
         return null
       }
       return result
-    } catch {
-      setError("ログイン処理中にエラーが発生しました")
+    } catch (e) {
+      clearTimeout(timeoutId)
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError("サーバーの応答がありません。ネットワークをご確認のうえ再度お試しください。")
+      } else {
+        setError("ログイン処理中にエラーが発生しました")
+      }
       return null
     }
   }
