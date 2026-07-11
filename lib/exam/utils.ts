@@ -166,9 +166,11 @@ export function buildEvaluationMaps(
   const out: EvaluationMaps = { answers: {}, completion: {}, alerts: {} }
   if (!results || !Array.isArray(results)) return out
 
+  // 2026-07-11: メール比較は大文字小文字を無視 (代理採点で lowercased email が入るため)
+  const wantEmail = (opts.evaluatorEmail || "").toLowerCase()
   for (const r of results) {
     if (r.evaluatorType !== opts.evaluatorType) continue
-    if (opts.evaluatorEmail && r.evaluatorId !== opts.evaluatorEmail) continue
+    if (wantEmail && (r.evaluatorId || "").toLowerCase() !== wantEmail) continue
     if (!r.studentId) continue
     // 過去データが Record<number,...> でも Record<string,...> でも、JS 上では
     // string キー扱いで問題なく取得できる。型は string にキャストして保存。

@@ -47,10 +47,13 @@ export default function TeacherExamPage() {
   const { session, selectedTestId } = guard
   const isElevated = ELEVATED_TEACHER_ROLES.has(session.role || "")
   const hasRoom = !!session.assignedRoomNumber
+  // 2026-07-11 副田さん報告: 管理者代理採点時は proxyEvaluatorEmail (slot 担当者) を
+  //   評価者 ID として使う。通常教員は自分のメール。
+  const effectiveEmail = session.proxyEvaluatorEmail || session.email!
 
   return (
     <TeacherExamTabs
-      teacherEmail={session.email!}
+      teacherEmail={effectiveEmail}
       teacherRoomNumber={session.assignedRoomNumber || ""}
       testId={selectedTestId}
       isFlexibleRoom={isElevated && !hasRoom}

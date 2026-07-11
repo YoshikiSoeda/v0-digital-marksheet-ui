@@ -46,6 +46,8 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     slotIndex: number // 部屋内の何番目 (0-based)
     testId: string
     testTitle: string
+    // 2026-07-11 副田さん報告: この slot の担当者メール。代理採点時の評価者 ID に使う。
+    personEmail: string
   }
   const [roleModalOpen, setRoleModalOpen] = useState(false)
   const [roleModalSessionId, setRoleModalSessionId] = useState<string>("")
@@ -326,6 +328,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
             slotIndex: i,
             testId: test.id,
             testTitle: test.title || `教員側テスト${i + 1}`,
+            personEmail: teachers[i] || "",
           })
         }
         const patients = (patientByRoom.get(room) || []).slice().sort()
@@ -338,6 +341,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
             slotIndex: i,
             testId: test.id,
             testTitle: test.title || `患者側テスト${i + 1}`,
+            personEmail: patients[i] || "",
           })
         }
       }
@@ -362,6 +366,8 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
         body: JSON.stringify({
           testSessionId: roleModalSessionId,
           assignedRoomNumber: slot.roomNumber,
+          // 2026-07-11 副田さん報告: 代理採点する slot の担当者メールを渡す
+          proxyEvaluatorEmail: slot.personEmail,
         }),
       })
       if (!res.ok) {

@@ -32,6 +32,9 @@ interface RequestBody {
   //   subject_admin) が代理入力で特定部屋の教員①/②/患者役として入るケース。
   //   Cookie の assignedRoomNumber を明示指定した部屋に上書きする。
   assignedRoomNumber?: string
+  // 2026-07-11 副田さん報告: 代理採点する slot の担当者メール。
+  //   これを評価者 ID として使うことで、教員①/②/患者役 の評価が混ざらないようにする。
+  proxyEvaluatorEmail?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -95,6 +98,12 @@ export async function POST(request: NextRequest) {
   if (isElevated && requestedRoom) {
     nextRoom = requestedRoom
   }
+
+  // 2026-07-11 副田さん報告: 代理採点する slot の担当者メール。
+  //   elevated ロールが slot を指定した時のみ設定。それ以外 (通常教員/患者役の
+  //   セッション選択) は空にリセットして stale な代理状態を残さない。
+  const nextProxyEmail =
+    isElevated ? (body.proxyEvaluatorEmail || "").trim().toLowerCase() : ""
   if (session.loginType === "patient" && !nextRoom) {
     return NextResponse.json(
       {
@@ -144,6 +153,7 @@ export async function POST(request: NextRequest) {
     subjectCode: session.subjectCode,
     testSessionId,
     accountType: session.accountType,
+    proxyEvaluatorEmail: nextProxyEmail,
   })
 
   return response

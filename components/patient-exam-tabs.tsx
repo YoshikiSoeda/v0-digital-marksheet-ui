@@ -144,7 +144,12 @@ export default function PatientExamTabs({
         }
 
         // 2026-05-08 ADR-001 §1.2 F4 Phase A.3: 評価マップ組み立てを共通 utility に
-        const maps = buildEvaluationMaps(validResultsData, { evaluatorType: "patient" })
+        // 2026-07-11 副田さん報告: 保存時と同じ evaluatorEmail (patientEmail = 代理時は
+        //   slot 担当者) で絞り、複数患者役 / 管理者代理でも評価が混ざらないようにする。
+        const maps = buildEvaluationMaps(validResultsData, {
+          evaluatorType: "patient",
+          evaluatorEmail: patientEmail,
+        })
 
         setAttendanceStatus(initialAttendance)
         setStudentAnswers(maps.answers)
