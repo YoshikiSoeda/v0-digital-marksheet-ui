@@ -59,7 +59,7 @@ interface RoomData {
   // 2026-07-10 副田さん要望: slot 別 (教員①/教員②/患者役) 集計
   teacherSlots: SlotStats[]
   patientSlots: SlotStats[]
-  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number; passResult?: "合格" | "不合格" | "" }>
+  students: Array<{ id: string; name: string; status: string; isCompleted: boolean; totalScore: number; alertCount: number; combinedScore: number; passResult?: "合格" | "不合格" | ""; completedBy?: string[] }>
   universityCode?: string
 }
 
@@ -485,6 +485,10 @@ const AdminDashboard = () => {
               const totalScore = studentEvaluation?.totalScore || 0
               const studentEvals = roomEvaluations.filter((e) => e.studentId === student.id)
               const combinedScore = studentEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+              // 2026-07-11 副田さん要望: 評価者ごと (教員①/教員②/患者役) の完了状況
+              const completedBy = studentEvals
+                .filter((e) => e.isCompleted)
+                .map((e) => `${e.evaluatorType}::${((e as any).evaluatorId || "").toLowerCase()}`)
               // ADR-006: 学生個別の % 判定
               const passDetail = computePassResult({
                 evaluations: studentEvals.map((e) => ({
@@ -503,6 +507,7 @@ const AdminDashboard = () => {
                 alertCount: studentAlertCountMap.get(student.id) || 0,
                 combinedScore,
                 passResult: passDetail.result,
+                completedBy,
               }
             })
 
@@ -755,6 +760,10 @@ const AdminDashboard = () => {
             const totalScore = studentEvaluation?.totalScore || 0
             const studentEvalsR = roomEvaluations.filter((e) => e.studentId === student.id)
             const combinedScore = studentEvalsR.reduce((sum, e) => sum + (e.totalScore || 0), 0)
+            // 2026-07-11 副田さん要望: 評価者ごと (教員①/教員②/患者役) の完了状況 (refresh path)
+            const completedBy = studentEvalsR
+              .filter((e) => e.isCompleted)
+              .map((e) => `${e.evaluatorType}::${((e as any).evaluatorId || "").toLowerCase()}`)
             // ADR-006: 学生個別の % 判定 (refresh path)
             const passDetail = computePassResult({
               evaluations: studentEvalsR.map((e) => ({
@@ -773,6 +782,7 @@ const AdminDashboard = () => {
               alertCount: studentAlertCountMap.get(student.id) || 0,
               combinedScore,
               passResult: passDetail.result,
+              completedBy,
             }
           })
 
@@ -1294,7 +1304,16 @@ const AdminDashboard = () => {
                           <th className="text-center py-2">出欠</th>
                           <th className="text-center py-2">合計点</th>
                           <th className="text-center py-2">アラート</th>
-                          <th className="text-center py-2">完了</th>
+                          {/* 2026-07-11 副田さん要望: 完了を教員①/教員②/患者役 ごとに分割表示 */}
+                          {[...(selectedRoomData.teacherSlots || []), ...(selectedRoomData.patientSlots || [])].map((slot) => (
+                            <th
+                              key={`hc-${slot.roleType}-${slot.slotIndex}`}
+                              className={`text-center py-2 whitespace-nowrap ${slot.roleType === "teacher" ? "text-blue-700" : "text-pink-700"}`}
+                            >
+                              完了
+                              <div className="text-[10px] font-normal">{slot.label}</div>
+                            </th>
+                          ))}
                           <th className="text-center py-2">合否</th>
                         </tr>
                       </thead>
@@ -1328,13 +1347,19 @@ const AdminDashboard = () => {
                                 <span className="text-gray-400">-</span>
                               )}
                             </td>
-                            <td className="text-center py-2">
-                              {student.isCompleted ? (
-                                <span className="text-blue-600">✓</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
+                            {/* 2026-07-11 副田さん要望: 教員①/教員②/患者役 ごとの完了 */}
+                            {[...(selectedRoomData.teacherSlots || []), ...(selectedRoomData.patientSlots || [])].map((slot) => {
+                              const done = (student.completedBy || []).includes(`${slot.roleType}::${slot.personEmail}`)
+                              return (
+                                <td key={`sc-${slot.roleType}-${slot.slotIndex}`} className="text-center py-2">
+                                  {done ? (
+                                    <span className={slot.roleType === "teacher" ? "text-blue-600" : "text-pink-600"}>✓</span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                              )
+                            })}
                             <td className="text-center py-2 font-semibold">
                               {/* ADR-006: 個別合格表示は student.passResult を直接読む(map 段階で % 判定済み) */}
                               {student.passResult === "合格" ? (
