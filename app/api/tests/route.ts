@@ -47,6 +47,8 @@ export async function GET(request: NextRequest) {
           id: category.id as string,
           title: category.title as string,
           number: category.number as number,
+          // 2026-07-11 副田さん要望: カテゴリー単位配点マップ
+          scoreMap: category.score_map as number[] | undefined,
           questions: ((category.questions as Record<string, unknown>[]) || [])
             .sort((a, b) => (a.number as number) - (b.number as number))
             .map((question) => ({
@@ -88,7 +90,14 @@ interface UpsertQuestion {
   // 2026-07-10 Phase 2: 問題個別の配点上書き
   scoreMap?: number[] | null
 }
-interface UpsertCategory { id: string; title: string; number: number; questions: UpsertQuestion[] }
+interface UpsertCategory {
+  id: string
+  title: string
+  number: number
+  // 2026-07-11 副田さん要望: カテゴリー単位配点
+  scoreMap?: number[] | null
+  questions: UpsertQuestion[]
+}
 interface UpsertSheet {
   id: string
   title: string
@@ -213,10 +222,15 @@ export async function POST(request: NextRequest) {
         )
       }
       for (const category of sheet.categories) {
+        // 2026-07-11 副田さん要望: カテゴリー単位 scoreMap を保存 (未指定はデフォルト [1,2,3,4,5])
+        const categoryScoreMap =
+          Array.isArray(category.scoreMap) && category.scoreMap.length > 0
+            ? category.scoreMap.map((n) => Math.max(0, Math.floor(Number(n) || 0)))
+            : [1, 2, 3, 4, 5]
         const { error: categoryError } = await supabase
           .from("categories")
           .upsert(
-            { id: category.id, sheet_id: sheet.id, title: category.title, number: category.number } as never,
+            { id: category.id, sheet_id: sheet.id, title: category.title, number: category.number, score_map: categoryScoreMap } as never,
             { onConflict: "id" },
           )
         if (categoryError) {

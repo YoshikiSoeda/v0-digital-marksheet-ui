@@ -114,9 +114,9 @@ export interface Question {
   option5: string // 選択肢5
   isAlertTarget: boolean // アラート対象ON/OFF
   alertOptions: number[] // アラート対象の選択肢番号（配点値）
-  // 2026-07-10 副田さん要望 Phase 1: 問題ごとの scoreMap 個別上書き (optional)
-  //   未指定なら属するシートの scoreMap を使用。Phase 3 で UI 追加予定。
-  scoreMap?: number[]
+  // 2026-07-11 副田さん要望: 問題ごとの scoreMap 個別上書き (optional)
+  //   未指定なら属するカテゴリーの scoreMap を使用 (右端ボタンから上書き可)。
+  scoreMap?: number[] | null
   universityCode?: string // 大学コード
 }
 
@@ -125,6 +125,10 @@ export interface Category {
   title: string // タイトル3（カテゴリ名）
   number: number // カテゴリ番号
   questions: Question[]
+  // 2026-07-11 副田さん要望: カテゴリー単位の N 段階配点 (主設定)。
+  //   カテゴリー全体に反映される。問題ごとに question.scoreMap で上書き可能。
+  //   未指定なら [1,2,3,4,5] (5 段階) として動作。
+  scoreMap?: number[]
   universityCode?: string // 大学コード
 }
 
@@ -132,21 +136,23 @@ export interface Sheet {
   id: string
   title: string // タイトル2（シート名）
   categories: Category[]
-  // 2026-07-10 副田さん要望 Phase 1: シート単位の N 段階配点 (optional)
-  //   未指定なら [1,2,3,4,5] (従来の 5 段階) として動作。
-  //   Phase 2 で問題作成/編集画面に UI 追加予定。
+  // 2026-07-10 Phase 1 残置: シート単位の scoreMap (現在 UI からは未使用、互換のため保持)
   scoreMap?: number[]
   universityCode?: string // 大学コード
 }
 
-// 2026-07-10 副田さん要望 Phase 1: scoreMap のデフォルト値と解決ヘルパ
+// scoreMap のデフォルト値と解決ヘルパ
 export const DEFAULT_SCORE_MAP: number[] = [1, 2, 3, 4, 5]
 
-export function resolveScoreMap(sheet?: { scoreMap?: number[] | null }, question?: { scoreMap?: number[] | null }): number[] {
+// 2026-07-11 副田さん要望: 解決優先順位 question > category > default
+export function resolveScoreMap(
+  category?: { scoreMap?: number[] | null },
+  question?: { scoreMap?: number[] | null },
+): number[] {
   const q = question?.scoreMap
   if (Array.isArray(q) && q.length > 0) return q
-  const s = sheet?.scoreMap
-  if (Array.isArray(s) && s.length > 0) return s
+  const c = category?.scoreMap
+  if (Array.isArray(c) && c.length > 0) return c
   return DEFAULT_SCORE_MAP
 }
 
