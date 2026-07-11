@@ -63,9 +63,9 @@ interface UpsertEvaluation {
 /**
  * ADR-006 R-2-F6-0: (test_session_id, role_type) から max_score を算出。
  *
- * 2026-07-10 副田さん要望 Phase 2: シート単位の scoreMap を反映して満点計算を変更。
+ * 2026-07-11 副田さん要望: カテゴリー単位の scoreMap を反映して満点計算。
  *   - 問題ごとに score_map が上書きされていればそれの max
- *   - なければ属するシートの score_map の max
+ *   - なければ属するカテゴリーの score_map の max
  *   - どちらも未指定なら 5 (従来の 5 段階前提)
  *
  * 同一バッチ内では cache を共有してクエリ回数を抑える。

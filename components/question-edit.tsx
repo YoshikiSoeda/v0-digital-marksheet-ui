@@ -656,46 +656,43 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                                   className="flex-1"
                                 />
                                 <div className="flex gap-1">
-                                  <Input
-                                    value={question.option1}
-                                    onChange={(e) =>
-                                      updateQuestion(sheet.id, category.id, question.id, "option1", e.target.value)
-                                    }
-                                    placeholder="1"
-                                    className="w-20"
-                                  />
-                                  <Input
-                                    value={question.option2}
-                                    onChange={(e) =>
-                                      updateQuestion(sheet.id, category.id, question.id, "option2", e.target.value)
-                                    }
-                                    placeholder="2"
-                                    className="w-20"
-                                  />
-                                  <Input
-                                    value={question.option3}
-                                    onChange={(e) =>
-                                      updateQuestion(sheet.id, category.id, question.id, "option3", e.target.value)
-                                    }
-                                    placeholder="3"
-                                    className="w-20"
-                                  />
-                                  <Input
-                                    value={question.option4}
-                                    onChange={(e) =>
-                                      updateQuestion(sheet.id, category.id, question.id, "option4", e.target.value)
-                                    }
-                                    placeholder="4"
-                                    className="w-20"
-                                  />
-                                  <Input
-                                    value={question.option5}
-                                    onChange={(e) =>
-                                      updateQuestion(sheet.id, category.id, question.id, "option5", e.target.value)
-                                    }
-                                    placeholder="5"
-                                    className="w-20"
-                                  />
+                                  {/* 2026-07-11 副田さん要望: 選択肢ボックス数を
+                                      question > category の scoreMap 長に連動。placeholder は実配点値。 */}
+                                  {(() => {
+                                    const qMap = (question as { scoreMap?: number[] | null }).scoreMap
+                                    const cMap = (category as { scoreMap?: number[] }).scoreMap
+                                    const effMap = Array.isArray(qMap) && qMap.length > 0
+                                      ? qMap
+                                      : Array.isArray(cMap) && cMap.length > 0
+                                      ? cMap
+                                      : [1, 2, 3, 4, 5]
+                                    const optKeys = ["option1", "option2", "option3", "option4", "option5"] as const
+                                    return effMap.map((val, i) => {
+                                      const key = optKeys[i]
+                                      if (!key) {
+                                        return (
+                                          <Input
+                                            key={i}
+                                            value=""
+                                            disabled
+                                            placeholder={String(val)}
+                                            className="w-20 bg-gray-100"
+                                          />
+                                        )
+                                      }
+                                      return (
+                                        <Input
+                                          key={i}
+                                          value={(question[key] as string) || ""}
+                                          onChange={(e) =>
+                                            updateQuestion(sheet.id, category.id, question.id, key, e.target.value)
+                                          }
+                                          placeholder={String(val)}
+                                          className="w-20"
+                                        />
+                                      )
+                                    })
+                                  })()}
                                 </div>
                               </div>
                               <div className="flex items-center justify-between">
