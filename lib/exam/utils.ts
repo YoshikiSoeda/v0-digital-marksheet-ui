@@ -76,6 +76,8 @@ interface MinimalSheet {
 interface MinimalCategory {
   title: string
   number: number
+  // 2026-07-11 副田さん要望: カテゴリー単位の配点マップ
+  scoreMap?: number[] | null
   questions?: ReadonlyArray<unknown>
 }
 interface MinimalTest {
@@ -199,14 +201,14 @@ export function flattenTestQuestions(
           if (seen.has(key)) continue
           seen.add(key)
         }
-        // 2026-07-10 副田さん要望 Phase 1: scoreMap を sheet → question の順で解決して注入
+        // 2026-07-11 副田さん要望: scoreMap を question → category の順で解決して注入
         const qScoreMap = question.scoreMap as number[] | null | undefined
-        const sScoreMap = sheet.scoreMap
+        const cScoreMap = category.scoreMap
         const resolvedScoreMap =
           Array.isArray(qScoreMap) && qScoreMap.length > 0
             ? qScoreMap
-            : Array.isArray(sScoreMap) && sScoreMap.length > 0
-            ? sScoreMap
+            : Array.isArray(cScoreMap) && cScoreMap.length > 0
+            ? cScoreMap
             : [1, 2, 3, 4, 5]
         const flattened: FlattenedQuestion = {
           ...question,

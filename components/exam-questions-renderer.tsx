@@ -22,7 +22,7 @@ interface RenderableQuestion extends QuestionWithGroupingMeta {
   isAlertTarget?: boolean
   alertOptions?: number[]
   // 2026-07-10 副田さん要望 Phase 1: 有効な配点マップ (flatten 側で解決済み)
-  scoreMap?: number[]
+  scoreMap?: number[] | null
 }
 
 const DEFAULT_SCORE_MAP = [1, 2, 3, 4, 5]

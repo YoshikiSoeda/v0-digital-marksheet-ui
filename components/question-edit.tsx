@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Plus, Trash2, Hourglass } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Hourglass, MoreHorizontal } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { loadTests, saveTests, type Sheet, type Question } from "@/lib/data-storage"
@@ -115,13 +116,8 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
     setSheets(sheets.map((s) => (s.id === sheetId ? { ...s, title } : s)))
   }
 
-  // 2026-07-11 副田さん仕様修正: 段階数+配点は問題ごとに直接編集
-  const updateQuestionScoreMapLength = (
-    sheetId: string,
-    categoryId: string,
-    questionId: string,
-    rawLength: number,
-  ) => {
+  // 2026-07-11 副田さん要望: 段階数+配点はカテゴリー単位が主設定
+  const updateCategoryScoreMapLength = (sheetId: string, categoryId: string, rawLength: number) => {
     const nextLen = Math.max(2, Math.min(10, Math.floor(rawLength) || 5))
     setSheets(
       sheets.map((s) => {
@@ -130,18 +126,72 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           ...s,
           categories: s.categories.map((c) => {
             if (c.id !== categoryId) return c
+            const cur = Array.isArray((c as { scoreMap?: number[] }).scoreMap) && (c as { scoreMap: number[] }).scoreMap.length > 0
+              ? (c as { scoreMap: number[] }).scoreMap
+              : [1, 2, 3, 4, 5]
+            const nextMap = Array.from({ length: nextLen }, (_, i) => cur[i] ?? i + 1)
+            return {
+              ...c,
+              scoreMap: nextMap,
+              questions: c.questions.map((q) => {
+                const qMap = (q as { scoreMap?: number[] | null }).scoreMap
+                const effLen = Array.isArray(qMap) && qMap.length > 0 ? qMap.length : nextLen
+                return { ...q, alertOptions: (q.alertOptions || []).filter((pos) => pos < effLen) }
+              }),
+            } as typeof c
+          }),
+        }
+      }),
+    )
+  }
+
+  const updateCategoryScoreValue = (sheetId: string, categoryId: string, index: number, value: number) => {
+    const clamped = Math.max(0, Math.floor(Number(value) || 0))
+    setSheets(
+      sheets.map((s) => {
+        if (s.id !== sheetId) return s
+        return {
+          ...s,
+          categories: s.categories.map((c) => {
+            if (c.id !== categoryId) return c
+            const cur = (Array.isArray((c as { scoreMap?: number[] }).scoreMap) && (c as { scoreMap: number[] }).scoreMap.length > 0
+              ? (c as { scoreMap: number[] }).scoreMap
+              : [1, 2, 3, 4, 5]).slice()
+            cur[index] = clamped
+            return { ...c, scoreMap: cur } as typeof c
+          }),
+        }
+      }),
+    )
+  }
+
+  // 2026-07-11 副田さん要望: 問題ごとの配点上書き (右端ボタン → ダイアログ)
+  const updateQuestionScoreMap = (
+    _testId: string,
+    sheetId: string,
+    categoryId: string,
+    questionId: string,
+    nextScoreMap: number[] | null,
+  ) => {
+    setSheets(
+      sheets.map((s) => {
+        if (s.id !== sheetId) return s
+        return {
+          ...s,
+          categories: s.categories.map((c) => {
+            if (c.id !== categoryId) return c
+            const catLen = Array.isArray((c as { scoreMap?: number[] }).scoreMap) && (c as { scoreMap: number[] }).scoreMap.length > 0
+              ? (c as { scoreMap: number[] }).scoreMap.length
+              : 5
             return {
               ...c,
               questions: c.questions.map((q) => {
                 if (q.id !== questionId) return q
-                const current = Array.isArray((q as { scoreMap?: number[] | null }).scoreMap) && (q as { scoreMap: number[] }).scoreMap.length > 0
-                  ? (q as { scoreMap: number[] }).scoreMap
-                  : [1, 2, 3, 4, 5]
-                const nextMap = Array.from({ length: nextLen }, (_, i) => current[i] ?? i + 1)
+                const effLen = nextScoreMap && nextScoreMap.length > 0 ? nextScoreMap.length : catLen
                 return {
                   ...q,
-                  scoreMap: nextMap,
-                  alertOptions: (q.alertOptions || []).filter((pos) => pos < nextLen),
+                  scoreMap: nextScoreMap,
+                  alertOptions: (q.alertOptions || []).filter((pos) => pos < effLen),
                 } as typeof q
               }),
             }
@@ -151,37 +201,12 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
     )
   }
 
-  const updateQuestionScoreValue = (
-    sheetId: string,
-    categoryId: string,
-    questionId: string,
-    index: number,
-    value: number,
-  ) => {
-    const clamped = Math.max(0, Math.floor(Number(value) || 0))
-    setSheets(
-      sheets.map((s) => {
-        if (s.id !== sheetId) return s
-        return {
-          ...s,
-          categories: s.categories.map((c) => {
-            if (c.id !== categoryId) return c
-            return {
-              ...c,
-              questions: c.questions.map((q) => {
-                if (q.id !== questionId) return q
-                const current = (Array.isArray((q as { scoreMap?: number[] | null }).scoreMap) && (q as { scoreMap: number[] }).scoreMap.length > 0
-                  ? (q as { scoreMap: number[] }).scoreMap
-                  : [1, 2, 3, 4, 5]).slice()
-                current[index] = clamped
-                return { ...q, scoreMap: current } as typeof q
-              }),
-            }
-          }),
-        }
-      }),
-    )
-  }
+  const [qOverrideDialog, setQOverrideDialog] = useState<{
+    open: boolean
+    sheetId: string
+    categoryId: string
+    questionId: string
+  } | null>(null)
 
   const addCategory = (sheetId: string) => {
     setSheets(
@@ -195,6 +220,8 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                   id: crypto.randomUUID(),
                   title: "",
                   number: s.categories.length + 1,
+                  // 2026-07-11 副田さん要望: カテゴリー単位配点のデフォルト
+                  scoreMap: [1, 2, 3, 4, 5],
                   questions: [],
                 },
               ],
@@ -246,8 +273,8 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                           option5: "",
                           isAlertTarget: false,
                           alertOptions: [],
-                          // 2026-07-11 副田さん仕様: 新規問題は 5 段階 / 1-5 点をデフォルト
-                          scoreMap: [1, 2, 3, 4, 5],
+                          // 2026-07-11 副田さん要望: 新規問題はカテゴリー設定を継承 (null)
+                          scoreMap: null,
                         },
                       ],
                     }
@@ -583,6 +610,37 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                       </Button>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {/* 2026-07-11 副田さん要望: カテゴリー単位の段階数 + 配点 */}
+                      {(() => {
+                        const catMap = Array.isArray((category as { scoreMap?: number[] }).scoreMap) && (category as { scoreMap: number[] }).scoreMap.length > 0
+                          ? (category as { scoreMap: number[] }).scoreMap
+                          : [1, 2, 3, 4, 5]
+                        return (
+                          <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-2 text-xs">
+                            <span className="font-semibold text-blue-700">段階数</span>
+                            <Input
+                              type="number"
+                              min={2}
+                              max={10}
+                              value={catMap.length}
+                              onChange={(e) => updateCategoryScoreMapLength(sheet.id, category.id, Number(e.target.value))}
+                              className="w-14 h-7 text-xs"
+                            />
+                            <span className="mx-1 text-blue-700">段階、配点:</span>
+                            {catMap.map((val, i) => (
+                              <Input
+                                key={i}
+                                type="number"
+                                min={0}
+                                value={val}
+                                onChange={(e) => updateCategoryScoreValue(sheet.id, category.id, i, Number(e.target.value))}
+                                className="w-12 h-7 text-xs"
+                              />
+                            ))}
+                            <span className="ml-1 text-[10px] text-muted-foreground">(カテゴリー全体に適用 / 負数不可、0 は許可)</span>
+                          </div>
+                        )
+                      })()}
                       {category.questions.map((question) => (
                         <div key={question.id} className="rounded-lg border bg-white p-2">
                           <div className="flex items-start gap-2">
@@ -640,55 +698,19 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                                   />
                                 </div>
                               </div>
-                              {/* 2026-07-11 副田さん仕様: 問題ごとの段階数 + 配点 */}
-                              {(() => {
-                                const qMap = Array.isArray((question as { scoreMap?: number[] | null }).scoreMap) && (question as { scoreMap: number[] }).scoreMap.length > 0
-                                  ? (question as { scoreMap: number[] }).scoreMap
-                                  : [1, 2, 3, 4, 5]
-                                return (
-                                  <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-2 text-xs">
-                                    <span className="font-semibold text-blue-700">段階数</span>
-                                    <Input
-                                      type="number"
-                                      min={2}
-                                      max={10}
-                                      value={qMap.length}
-                                      onChange={(e) =>
-                                        updateQuestionScoreMapLength(sheet.id, category.id, question.id, Number(e.target.value))
-                                      }
-                                      className="w-14 h-7 text-xs"
-                                    />
-                                    <span className="mx-1 text-blue-700">段階、配点:</span>
-                                    {qMap.map((val, i) => (
-                                      <Input
-                                        key={i}
-                                        type="number"
-                                        min={0}
-                                        value={val}
-                                        onChange={(e) =>
-                                          updateQuestionScoreValue(sheet.id, category.id, question.id, i, Number(e.target.value))
-                                        }
-                                        className="w-12 h-7 text-xs"
-                                      />
-                                    ))}
-                                    <span className="ml-1 text-[10px] text-muted-foreground">(負数不可、0 は許可)</span>
-                                  </div>
-                                )
-                              })()}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-medium text-gray-600">アラート対象の選択肢:</span>
                                   <div className="flex items-center gap-2">
-                                    {/* 2026-07-10 副田さん要望 Phase 2:
-                                        alertOptions は「選択肢の位置 (0-indexed)」、ラベルは実配点値。 */}
+                                    {/* 2026-07-11 副田さん要望: alertOptions は位置 (0-indexed)。
+                                        ラベルは question > category の scoreMap 実配点値。 */}
                                     {(() => {
-                                      // Phase 3: 問題個別 scoreMap を優先
                                       const qMap = (question as { scoreMap?: number[] | null }).scoreMap
-                                      const sMap = (sheet as { scoreMap?: number[] }).scoreMap
+                                      const cMap = (category as { scoreMap?: number[] }).scoreMap
                                       const scoreMap = Array.isArray(qMap) && qMap.length > 0
                                         ? qMap
-                                        : Array.isArray(sMap) && sMap.length > 0
-                                        ? sMap
+                                        : Array.isArray(cMap) && cMap.length > 0
+                                        ? cMap
                                         : [1, 2, 3, 4, 5]
                                       return scoreMap.map((val, position) => (
                                         <div key={position} className="flex items-center space-x-1">
@@ -710,14 +732,33 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
                                     })()}
                                   </div>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeQuestion(sheet.id, category.id, question.id)}
-                                  className="text-red-600 h-6"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  {/* 2026-07-11 副田さん要望: 問題ごとの配点上書きボタン */}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      setQOverrideDialog({
+                                        open: true,
+                                        sheetId: sheet.id,
+                                        categoryId: category.id,
+                                        questionId: question.id,
+                                      })
+                                    }
+                                    className={`h-6 ${Array.isArray((question as { scoreMap?: number[] | null }).scoreMap) && (question as { scoreMap: number[] }).scoreMap.length > 0 ? "text-blue-600" : "text-muted-foreground"}`}
+                                    title="この問題だけ配点を変更"
+                                  >
+                                    <MoreHorizontal className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeQuestion(sheet.id, category.id, question.id)}
+                                    className="text-red-600 h-6"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -743,6 +784,117 @@ export function QuestionEdit({ testId }: QuestionEditProps) {
           </Button>
         </div>
       </div>
+
+      {/* 2026-07-11 副田さん要望: 問題ごとの配点上書きダイアログ */}
+      <QuestionScoreOverrideDialogEdit
+        dialogState={qOverrideDialog}
+        onClose={() => setQOverrideDialog(null)}
+        sheets={sheets}
+        onSave={(sheetId, categoryId, questionId, next) => updateQuestionScoreMap("", sheetId, categoryId, questionId, next)}
+      />
     </div>
+  )
+}
+
+// 2026-07-11 副田さん要望: 問題ごとの配点上書きダイアログ (edit 用)
+interface QEditCategoryLike {
+  id: string
+  scoreMap?: number[]
+  questions: Array<{ id: string; number: number; scoreMap?: number[] | null }>
+}
+interface QEditSheetLike { id: string; categories: QEditCategoryLike[] }
+
+function QuestionScoreOverrideDialogEdit({
+  dialogState,
+  onClose,
+  sheets,
+  onSave,
+}: {
+  dialogState: { open: boolean; sheetId: string; categoryId: string; questionId: string } | null
+  onClose: () => void
+  sheets: QEditSheetLike[]
+  onSave: (sheetId: string, categoryId: string, questionId: string, next: number[] | null) => void
+}) {
+  const [enabled, setEnabled] = useState(false)
+  const [draft, setDraft] = useState<number[]>([1, 2, 3, 4, 5])
+
+  const cat = (() => {
+    if (!dialogState) return undefined
+    const s = sheets.find((x) => x.id === dialogState.sheetId)
+    return s?.categories.find((x) => x.id === dialogState.categoryId)
+  })()
+  const question = cat?.questions.find((q) => q.id === dialogState?.questionId)
+  const catMap = Array.isArray(cat?.scoreMap) && cat!.scoreMap!.length > 0 ? cat!.scoreMap! : [1, 2, 3, 4, 5]
+
+  useEffect(() => {
+    if (!dialogState?.open) return
+    const qMap = question?.scoreMap
+    if (Array.isArray(qMap) && qMap.length > 0) {
+      setEnabled(true)
+      setDraft(qMap.slice())
+    } else {
+      setEnabled(false)
+      setDraft(catMap.slice())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogState])
+
+  if (!dialogState) return null
+
+  const changeLen = (rawLen: number) => {
+    const nextLen = Math.max(2, Math.min(10, Math.floor(rawLen) || 5))
+    setDraft((prev) => Array.from({ length: nextLen }, (_, i) => prev[i] ?? i + 1))
+  }
+  const changeVal = (idx: number, v: number) => {
+    setDraft((prev) => {
+      const next = prev.slice()
+      next[idx] = Math.max(0, Math.floor(Number(v) || 0))
+      return next
+    })
+  }
+  const save = () => {
+    onSave(dialogState.sheetId, dialogState.categoryId, dialogState.questionId, enabled ? draft : null)
+    onClose()
+  }
+
+  return (
+    <Dialog open={dialogState.open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>問題 {question?.number ?? ""} の配点</DialogTitle>
+          <DialogDescription>
+            この問題だけカテゴリー設定 [{catMap.join(", ")}] と異なる配点にできます。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            この問題だけ個別に設定する
+          </label>
+          {enabled ? (
+            <div className="space-y-3 rounded-md bg-blue-50 p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold text-blue-700">段階数</span>
+                <Input type="number" min={2} max={10} value={draft.length} onChange={(e) => changeLen(Number(e.target.value))} className="w-16 h-8" />
+                <span className="text-blue-700">段階</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold text-blue-700">配点</span>
+                {draft.map((v, i) => (
+                  <Input key={i} type="number" min={0} value={v} onChange={(e) => changeVal(i, Number(e.target.value))} className="w-14 h-8" />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">負数不可、0 は許可。段階数を減らすと範囲外のアラート設定は自動で外れます。</p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">チェックを外すとカテゴリー設定 [{catMap.join(", ")}] が使われます。</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>キャンセル</Button>
+          <Button onClick={save}>保存</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

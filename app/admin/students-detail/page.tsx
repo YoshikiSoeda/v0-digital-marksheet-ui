@@ -130,14 +130,22 @@ export default function StudentsDetailPage() {
     questionNumber: number
     questionText: string
     compositeKey: string  // カテゴリ跨ぎで一意
-    maxScore: number  // 常に 5 (5 段階評価)
+    maxScore: number  // 2026-07-11: scoreMap の max (question > category > 5)
   }
   const contentColumns: ContentColumn[] = []
   for (const test of sessionTests) {
     const role: "teacher" | "patient" = ((test as any).roleType || "teacher") === "teacher" ? "teacher" : "patient"
     for (const sheet of test.sheets || []) {
       for (const cat of sheet.categories || []) {
+        // 2026-07-11 副田さん要望: カテゴリー単位 scoreMap を満点に反映 (問題個別があれば優先)
+        const catMap = Array.isArray((cat as any).scoreMap) && (cat as any).scoreMap.length > 0
+          ? (cat as any).scoreMap as number[]
+          : [1, 2, 3, 4, 5]
         for (const q of (cat as any).questions || []) {
+          const qMap = Array.isArray((q as any).scoreMap) && (q as any).scoreMap.length > 0
+            ? (q as any).scoreMap as number[]
+            : null
+          const effMap = qMap || catMap
           contentColumns.push({
             testId: test.id,
             testTitle: test.title,
@@ -148,7 +156,7 @@ export default function StudentsDetailPage() {
             questionNumber: q.number,
             questionText: q.text || "",
             compositeKey: `${cat.number}-${q.number}`,
-            maxScore: 5,
+            maxScore: Math.max(...effMap),
           })
         }
       }
@@ -164,7 +172,7 @@ export default function StudentsDetailPage() {
     dedupedContentColumns.push(col)
   }
 
-  // セッションの合計満点 (5 × 全質問数)
+  // セッションの合計満点 (各問題の実 maxScore を合算)
   const sessionMaxTotal = dedupedContentColumns.reduce((sum, c) => sum + c.maxScore, 0)
 
   const getStudentData = (student: Student) => {
