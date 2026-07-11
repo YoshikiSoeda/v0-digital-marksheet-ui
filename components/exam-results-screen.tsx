@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, LogOut, Clock, Target, Users, AlertTriangle, ArrowLeft } from "lucide-react"
-import { loadEvaluationResults, loadStudents, loadAttendanceRecords } from "@/lib/data-storage"
+import { loadEvaluationResults, loadStudents, loadAttendanceRecords, loadTeachers, loadPatients } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 
 export function ExamResultsScreen() {
@@ -14,6 +14,8 @@ export function ExamResultsScreen() {
   const [roomNumber, setRoomNumber] = useState("")
   const [evaluatorType, setEvaluatorType] = useState<"teacher" | "patient">("teacher")
   const [studentDetails, setStudentDetails] = useState<any[]>([])
+  // 2026-07-11 副田さん要望: どの役 (教員①/教員②/患者役) から見たサマリーか
+  const [slotLabel, setSlotLabel] = useState<string>("")
 
   const [roomStats, setRoomStats] = useState({
     totalStudents: 0,
@@ -59,13 +61,42 @@ export function ExamResultsScreen() {
         loadAttendanceRecords(universityCode, testSessionId),
       ])
 
+      // 2026-07-11 副田さん要望: 自分が部屋内の何番目の役か (教員①/教員②/患者役) を判定
+      const effEmail = (session.proxyEvaluatorEmail || session.email || "").toLowerCase()
+      const isTeacherRole =
+        session.loginType === "teacher" || session.role === "teacher" ||
+        session.role === "subject_admin" || session.role === "university_admin" || session.role === "master_admin"
+      try {
+        const peers = isTeacherRole
+          ? await loadTeachers(universityCode, undefined, testSessionId)
+          : await loadPatients(universityCode, undefined, testSessionId)
+        const inRoom = (Array.isArray(peers) ? peers : [])
+          .filter((p: any) => p.assignedRoomNumber === currentRoomNumber)
+          .sort((a: any, b: any) => (a.email || "").localeCompare(b.email || ""))
+        const idx = inRoom.findIndex((p: any) => (p.email || "").toLowerCase() === effEmail)
+        if (isTeacherRole) {
+          const marks = ["①", "②", "③", "④"]
+          setSlotLabel(idx >= 0 ? `教員${marks[idx] || idx + 1}` : "教員")
+        } else {
+          setSlotLabel(idx >= 1 ? `患者役${idx + 1}` : "患者役")
+        }
+      } catch {
+        setSlotLabel(isTeacherRole ? "教員" : "患者役")
+      }
+
       const roomStudents = students.filter((s) => s.roomNumber === currentRoomNumber)
       // loginType is "teacher" or "patient", role can be "teacher", "subject_admin", "university_admin", etc.
       const isTeacher = session.loginType === "teacher" || session.role === "teacher" || session.role === "subject_admin" || session.role === "university_admin"
       const expectedEvaluatorType = isTeacher ? "teacher" : "patient"
+      // 2026-07-11 副田さん報告: 評価サマリーは「自分 (教員①/教員②/患者役)」の評価のみを
+      //   集計する。代理採点時は proxyEvaluatorEmail (slot 担当者) で絞る。
+      //   これをしないと同じ部屋の教員①と教員②の評価が混ざり、状態/得点が合わない。
+      const effectiveEmail = (session.proxyEvaluatorEmail || session.email || "").toLowerCase()
       const roomEvaluations = evaluations.filter(
         (e) =>
-          e.roomNumber === currentRoomNumber && e.evaluatorType === expectedEvaluatorType,
+          e.roomNumber === currentRoomNumber &&
+          e.evaluatorType === expectedEvaluatorType &&
+          (!effectiveEmail || ((e as any).evaluatorId || "").toLowerCase() === effectiveEmail),
       )
       const roomAttendance = attendanceRecords.filter((a) => a.roomNumber === currentRoomNumber)
 
@@ -182,7 +213,8 @@ export function ExamResultsScreen() {
               <span className={`ml-2 inline-block px-2 py-0.5 rounded text-xs font-medium ${
                 evaluatorType === "patient" ? "bg-pink-100 text-pink-800" : "bg-blue-100 text-blue-800"
               }`}>
-                {evaluatorType === "patient" ? "患者役側" : "教員側"}
+                {/* 2026-07-11 副田さん要望: 教員①/教員②/患者役 のどの視点かを明示 */}
+                {slotLabel || (evaluatorType === "patient" ? "患者役" : "教員")}の評価
               </span>
             </p>
           </CardHeader>
