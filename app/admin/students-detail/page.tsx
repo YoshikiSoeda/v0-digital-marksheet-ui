@@ -184,11 +184,11 @@ export default function StudentsDetailPage() {
       if (e.studentId !== student.id) return false
       if (!filterTestSessionId) return true
 
-      // 試験セッションIDでフィルタ
-      const test = tests.find((t) => t.id === e.testId)
-      if (!test) return false
-
-      return test.testSessionId === filterTestSessionId
+      // 2026-07-11 副田さん報告バグ修正: exam_results には test_id が無く、評価は
+      //   test_session_id を直接持つ。旧実装は `tests.find(t => t.id === e.testId)`
+      //   で照合していたが e.testId は常に undefined → 全評価が除外され「未受験」に
+      //   なっていた。評価の testSessionId を直接比較する。
+      return (e as any).testSessionId === filterTestSessionId
     })
 
     const completedEvaluations = studentEvaluations.filter((e) => e.isCompleted)
@@ -229,24 +229,26 @@ export default function StudentsDetailPage() {
       return evalsForSlot.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     })
 
-    // 2026-07-03 副田さん要望: 問題別スコア (「内容」列用)。
-    //   evaluation.answers (compositeKey → optionValue) から compositeKey で照合。
-    //   複数評価者 (教員① と 教員②) が同じテストを採点している場合は合計。
+    // 2026-07-11 副田さん報告バグ修正: 問題別スコア (「内容」列用)。
+    //   exam_results には test_id が無いため、旧実装の `ev.testId === col.testId` は
+    //   常に false で内容が空だった。col のテストが role 内の何番目 (slot) かを求め、
+    //   その slot 担当者 (メール) の評価から compositeKey で点数を引く。
     const contentScores: Record<string, number | ""> = {}
     for (const col of dedupedContentColumns) {
-      let matchCount = 0
-      let sum = 0
-      for (const ev of completedEvaluations) {
-        if ((ev as any).testId !== col.testId) continue
-        const answers = (ev as any).answers as Record<string, number> | undefined
-        if (!answers) continue
-        const v = answers[col.compositeKey] ?? answers[col.questionNumber as any]
-        if (typeof v === "number") {
-          sum += v
-          matchCount++
-        }
+      const slotTests = col.roleType === "teacher" ? teacherSlotTests : patientSlotTests
+      const slotEmails = col.roleType === "teacher" ? roomTeacherEmails : roomPatientEmails
+      const slotIdx = slotTests.findIndex((t: any) => t.id === col.testId)
+      const slotEmail = slotIdx >= 0 ? slotEmails[slotIdx] : undefined
+      let val: number | "" = ""
+      if (slotEmail) {
+        const ev = completedEvaluations.find(
+          (e: any) => e.evaluatorType === col.roleType && (e.evaluatorEmail || e.evaluatorId) === slotEmail,
+        )
+        const answers = (ev as any)?.answers as Record<string, number> | undefined
+        const v = answers ? (answers[col.compositeKey] ?? answers[col.questionNumber as any]) : undefined
+        if (typeof v === "number") val = v
       }
-      contentScores[`${col.testId}::${col.compositeKey}`] = matchCount > 0 ? sum : ""
+      contentScores[`${col.testId}::${col.compositeKey}`] = val
     }
 
     // 2026-07-03 副田さん要望: 割合 = 合計得点 / セッション満点 × 100
