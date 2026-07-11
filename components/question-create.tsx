@@ -238,6 +238,56 @@ export function QuestionCreate() {
     )
   }
 
+  // 2026-07-10 副田さん要望 Phase 2: シート単位の N 段階配点編集
+  // 段階数変更時: 短くなる方向は末尾を捨てる、長くなる方向は次の連番で埋める。
+  //   合わせて属する questions.alertOptions から範囲外の位置を drop する。
+  const updateSheetScoreMapLength = (testId: string, sheetId: string, rawLength: number) => {
+    const nextLen = Math.max(2, Math.min(10, Math.floor(rawLength) || 5))
+    setTests(
+      tests.map((t) => {
+        if (t.id !== testId) return t
+        return {
+          ...t,
+          sheets: t.sheets.map((s) => {
+            if (s.id !== sheetId) return s
+            const current = (s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap?: number[] }).scoreMap!.length > 0
+              ? (s as { scoreMap: number[] }).scoreMap
+              : [1, 2, 3, 4, 5]
+            const nextMap = Array.from({ length: nextLen }, (_, i) => current[i] ?? i + 1)
+            const trimmedCats = s.categories.map((c) => ({
+              ...c,
+              questions: c.questions.map((q) => ({
+                ...q,
+                alertOptions: (q.alertOptions || []).filter((pos) => pos < nextLen),
+              })),
+            }))
+            return { ...s, scoreMap: nextMap, categories: trimmedCats } as typeof s
+          }),
+        }
+      }),
+    )
+  }
+
+  const updateSheetScoreValue = (testId: string, sheetId: string, index: number, value: number) => {
+    const clamped = Math.max(0, Math.floor(Number(value) || 0))
+    setTests(
+      tests.map((t) => {
+        if (t.id !== testId) return t
+        return {
+          ...t,
+          sheets: t.sheets.map((s) => {
+            if (s.id !== sheetId) return s
+            const current = ((s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap?: number[] }).scoreMap!.length > 0
+              ? (s as { scoreMap: number[] }).scoreMap
+              : [1, 2, 3, 4, 5]).slice()
+            current[index] = clamped
+            return { ...s, scoreMap: current } as typeof s
+          }),
+        }
+      }),
+    )
+  }
+
   const addCategory = (testId: string, sheetId: string) => {
     setTests(
       tests.map((t) =>
@@ -890,6 +940,43 @@ export function QuestionCreate() {
                         )}
                       </CardHeader>
                       <CardContent className="space-y-4">
+                        {/* 2026-07-10 副田さん要望 Phase 2: シート単位の N 段階配点 */}
+                        {(() => {
+                          const scoreMap = (sheet as { scoreMap?: number[] }).scoreMap && (sheet as { scoreMap: number[] }).scoreMap.length > 0
+                            ? (sheet as { scoreMap: number[] }).scoreMap
+                            : [1, 2, 3, 4, 5]
+                          return (
+                            <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-3 text-sm">
+                              <Label className="text-xs font-semibold text-blue-700">段階数</Label>
+                              <Input
+                                type="number"
+                                min={2}
+                                max={10}
+                                value={scoreMap.length}
+                                onChange={(e) =>
+                                  updateSheetScoreMapLength(test.id, sheet.id, Number(e.target.value))
+                                }
+                                className="w-16 h-8"
+                              />
+                              <span className="mx-1 text-blue-700">段階、配点:</span>
+                              {scoreMap.map((val, i) => (
+                                <Input
+                                  key={i}
+                                  type="number"
+                                  min={0}
+                                  value={val}
+                                  onChange={(e) =>
+                                    updateSheetScoreValue(test.id, sheet.id, i, Number(e.target.value))
+                                  }
+                                  className="w-14 h-8"
+                                />
+                              ))}
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                (負数不可、0 は許可)
+                              </span>
+                            </div>
+                          )
+                        })()}
                         {sheet.categories.map((category) => (
                           <Card key={category.id} className="bg-gray-50">
                             <CardHeader className="flex flex-row items-center justify-between py-3">
@@ -1017,29 +1104,37 @@ export function QuestionCreate() {
                                             アラート対象の選択肢:
                                           </span>
                                           <div className="flex items-center gap-2">
-                                            {[1, 2, 3, 4, 5].map((optNum) => (
-                                              <div key={optNum} className="flex items-center space-x-1">
-                                                <Checkbox
-                                                  id={`alert-opt-${question.id}-${optNum}`}
-                                                  checked={question.alertOptions?.includes(optNum) || false}
-                                                  onCheckedChange={() =>
-                                                    toggleAlertOption(
-                                                      test.id,
-                                                      sheet.id,
-                                                      category.id,
-                                                      question.id,
-                                                      optNum,
-                                                    )
-                                                  }
-                                                />
-                                                <label
-                                                  htmlFor={`alert-opt-${question.id}-${optNum}`}
-                                                  className="text-xs cursor-pointer"
-                                                >
-                                                  {optNum}
-                                                </label>
-                                              </div>
-                                            ))}
+                                            {/* 2026-07-10 副田さん要望 Phase 2:
+                                                alertOptions は「選択肢の位置 (0-indexed)」で持つ。
+                                                ラベルは sheet.scoreMap の実配点値を表示。 */}
+                                            {(() => {
+                                              const scoreMap = (sheet as { scoreMap?: number[] }).scoreMap && (sheet as { scoreMap: number[] }).scoreMap.length > 0
+                                                ? (sheet as { scoreMap: number[] }).scoreMap
+                                                : [1, 2, 3, 4, 5]
+                                              return scoreMap.map((val, position) => (
+                                                <div key={position} className="flex items-center space-x-1">
+                                                  <Checkbox
+                                                    id={`alert-opt-${question.id}-${position}`}
+                                                    checked={question.alertOptions?.includes(position) || false}
+                                                    onCheckedChange={() =>
+                                                      toggleAlertOption(
+                                                        test.id,
+                                                        sheet.id,
+                                                        category.id,
+                                                        question.id,
+                                                        position,
+                                                      )
+                                                    }
+                                                  />
+                                                  <label
+                                                    htmlFor={`alert-opt-${question.id}-${position}`}
+                                                    className="text-xs cursor-pointer"
+                                                  >
+                                                    {val}
+                                                  </label>
+                                                </div>
+                                              ))
+                                            })()}
                                           </div>
                                         </div>
                                         <Button
@@ -1148,11 +1243,20 @@ export function QuestionCreate() {
                                         ]
                                           .filter(Boolean)
                                           .join(" / ")}
-                                        {question.isAlertTarget && (
-                                          <span className="ml-2 text-red-600 font-medium">
-                                            [アラート: {question.alertOptions?.join(",")}]
-                                          </span>
-                                        )}
+                                        {question.isAlertTarget && (() => {
+                                          // 2026-07-10 副田さん要望 Phase 2: 位置ベースの alertOptions を実配点値で表示
+                                          const scoreMap = (sheet as { scoreMap?: number[] }).scoreMap && (sheet as { scoreMap: number[] }).scoreMap.length > 0
+                                            ? (sheet as { scoreMap: number[] }).scoreMap
+                                            : [1, 2, 3, 4, 5]
+                                          const values = (question.alertOptions || [])
+                                            .map((p) => scoreMap[p])
+                                            .filter((v) => v != null)
+                                          return (
+                                            <span className="ml-2 text-red-600 font-medium">
+                                              [アラート: {values.join(",")}]
+                                            </span>
+                                          )
+                                        })()}
                                       </div>
                                     </div>
                                   </div>
