@@ -105,21 +105,24 @@ export default function TeacherExamTabs({
             setTeacherName(teacher.name)
           }
           // 2026-07-03 副田さん要望: 部屋内の教員をメール昇順で 1 番目なら教員①
-          // 更新: 管理者ロール (university_admin / subject_admin / master_admin) は
-          // 教員①でなくても出席登録/評価編集可能。
+          // 2026-07-11 副田さん報告バグ修正: 出席登録は「教員①のみ」。
+          //   管理者代理時は teacherEmail が slot 担当者メール (proxyEvaluatorEmail) に
+          //   なっているため、slot 担当者が部屋の 1 番目 (教員①) かどうかで判定する。
+          //   → 教員① 代理なら true、教員② 代理なら false。旧 isAdminRole ショートカット
+          //   (管理者は常に true) は仕様違反だったため撤去。
+          //   ただし部屋の教員に一致しない (直接アクセスした管理者等) は lockout 回避で true。
           if (activeRoomNumber) {
             const teachersInRoom = fetchedTeachers
               .filter((t) => t.assignedRoomNumber === activeRoomNumber)
               .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
             const first = teachersInRoom[0]
-            const isAdminRole =
-              teacherRole === "university_admin" ||
-              teacherRole === "subject_admin" ||
-              teacherRole === "master_admin"
+            const myEmail = (teacherEmail || "").toLowerCase()
+            const amiInRoom = teachersInRoom.some((t) => (t.email || "").toLowerCase() === myEmail)
             setIsPrimaryTeacher(
-              isAdminRole ||
-                !first ||
-                (first.email || "").toLowerCase() === (teacherEmail || "").toLowerCase(),
+              !first ||
+                // 部屋の教員として登録されていない場合 (割当なし直接アクセス) は lockout 回避
+                !amiInRoom ||
+                (first.email || "").toLowerCase() === myEmail,
             )
           }
         }

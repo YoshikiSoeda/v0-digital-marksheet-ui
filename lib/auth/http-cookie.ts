@@ -20,6 +20,8 @@ export interface ServerLoginInfo {
   subjectCode?: string
   testSessionId?: string
   accountType?: string
+  /** 2026-07-11: 管理者代理採点時の評価者メール (slot 担当者)。通常は未設定。 */
+  proxyEvaluatorEmail?: string
 }
 
 const COOKIE_NAME = "loginInfo"

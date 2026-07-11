@@ -36,9 +36,13 @@ export default function PatientExamPage() {
   if (guard.kind === "redirect") return null
   if (guard.kind === "error") return guard.render()
 
+  // 2026-07-11 副田さん報告: 管理者代理採点時は proxyEvaluatorEmail (slot 担当者) を
+  //   評価者 ID として使う。通常の患者役は自分のメール。
+  const effectiveEmail = guard.session.proxyEvaluatorEmail || guard.session.email!
+
   return (
     <PatientExamTabs
-      patientEmail={guard.session.email!}
+      patientEmail={effectiveEmail}
       patientRoomNumber={guard.session.assignedRoomNumber!}
       testId={guard.selectedTestId}
     />

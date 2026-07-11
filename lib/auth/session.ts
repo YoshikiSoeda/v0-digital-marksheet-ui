@@ -23,6 +23,10 @@ export interface Session {
   subjectCode: string
   testSessionId: string
   accountType: string
+  // 2026-07-11 副田さん報告: 管理者 (大学/教科/master) が教員①/②/患者役を代理採点する際、
+  //   評価を「その slot の担当者」として保存/読込するための代理評価者メール。
+  //   通常ログインでは空。select-session で elevated ロールが slot を選んだ時のみ設定。
+  proxyEvaluatorEmail: string
 }
 
 const COOKIE_NAME = "loginInfo"
@@ -53,6 +57,8 @@ export async function getServerSession(): Promise<Session | null> {
       subjectCode: typeof decoded.subjectCode === "string" ? decoded.subjectCode : "",
       testSessionId: typeof decoded.testSessionId === "string" ? decoded.testSessionId : "",
       accountType: typeof decoded.accountType === "string" ? decoded.accountType : "",
+      proxyEvaluatorEmail:
+        typeof decoded.proxyEvaluatorEmail === "string" ? decoded.proxyEvaluatorEmail : "",
     }
   } catch {
     return null
