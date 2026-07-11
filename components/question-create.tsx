@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Plus, Trash2, FileDown, MoreHorizontal } from "lucide-react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ArrowLeft, Plus, Trash2, FileDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { saveTests, type Test, type Sheet, type Question } from "@/lib/data-storage"
@@ -239,10 +238,16 @@ export function QuestionCreate() {
     )
   }
 
-  // 2026-07-10 副田さん要望 Phase 2: シート単位の N 段階配点編集
-  // 段階数変更時: 短くなる方向は末尾を捨てる、長くなる方向は次の連番で埋める。
-  //   合わせて属する questions.alertOptions から範囲外の位置を drop する。
-  const updateSheetScoreMapLength = (testId: string, sheetId: string, rawLength: number) => {
+  // 2026-07-11 副田さん仕様修正: 段階数+配点は「問題ごと」に直接編集する。
+  //   シート単位 UI と「・・・」個別 override Dialog は撤廃、問題行に scoreMap 入力を統合。
+  //   段階数変更で alertOptions を範囲外位置は自動除去する。
+  const updateQuestionScoreMapLength = (
+    testId: string,
+    sheetId: string,
+    categoryId: string,
+    questionId: string,
+    rawLength: number,
+  ) => {
     const nextLen = Math.max(2, Math.min(10, Math.floor(rawLength) || 5))
     setTests(
       tests.map((t) => {
@@ -251,65 +256,6 @@ export function QuestionCreate() {
           ...t,
           sheets: t.sheets.map((s) => {
             if (s.id !== sheetId) return s
-            const current = (s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap?: number[] }).scoreMap!.length > 0
-              ? (s as { scoreMap: number[] }).scoreMap
-              : [1, 2, 3, 4, 5]
-            const nextMap = Array.from({ length: nextLen }, (_, i) => current[i] ?? i + 1)
-            const trimmedCats = s.categories.map((c) => ({
-              ...c,
-              questions: c.questions.map((q) => ({
-                ...q,
-                alertOptions: (q.alertOptions || []).filter((pos) => pos < nextLen),
-              })),
-            }))
-            return { ...s, scoreMap: nextMap, categories: trimmedCats } as typeof s
-          }),
-        }
-      }),
-    )
-  }
-
-  const updateSheetScoreValue = (testId: string, sheetId: string, index: number, value: number) => {
-    const clamped = Math.max(0, Math.floor(Number(value) || 0))
-    setTests(
-      tests.map((t) => {
-        if (t.id !== testId) return t
-        return {
-          ...t,
-          sheets: t.sheets.map((s) => {
-            if (s.id !== sheetId) return s
-            const current = ((s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap?: number[] }).scoreMap!.length > 0
-              ? (s as { scoreMap: number[] }).scoreMap
-              : [1, 2, 3, 4, 5]).slice()
-            current[index] = clamped
-            return { ...s, scoreMap: current } as typeof s
-          }),
-        }
-      }),
-    )
-  }
-
-  // 2026-07-10 副田さん要望 Phase 3: 問題ごとの個別配点上書き。
-  //   scoreMap=null (or []) → シートの scoreMap を継承。
-  //   scoreMap=[a,b,c] → その問題だけ独自配点。
-  //   合わせて alertOptions の範囲外位置を除去する。
-  const updateQuestionScoreMap = (
-    testId: string,
-    sheetId: string,
-    categoryId: string,
-    questionId: string,
-    nextScoreMap: number[] | null,
-  ) => {
-    setTests(
-      tests.map((t) => {
-        if (t.id !== testId) return t
-        return {
-          ...t,
-          sheets: t.sheets.map((s) => {
-            if (s.id !== sheetId) return s
-            const sheetScoreMap = (s as { scoreMap?: number[] }).scoreMap && (s as { scoreMap: number[] }).scoreMap.length > 0
-              ? (s as { scoreMap: number[] }).scoreMap
-              : [1, 2, 3, 4, 5]
             return {
               ...s,
               categories: s.categories.map((c) => {
@@ -318,13 +264,14 @@ export function QuestionCreate() {
                   ...c,
                   questions: c.questions.map((q) => {
                     if (q.id !== questionId) return q
-                    const effectiveLen = nextScoreMap && nextScoreMap.length > 0
-                      ? nextScoreMap.length
-                      : sheetScoreMap.length
+                    const current = Array.isArray((q as { scoreMap?: number[] | null }).scoreMap) && (q as { scoreMap: number[] }).scoreMap.length > 0
+                      ? (q as { scoreMap: number[] }).scoreMap
+                      : [1, 2, 3, 4, 5]
+                    const nextMap = Array.from({ length: nextLen }, (_, i) => current[i] ?? i + 1)
                     return {
                       ...q,
-                      scoreMap: nextScoreMap,
-                      alertOptions: (q.alertOptions || []).filter((pos) => pos < effectiveLen),
+                      scoreMap: nextMap,
+                      alertOptions: (q.alertOptions || []).filter((pos) => pos < nextLen),
                     } as typeof q
                   }),
                 }
@@ -336,14 +283,44 @@ export function QuestionCreate() {
     )
   }
 
-  // 2026-07-10 副田さん要望 Phase 3: 問題ごと配点編集ダイアログの制御
-  const [qOverrideDialog, setQOverrideDialog] = useState<{
-    open: boolean
-    testId: string
-    sheetId: string
-    categoryId: string
-    questionId: string
-  } | null>(null)
+  const updateQuestionScoreValue = (
+    testId: string,
+    sheetId: string,
+    categoryId: string,
+    questionId: string,
+    index: number,
+    value: number,
+  ) => {
+    const clamped = Math.max(0, Math.floor(Number(value) || 0))
+    setTests(
+      tests.map((t) => {
+        if (t.id !== testId) return t
+        return {
+          ...t,
+          sheets: t.sheets.map((s) => {
+            if (s.id !== sheetId) return s
+            return {
+              ...s,
+              categories: s.categories.map((c) => {
+                if (c.id !== categoryId) return c
+                return {
+                  ...c,
+                  questions: c.questions.map((q) => {
+                    if (q.id !== questionId) return q
+                    const current = (Array.isArray((q as { scoreMap?: number[] | null }).scoreMap) && (q as { scoreMap: number[] }).scoreMap.length > 0
+                      ? (q as { scoreMap: number[] }).scoreMap
+                      : [1, 2, 3, 4, 5]).slice()
+                    current[index] = clamped
+                    return { ...q, scoreMap: current } as typeof q
+                  }),
+                }
+              }),
+            }
+          }),
+        }
+      }),
+    )
+  }
 
   const addCategory = (testId: string, sheetId: string) => {
     setTests(
@@ -435,6 +412,8 @@ export function QuestionCreate() {
                                   option5: "",
                                   isAlertTarget: false,
                                   alertOptions: [],
+                                  // 2026-07-11 副田さん仕様: 新規問題は 5 段階 / 1-5 点をデフォルトに
+                                  scoreMap: [1, 2, 3, 4, 5],
                                 },
                               ],
                             }
@@ -997,43 +976,6 @@ export function QuestionCreate() {
                         )}
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {/* 2026-07-10 副田さん要望 Phase 2: シート単位の N 段階配点 */}
-                        {(() => {
-                          const scoreMap = (sheet as { scoreMap?: number[] }).scoreMap && (sheet as { scoreMap: number[] }).scoreMap.length > 0
-                            ? (sheet as { scoreMap: number[] }).scoreMap
-                            : [1, 2, 3, 4, 5]
-                          return (
-                            <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-3 text-sm">
-                              <Label className="text-xs font-semibold text-blue-700">段階数</Label>
-                              <Input
-                                type="number"
-                                min={2}
-                                max={10}
-                                value={scoreMap.length}
-                                onChange={(e) =>
-                                  updateSheetScoreMapLength(test.id, sheet.id, Number(e.target.value))
-                                }
-                                className="w-16 h-8"
-                              />
-                              <span className="mx-1 text-blue-700">段階、配点:</span>
-                              {scoreMap.map((val, i) => (
-                                <Input
-                                  key={i}
-                                  type="number"
-                                  min={0}
-                                  value={val}
-                                  onChange={(e) =>
-                                    updateSheetScoreValue(test.id, sheet.id, i, Number(e.target.value))
-                                  }
-                                  className="w-14 h-8"
-                                />
-                              ))}
-                              <span className="ml-1 text-xs text-muted-foreground">
-                                (負数不可、0 は許可)
-                              </span>
-                            </div>
-                          )
-                        })()}
                         {sheet.categories.map((category) => (
                           <Card key={category.id} className="bg-gray-50">
                             <CardHeader className="flex flex-row items-center justify-between py-3">
@@ -1155,6 +1097,41 @@ export function QuestionCreate() {
                                           />
                                         </div>
                                       </div>
+                                      {/* 2026-07-11 副田さん仕様: 問題ごとの段階数 + 配点 */}
+                                      {(() => {
+                                        const qMap = Array.isArray((question as { scoreMap?: number[] | null }).scoreMap) && (question as { scoreMap: number[] }).scoreMap.length > 0
+                                          ? (question as { scoreMap: number[] }).scoreMap
+                                          : [1, 2, 3, 4, 5]
+                                        return (
+                                          <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 p-2 text-xs">
+                                            <span className="font-semibold text-blue-700">段階数</span>
+                                            <Input
+                                              type="number"
+                                              min={2}
+                                              max={10}
+                                              value={qMap.length}
+                                              onChange={(e) =>
+                                                updateQuestionScoreMapLength(test.id, sheet.id, category.id, question.id, Number(e.target.value))
+                                              }
+                                              className="w-14 h-7 text-xs"
+                                            />
+                                            <span className="mx-1 text-blue-700">段階、配点:</span>
+                                            {qMap.map((val, i) => (
+                                              <Input
+                                                key={i}
+                                                type="number"
+                                                min={0}
+                                                value={val}
+                                                onChange={(e) =>
+                                                  updateQuestionScoreValue(test.id, sheet.id, category.id, question.id, i, Number(e.target.value))
+                                                }
+                                                className="w-12 h-7 text-xs"
+                                              />
+                                            ))}
+                                            <span className="ml-1 text-[10px] text-muted-foreground">(負数不可、0 は許可)</span>
+                                          </div>
+                                        )
+                                      })()}
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                           <span className="text-xs font-medium text-gray-600">
@@ -1199,34 +1176,14 @@ export function QuestionCreate() {
                                             })()}
                                           </div>
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                          {/* 2026-07-10 副田さん要望 Phase 3: 問題ごとの個別配点変更 */}
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                              setQOverrideDialog({
-                                                open: true,
-                                                testId: test.id,
-                                                sheetId: sheet.id,
-                                                categoryId: category.id,
-                                                questionId: question.id,
-                                              })
-                                            }
-                                            className="h-6 text-muted-foreground"
-                                            title="この問題の配点を個別変更"
-                                          >
-                                            <MoreHorizontal className="h-3 w-3" />
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeQuestion(test.id, sheet.id, category.id, question.id)}
-                                            className="text-red-600 h-6"
-                                          >
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeQuestion(test.id, sheet.id, category.id, question.id)}
+                                          className="text-red-600 h-6"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                     </div>
                                   </div>
@@ -1360,159 +1317,6 @@ export function QuestionCreate() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* 2026-07-10 副田さん要望 Phase 3: 問題ごとの個別配点変更ダイアログ */}
-      <QuestionScoreMapOverrideDialog
-        dialogState={qOverrideDialog}
-        onClose={() => setQOverrideDialog(null)}
-        tests={tests}
-        onSave={updateQuestionScoreMap}
-      />
     </div>
-  )
-}
-
-// 2026-07-10 副田さん要望 Phase 3: 問題ごとの個別配点変更ダイアログ
-interface QOverrideDialogState {
-  open: boolean
-  testId: string
-  sheetId: string
-  categoryId: string
-  questionId: string
-}
-
-interface QSheetLike {
-  id: string
-  scoreMap?: number[]
-  categories: Array<{
-    id: string
-    questions: Array<{ id: string; number: number; scoreMap?: number[] | null }>
-  }>
-}
-interface QTestLike { id: string; sheets: QSheetLike[] }
-
-function QuestionScoreMapOverrideDialog({
-  dialogState,
-  onClose,
-  tests,
-  onSave,
-}: {
-  dialogState: QOverrideDialogState | null
-  onClose: () => void
-  tests: QTestLike[]
-  onSave: (
-    testId: string,
-    sheetId: string,
-    categoryId: string,
-    questionId: string,
-    nextScoreMap: number[] | null,
-  ) => void
-}) {
-  const [enabled, setEnabled] = useState(false)
-  const [draftMap, setDraftMap] = useState<number[]>([1, 2, 3, 4, 5])
-
-  useEffect(() => {
-    if (!dialogState?.open) return
-    const test = tests.find((t) => t.id === dialogState.testId)
-    const sheet = test?.sheets.find((s) => s.id === dialogState.sheetId)
-    const cat = sheet?.categories.find((c) => c.id === dialogState.categoryId)
-    const question = cat?.questions.find((q) => q.id === dialogState.questionId)
-    const qMap = question?.scoreMap
-    if (Array.isArray(qMap) && qMap.length > 0) {
-      setEnabled(true)
-      setDraftMap(qMap.slice())
-    } else {
-      setEnabled(false)
-      const sMap = sheet?.scoreMap
-      setDraftMap(Array.isArray(sMap) && sMap.length > 0 ? sMap.slice() : [1, 2, 3, 4, 5])
-    }
-  }, [dialogState, tests])
-
-  if (!dialogState) return null
-  const test = tests.find((t) => t.id === dialogState.testId)
-  const sheet = test?.sheets.find((s) => s.id === dialogState.sheetId)
-  const cat = sheet?.categories.find((c) => c.id === dialogState.categoryId)
-  const question = cat?.questions.find((q) => q.id === dialogState.questionId)
-  const sheetMap = Array.isArray(sheet?.scoreMap) && sheet!.scoreMap!.length > 0 ? sheet!.scoreMap! : [1, 2, 3, 4, 5]
-
-  const changeLen = (rawLen: number) => {
-    const nextLen = Math.max(2, Math.min(10, Math.floor(rawLen) || 5))
-    setDraftMap((prev) => Array.from({ length: nextLen }, (_, i) => prev[i] ?? i + 1))
-  }
-  const changeVal = (idx: number, v: number) => {
-    setDraftMap((prev) => {
-      const next = prev.slice()
-      next[idx] = Math.max(0, Math.floor(Number(v) || 0))
-      return next
-    })
-  }
-  const save = () => {
-    onSave(dialogState.testId, dialogState.sheetId, dialogState.categoryId, dialogState.questionId, enabled ? draftMap : null)
-    onClose()
-  }
-
-  return (
-    <Dialog open={dialogState.open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>問題 {question?.number ?? ""} の配点</DialogTitle>
-          <DialogDescription>
-            シート設定 [{sheetMap.join(", ")}] を上書きしてこの問題だけ独自の配点にできます。
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-            />
-            この問題だけ個別に設定する
-          </label>
-          {enabled && (
-            <div className="space-y-3 rounded-md bg-blue-50 p-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-semibold text-blue-700">段階数</span>
-                <Input
-                  type="number"
-                  min={2}
-                  max={10}
-                  value={draftMap.length}
-                  onChange={(e) => changeLen(Number(e.target.value))}
-                  className="w-16 h-8"
-                />
-                <span className="text-blue-700">段階</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-semibold text-blue-700">配点</span>
-                {draftMap.map((v, i) => (
-                  <Input
-                    key={i}
-                    type="number"
-                    min={0}
-                    value={v}
-                    onChange={(e) => changeVal(i, Number(e.target.value))}
-                    className="w-14 h-8"
-                  />
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                負数は不許可、0 は許可。段階数を減らすと範囲外のアラート設定は自動で外れます。
-              </p>
-            </div>
-          )}
-          {!enabled && (
-            <p className="text-xs text-muted-foreground">
-              チェックを外すとシートの設定 [{sheetMap.join(", ")}] が使われます。
-            </p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>キャンセル</Button>
-          <Button onClick={save}>保存</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
