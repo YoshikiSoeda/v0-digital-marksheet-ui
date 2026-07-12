@@ -12,7 +12,6 @@
  *  - onAnswer は caller の handleAnswerChange を直接渡す
  */
 
-import { Button } from "@/components/ui/button"
 import type { GroupedQuestions, QuestionWithGroupingMeta } from "@/lib/exam/hooks"
 
 // 描画に必要な question フィールド
@@ -51,67 +50,75 @@ export function ExamQuestionsRenderer({
     <>
       {groupedQuestions.map((sheet) => (
         <div key={sheet.sheetTitle} className="space-y-3">
-          <div className="bg-muted px-4 py-3 rounded">
-            <span className="font-medium">{sheet.sheetTitle}</span>
+          {/* 2026-07-12 デザイン Phase 2-1: シート見出しに左アクセント + 質感 */}
+          <div className="flex items-center gap-2.5 rounded-lg border-l-4 border-primary bg-secondary/60 px-4 py-2.5">
+            <span className="text-base font-bold text-primary">{sheet.sheetTitle}</span>
           </div>
 
           {sheet.categories.map((category) => (
-            <div key={category.categoryNumber} className="space-y-3">
-              <div className="px-4">
-                <p className="text-sm font-semibold">{category.categoryTitle}</p>
+            <div key={category.categoryNumber} className="space-y-1.5">
+              <div className="px-2 pt-1">
+                <p className="text-sm font-bold text-foreground/80 tracking-wide">{category.categoryTitle}</p>
               </div>
 
-              <div className="space-y-1 px-4">
+              <div className="space-y-0.5">
                 {category.questions.map((question) => {
                   // 2026-07-03 副田さんバグ報告: カテゴリ跨ぎ同期を防ぐため compositeKey で参照
                   const compositeKey = `${category.categoryNumber}-${question.number}`
                   const selectedOption = answers[compositeKey]
                   const isAlertTarget = question.isAlertTarget
 
+                  const answered = selectedOption != null
                   return (
                     <div
                       key={compositeKey}
-                      className="flex items-center gap-4 py-2 border-b border-gray-200/40"
+                      // 2026-07-12 デザイン Phase 2-1: 未回答/回答済み/アラートを行の質感で区別。
+                      //   採点済みは淡い水色、アラート対象は左に赤帯。
+                      className={`flex items-start gap-3 sm:gap-4 rounded-lg px-3 py-2.5 transition-colors ${
+                        isAlertTarget ? "border-l-[3px] border-critical/60 pl-2.5" : ""
+                      } ${answered ? "bg-primary/[0.04]" : "hover:bg-muted/40"}`}
                     >
-                      <div className="flex-shrink-0 w-8 text-sm font-medium text-muted-foreground">
+                      <div className="flex-shrink-0 w-7 pt-2 text-sm font-semibold text-muted-foreground tnum text-right">
                         {question.number}
                       </div>
 
-                      <div className="flex-1 min-w-0 text-sm">
+                      <div className="flex-1 min-w-0 pt-1.5 text-sm leading-relaxed">
                         {question.text}
                         {isAlertTarget && (
-                          <span className="ml-2 text-xs text-red-600 font-medium">
-                            (アラート対象: {question.alertOptions?.join(",")})
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-critical/30 bg-critical/10 px-2 py-0.5 text-[11px] font-semibold text-critical align-middle">
+                            アラート {question.alertOptions?.join(",")}
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* 2026-07-10 副田さん要望 Phase 1: scoreMap ベースのボタン描画
-                            未指定なら従来通り [1,2,3,4,5]。将来 [1,3,5] 等の任意配点に対応。 */}
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                        {/* 2026-07-12 デザイン Phase 2-1: 評価ボタンを拡大しタブレットで押しやすく。
+                            選択中はブランド色 + 影で明確に。scoreMap ベース描画。 */}
                         {(question.scoreMap && question.scoreMap.length > 0
                           ? question.scoreMap
                           : DEFAULT_SCORE_MAP
-                        ).map((option) => (
-                          <Button
-                            key={option}
-                            variant={selectedOption === option ? "default" : "outline"}
-                            size="sm"
-                            className="w-10 h-10 p-0 text-sm rounded-md"
-                            onClick={() => {
-                              // 2026-07-03 副田さん要望: 同じボタンを再押しで選択解除
-                              if (selectedOption === option) {
-                                onAnswer(compositeKey, null)
-                              } else {
-                                onAnswer(compositeKey, option)
-                              }
-                            }}
-                            disabled={inputDisabled || !attendancePresent}
-                            title={selectedOption === option ? "もう一度押すと解除" : undefined}
-                          >
-                            {option}
-                          </Button>
-                        ))}
+                        ).map((option) => {
+                          const isOn = selectedOption === option
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => onAnswer(compositeKey, isOn ? null : option)}
+                              disabled={inputDisabled || !attendancePresent}
+                              title={isOn ? "もう一度押すと解除" : undefined}
+                              className={`inline-flex h-11 min-w-[2.75rem] items-center justify-center rounded-xl border text-base font-bold tabular-nums transition-all
+                                disabled:cursor-not-allowed disabled:opacity-40
+                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1
+                                ${
+                                  isOn
+                                    ? "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30 scale-[1.03]"
+                                    : "border-input bg-card text-foreground hover:border-primary/60 hover:bg-primary/5 active:scale-95"
+                                }`}
+                            >
+                              {option}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                   )
