@@ -381,6 +381,8 @@ const AdminDashboard = () => {
                   }
                 } else if (statusInfo.status === "absent") {
                   absentCount++
+                  // 2026-07-12 副田さん要望: 欠席は採点不要なので完了として数える
+                  completedCount++
                 }
               }
             })
@@ -655,6 +657,8 @@ const AdminDashboard = () => {
                 }
               } else if (statusInfo.status === "absent") {
                 absentCount++
+                // 2026-07-12 副田さん要望: 欠席は採点不要なので完了として数える
+                completedCount++
               }
             }
           })

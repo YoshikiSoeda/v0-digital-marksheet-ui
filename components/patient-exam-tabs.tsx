@@ -362,6 +362,8 @@ export default function PatientExamTabs({
           {assignedStudents.map((student, index) => {
             const attendance = attendanceStatus[student.id] || null
             const isStudentCompleted = completionStatus[student.id] || false
+            // 2026-07-12 副田さん要望: 欠席は採点不要なので「完了」として表示
+            const displayCompleted = isStudentCompleted || attendance === "absent"
             const studentScore = calculateScoreFor(student.id)
             const studentAnsweredCount = Object.keys(studentAnswers[student.id] || {}).length
 
@@ -391,7 +393,7 @@ export default function PatientExamTabs({
                   </div>
                   <div
                     className={`flex-1 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
-                      isStudentCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      displayCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     }`}
                   >
                     完了

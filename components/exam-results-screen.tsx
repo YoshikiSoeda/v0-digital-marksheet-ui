@@ -129,22 +129,29 @@ export function ExamResultsScreen() {
         }
       })
 
-      // Count completed/alert only for present students
+      // 完了/アラートの集計。
+      // 2026-07-12 副田さん要望: 欠席の学生は採点不要なので「完了」として数える。
+      //   平均点は採点がある (出席かつ評価完了) 学生のみで計算する。
       let completedCount = 0
+      let scoredCount = 0
       let alertCount = 0
       let totalScore = 0
       roomStudents.forEach((student) => {
         const attendance = studentStatusMap.get(student.id)
-        // Only count evaluations for students who are present
+        if (attendance === "absent") {
+          completedCount++ // 欠席は完了扱い
+          return
+        }
         if (attendance !== "present") return
         const evaluation = evaluationMap.get(student.id)
         if (evaluation?.isCompleted) {
           completedCount++
+          scoredCount++
           totalScore += evaluation.totalScore || 0
         }
         if (evaluation?.hasAlert) alertCount++
       })
-      const avgScore = completedCount > 0 ? Math.round(totalScore / completedCount) : 0
+      const avgScore = scoredCount > 0 ? Math.round(totalScore / scoredCount) : 0
 
       setRoomStats({
         totalStudents: roomStudents.length,
@@ -166,13 +173,15 @@ export function ExamResultsScreen() {
       const details = roomStudents.map((student) => {
         const status = studentStatusMap.get(student.id)
         const evaluation = evaluationMap.get(student.id)
-        // Absent students should not show completion or scores regardless of evaluation data
         const isPresent = status === "present"
+        const isAbsent = status === "absent"
         return {
           name: student.name,
           studentId: student.studentId,
           status: status || "未記録",
-          isCompleted: isPresent ? (evaluation?.isCompleted || false) : false,
+          // 2026-07-12 副田さん要望: 欠席は採点不要なので「完了」扱い。出席は評価完了で完了。
+          isCompleted: isAbsent ? true : (isPresent ? (evaluation?.isCompleted || false) : false),
+          // 得点は出席で採点済みのときのみ。欠席は 0(状態は完了だが点数はなし)。
           score: isPresent ? (evaluation?.totalScore || 0) : 0,
           alertCount: studentAlertCountMap.get(student.id) || 0,
         }
