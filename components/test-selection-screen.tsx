@@ -11,6 +11,7 @@ import { ChevronRight, Shield, Filter, AlertTriangle, UserCog, Users } from "luc
 import { loadTests, loadTestSessions, type Test, type TestSession, type TestSessionStatus } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 
 interface TestSelectionScreenProps {
@@ -506,7 +507,10 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   if (isLoading) {
     return (
       <div className="min-h-screen bg-secondary/30 flex items-center justify-center">
-        <p className="text-muted-foreground">読み込み中...</p>
+        <div className="inline-flex items-center gap-2.5 text-muted-foreground">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+          <span className="text-sm">読み込み中...</span>
+        </div>
       </div>
     )
   }
@@ -647,8 +651,12 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
                 <tbody>
                   {filteredSessions.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center text-sm text-muted-foreground py-8">
-                        該当するテストセッションがありません
+                      <td colSpan={6} className="p-0">
+                        <EmptyState
+                          icon={Filter}
+                          title="該当するテストセッションがありません"
+                          description="教科・ステータス・日付の絞り込み条件を見直してください。"
+                        />
                       </td>
                     </tr>
                   ) : (
