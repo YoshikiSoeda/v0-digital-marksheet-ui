@@ -93,21 +93,22 @@ export function AppShell({ children, requireAuth = true, loginPath = "/" }: AppS
 
   return (
     <div className="min-h-screen flex flex-col bg-secondary/30">
-      <header className="border-b bg-background">
-        <div className="mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2 text-primary font-semibold text-lg">
+      {/* 2026-07-12 デザイン Phase 3-1: ヘッダーを sticky + 質感 (半透明ぼかし) に */}
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          <Link href="/" className="flex items-center gap-2 text-primary font-bold text-lg tracking-tight">
             <BrandingIcon branding={branding} className="text-2xl w-7 h-7" alt="" />
             <span>{branding.title}</span>
           </Link>
           {session && (
             <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium leading-tight">
+              <div className="text-right hidden sm:block leading-tight">
+                <div className="text-sm font-semibold">
                   {session.userName || "ユーザー"}
                 </div>
                 <Badge
                   variant={deriveRoleVariant(session.role, session.accountType)}
-                  className="text-[10px] px-1.5 py-0 h-4"
+                  className="text-[10px] px-1.5 py-0 h-4 mt-0.5"
                 >
                   {deriveRoleLabel(session.role, session.accountType)}
                 </Badge>
