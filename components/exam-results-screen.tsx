@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, LogOut, Clock, Target, Users, AlertTriangle, ArrowLeft } from "lucide-react"
 import { loadEvaluationResults, loadStudents, loadAttendanceRecords, loadTeachers, loadPatients } from "@/lib/data-storage"
 import { useSession } from "@/lib/auth/use-session"
+import { StatusPill } from "@/components/ui/status-pill"
 
 export function ExamResultsScreen() {
   const router = useRouter()
@@ -290,28 +291,17 @@ export function ExamResultsScreen() {
                           <td className={`p-3 text-sm ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.studentId}</td>
                           <td className={`p-3 text-sm ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>
                           <td className="p-3 text-sm text-center">
-                            <span
-                              className={`inline-block px-2 py-1 rounded text-xs ${
-                                student.status === "present"
-                                  ? "bg-green-100 text-green-700"
-                                  : student.status === "absent"
-                                    ? "bg-orange-100 text-orange-700"
-                                    : "bg-gray-100 text-gray-700"
-                              }`}
+                            {/* 2026-07-12 デザイン Phase 1: 共通 StatusPill に統一 */}
+                            <StatusPill
+                              kind={student.status === "present" ? "present" : student.status === "absent" ? "absent" : "pending"}
                             >
                               {student.status === "present" ? "出席" : student.status === "absent" ? "欠席" : "未記録"}
-                            </span>
+                            </StatusPill>
                           </td>
                           <td className="p-3 text-sm text-center">
-                            <span
-                              className={`inline-block px-2 py-1 rounded text-xs ${
-                                student.isCompleted ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {student.isCompleted ? "完了" : "未完了"}
-                            </span>
+                            <StatusPill kind={student.isCompleted ? "complete" : "incomplete"} />
                           </td>
-                          <td className={`p-3 text-sm text-right font-medium ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.score}点</td>
+                          <td className={`p-3 text-sm text-right font-medium tnum ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.score}点</td>
                           <td className="p-3 text-sm text-center">
                             {student.alertCount > 0 ? (
                               <span className="inline-block px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-semibold">{student.alertCount}</span>

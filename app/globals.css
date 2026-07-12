@@ -35,6 +35,15 @@
   --color-chart-3: #0c4a6e;
   --color-chart-4: #f59e0b;
   --color-chart-5: #38bdf8;
+  /* 2026-07-12 デザイン Phase 1: 状態色をブランド青と分離する意味色トークン。
+     bg-success / text-warning / border-critical などとして Tailwind が生成する。
+     出席・完了=success(ティール緑) / 欠席・注意=warning(琥珀) / アラート・不合格=critical(ローズ) */
+  --color-success: #0e9384;
+  --color-success-foreground: #ffffff;
+  --color-warning: #c2710c;
+  --color-warning-foreground: #ffffff;
+  --color-critical: #e11d48;
+  --color-critical-foreground: #ffffff;
   --color-sidebar: #e0f2fe;
   --color-sidebar-foreground: #0c4a6e;
   --color-sidebar-primary: #0284c7;
@@ -48,7 +57,21 @@
 @layer base {
   body {
     @apply bg-background text-foreground;
+    /* 2026-07-12 デザイン Phase 1: 和文の詰め(palt)で見出し・ラベルの字間を自然に */
+    font-feature-settings: "palt" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
+  /* 見出しは折り返しを均等に (2 行以上でも収まりが良くなる) */
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+}
+
+/* 2026-07-12 デザイン Phase 1: 数値の桁揃え用ユーティリティ。
+   点数・割合・人数など、表で縦に揃えたい数字に付与する。 */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes enter {
