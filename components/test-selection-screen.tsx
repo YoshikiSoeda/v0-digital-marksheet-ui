@@ -55,6 +55,13 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   const [roleModalSlots, setRoleModalSlots] = useState<AssignSlot[]>([])
   const [roleModalLoading, setRoleModalLoading] = useState(false)
 
+  // 2026-07-11 副田さん要望: 一般教員/患者役が同一セッションで複数部屋を担当する場合、
+  //   部屋を選択させるモーダル。
+  const [roomPickerOpen, setRoomPickerOpen] = useState(false)
+  const [roomPickerSessionId, setRoomPickerSessionId] = useState<string>("")
+  const [roomPickerSessionName, setRoomPickerSessionName] = useState<string>("")
+  const [roomPickerRooms, setRoomPickerRooms] = useState<string[]>([])
+
   // Filters
   const [filterSubject, setFilterSubject] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -215,7 +222,7 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
   //   メール昇順で並べたときの自分の index (0 origin) に対応するテスト (created_at
   //   昇順で N 番目) を選ぶ。患者役側も同ロジックで動く (患者役は通常 1 種類だが将来
   //   複数対応時も破綻しない)。
-  const resolveMatchingTest = async (sessionId: string): Promise<Test | undefined> => {
+  const resolveMatchingTest = async (sessionId: string, roomOverride?: string): Promise<Test | undefined> => {
     const expectedRoleType = userType === "patient" ? "patient" : "teacher"
     const matchingTests = tests
       .filter((t) => t.testSessionId === sessionId && (t.roleType || "teacher") === expectedRoleType)
@@ -229,7 +236,8 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     if (matchingTests.length === 1) return matchingTests[0]
 
     const myEmail = (session?.email || "").toLowerCase()
-    const myRoom = session?.assignedRoomNumber || ""
+    // 2026-07-11: 複数部屋から選択された場合はその部屋で slot を判定する
+    const myRoom = roomOverride || session?.assignedRoomNumber || ""
     if (!myEmail || !myRoom) return matchingTests[0]
 
     const endpoint =
@@ -398,13 +406,56 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     }
   }
 
+  // 2026-07-11 副田さん要望: ログイン中の教員/患者役がこのセッションで担当する
+  //   部屋の一覧を返す。複数あれば部屋選択モーダルを出すために使う。
+  const fetchMyRooms = async (sessionId: string): Promise<string[]> => {
+    const myEmail = (session?.email || "").toLowerCase()
+    if (!myEmail) return []
+    const endpoint =
+      userType === "teacher"
+        ? `/api/test-sessions/${sessionId}/teacher-assignments`
+        : `/api/test-sessions/${sessionId}/patient-assignments`
+    const nestedKey = userType === "teacher" ? "teacher" : "patient"
+    try {
+      const res = await fetch(endpoint, { credentials: "same-origin" })
+      if (!res.ok) return []
+      const data = await res.json()
+      const items = Array.isArray(data?.items) ? data.items : []
+      const rooms = items
+        .filter((a: Record<string, unknown>) => {
+          const nested = a[nestedKey] as { email?: string } | undefined
+          return (nested?.email || "").toLowerCase() === myEmail
+        })
+        .map((a: { assignedRoomNumber?: string }) => (a.assignedRoomNumber || "").trim())
+        .filter((r: string) => r)
+      return Array.from(new Set<string>(rooms)).sort((a, b) => a.localeCompare(b))
+    } catch {
+      return []
+    }
+  }
+
   const handleSelectSession = async (sessionId: string) => {
     if (isAdminLikeTeacher) {
       const s = testSessions.find((x) => x.id === sessionId)
       await openRoleModal(sessionId, s?.description || "")
       return
     }
-    const matchingTest = await resolveMatchingTest(sessionId)
+    // 2026-07-11 副田さん要望: 複数部屋担当なら部屋選択モーダルを出す
+    const myRooms = await fetchMyRooms(sessionId)
+    if (myRooms.length > 1) {
+      const s = testSessions.find((x) => x.id === sessionId)
+      setRoomPickerSessionId(sessionId)
+      setRoomPickerSessionName(s?.description || "")
+      setRoomPickerRooms(myRooms)
+      setRoomPickerOpen(true)
+      return
+    }
+    await proceedSelectSession(sessionId, myRooms[0])
+  }
+
+  // 選択された session (+ 任意で部屋) で Cookie を更新し試験画面へ遷移する
+  const proceedSelectSession = async (sessionId: string, room?: string) => {
+    const matchingTest = await resolveMatchingTest(sessionId, room)
     if (!matchingTest) {
       const roleLabel = userType === "teacher" ? "教員用" : "患者用"
       setNoTestMessage(`このセッションには${roleLabel}テストが登録されていません。管理者にお問い合わせください。`)
@@ -417,11 +468,14 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
     // 部屋情報で Cookie を refresh しないと、PR #102 useExamPageGuard が古い
     // (または空の) room を見て「セッション情報が不完全です」と誤判定する。
     try {
+      const body: Record<string, unknown> = { testSessionId: sessionId }
+      // 2026-07-11: 複数部屋から選んだ場合は明示的に部屋を渡す
+      if (room) body.assignedRoomNumber = room
       const res = await fetch("/api/auth/select-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ testSessionId: sessionId }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => null)
@@ -707,6 +761,35 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
               })()}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 2026-07-11 副田さん要望: 複数部屋担当者の部屋選択モーダル */}
+      <Dialog open={roomPickerOpen} onOpenChange={setRoomPickerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>担当する部屋を選択</DialogTitle>
+            <DialogDescription>
+              {roomPickerSessionName ? `${roomPickerSessionName} で ` : ""}
+              あなたは複数の部屋を担当しています。採点する部屋を選んでください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 py-2">
+            {roomPickerRooms.map((room) => (
+              <Button
+                key={room}
+                variant="outline"
+                className="justify-start h-auto py-3"
+                onClick={async () => {
+                  setRoomPickerOpen(false)
+                  await proceedSelectSession(roomPickerSessionId, room)
+                }}
+              >
+                <ChevronRight className="w-4 h-4 mr-2 text-primary" />
+                <span className="font-medium">部屋 {room}</span>
+              </Button>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
