@@ -18,6 +18,7 @@ import {
   type EvaluationResult,
 } from "@/lib/data-storage"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSession } from "@/lib/auth/use-session"
 import { computePassResult } from "@/lib/passing"
@@ -1000,7 +1001,11 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent className="px-4 pb-4 pt-0">
             {filteredRooms.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6">表示する部屋がありません</p>
+              <EmptyState
+                icon={DoorOpen}
+                title="表示する部屋がありません"
+                description="試験セッションを選択するか、部屋の割当を登録してください。"
+              />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {filteredRooms.map((room) => (

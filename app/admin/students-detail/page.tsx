@@ -33,6 +33,7 @@ import {
 import { computePassResult } from "@/lib/passing"
 import { useSession } from "@/lib/auth/use-session"
 import { StatusPill, type StatusKind } from "@/components/ui/status-pill"
+import { EmptyState } from "@/components/ui/empty-state"
 
 // ADR-005 hotfix: テスト終了ボタンを表示できる accountType / role の集合
 // (api-guard.ts ADMIN_ROLES と意味的に対応)
@@ -426,7 +427,10 @@ export default function StudentsDetailPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">データ読み込み中...</p>
+        <div className="inline-flex items-center gap-2.5 text-muted-foreground">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+          <span className="text-sm">データ読み込み中...</span>
+        </div>
       </div>
     )
   }
@@ -573,6 +577,16 @@ export default function StudentsDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {students.length === 0 && (
+                    <tr>
+                      <td colSpan={99} className="p-0">
+                        <EmptyState
+                          title="受験者がいません"
+                          description="この試験セッションに割り当てられた学生がいないか、絞り込み条件に一致しません。"
+                        />
+                      </td>
+                    </tr>
+                  )}
                   {students.map((student) => {
                     const data = getStudentData(student)
                     // 2026-07-12 デザイン Phase 2-3: ステータスを StatusPill に対応づけ
