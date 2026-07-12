@@ -193,17 +193,18 @@ export function UnifiedLoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-4">
-        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
-          <LogIn className="w-6 h-6 text-primary" />
+    // 2026-07-12 デザイン Phase 3-1: ログインカードの質感を強化 (影・角丸・余白・アイコン)
+    <Card className="w-full max-w-md rounded-2xl border-primary/10 shadow-xl shadow-primary/5">
+      <CardHeader className="space-y-3 pt-8">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto shadow-lg shadow-primary/25">
+          <LogIn className="w-7 h-7 text-white" />
         </div>
-        <CardTitle className="text-2xl text-center">ログイン</CardTitle>
+        <CardTitle className="text-2xl text-center font-bold">ログイン</CardTitle>
         <CardDescription className="text-center">
           IDまたはメールアドレスとパスワードを入力してください
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-8">
         <form onSubmit={handleCredentialsSubmit} className="space-y-4">
           {error && (
             <Alert variant="destructive">
@@ -211,8 +212,8 @@ export function UnifiedLoginForm() {
             </Alert>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="loginId">ID / メールアドレス</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="loginId" className="text-sm font-semibold">ID / メールアドレス</Label>
             <Input
               id="loginId"
               type="text"
@@ -221,11 +222,12 @@ export function UnifiedLoginForm() {
               value={loginId}
               onChange={(e) => setLoginId(e.target.value)}
               required
+              className="h-11"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">パスワード</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-sm font-semibold">パスワード</Label>
             <Input
               id="password"
               type="password"
@@ -234,21 +236,22 @@ export function UnifiedLoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="h-11"
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full h-11 text-base font-semibold shadow-md shadow-primary/20" disabled={isLoading}>
             {isLoading ? "ログイン中..." : "ログイン"}
           </Button>
 
-          <div className="text-center space-y-2 pt-2">
+          <div className="text-center pt-1">
             <Link href="/reset-password" className="text-sm text-primary hover:underline">
               パスワードを忘れた方はこちら
             </Link>
           </div>
 
-          <div className="text-center pt-2">
-            <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
+          <div className="text-center pt-1">
+            <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
               ← トップページに戻る
             </Link>
           </div>
