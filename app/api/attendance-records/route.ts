@@ -48,21 +48,47 @@ export async function POST(request: NextRequest) {
   const items = Array.isArray(body.items) ? body.items : []
   if (items.length === 0) return NextResponse.json({ ok: true, upserted: 0 })
 
-  const rows = items.map((r) => ({
-    student_id: r.studentId,
-    room_number: r.roomNumber,
-    status: r.status,
-    recorded_at: r.timestamp,
-    university_code: r.universityCode || null,
-    test_session_id: r.testSessionId || null,
-  }))
   const supabase = getServiceClient()
-  const { error } = await supabase
-    .from("attendance_records")
-    .upsert(rows as never, { onConflict: "student_id,room_number,test_session_id" })
-  if (error) {
-    console.error("[api/attendance-records] POST error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 2026-07-12 副田さん報告バグ修正: 出欠ボタンのトグル解除で status="pending" が
+  //   送られてくるが、attendance_records_status_check は present/absent のみ許可。
+  //   そのため "pending" (未確認に戻す) は行を UPSERT せず DELETE で表現する。
+  const clears = items.filter((r) => r.status === "pending")
+  const upserts = items.filter((r) => r.status === "present" || r.status === "absent")
+
+  // 未確認に戻す (削除)
+  for (const c of clears) {
+    let del = supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", c.studentId)
+      .eq("room_number", c.roomNumber)
+    del = c.testSessionId ? del.eq("test_session_id", c.testSessionId) : del.is("test_session_id", null)
+    const { error: delErr } = await del
+    if (delErr) {
+      console.error("[api/attendance-records] POST delete(pending) error:", delErr)
+      return NextResponse.json({ error: delErr.message }, { status: 500 })
+    }
   }
-  return NextResponse.json({ ok: true, upserted: rows.length })
+
+  // 出席 / 欠席を upsert
+  if (upserts.length > 0) {
+    const rows = upserts.map((r) => ({
+      student_id: r.studentId,
+      room_number: r.roomNumber,
+      status: r.status,
+      recorded_at: r.timestamp,
+      university_code: r.universityCode || null,
+      test_session_id: r.testSessionId || null,
+    }))
+    const { error } = await supabase
+      .from("attendance_records")
+      .upsert(rows as never, { onConflict: "student_id,room_number,test_session_id" })
+    if (error) {
+      console.error("[api/attendance-records] POST error:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+  }
+
+  return NextResponse.json({ ok: true, upserted: upserts.length, cleared: clears.length })
 }
