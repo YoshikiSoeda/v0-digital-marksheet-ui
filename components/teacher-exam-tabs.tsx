@@ -268,14 +268,17 @@ export default function TeacherExamTabs({
 
   const handleAttendanceChange = async (studentId: string, status: "present" | "absent") => {
     const previousStatus = attendanceStatus[studentId]
-    setAttendanceStatus((prev) => ({ ...prev, [studentId]: status }))
+    // 2026-07-12 副田さん要望: 同じ出欠ボタンを 2 度押したら解除 (未確認 = pending に戻す)
+    const nextStatus: "present" | "absent" | "pending" =
+      previousStatus === status ? "pending" : status
+    setAttendanceStatus((prev) => ({ ...prev, [studentId]: nextStatus }))
 
     const universityCode = (session?.universityCode || "")
     const testSessionId = getTestSessionId()
 
     const newRecord: AttendanceRecord = {
       studentId,
-      status,
+      status: nextStatus,
       markedBy: teacherEmail,
       markedByType: "teacher",
       roomNumber: activeRoomNumber,
@@ -448,6 +451,10 @@ export default function TeacherExamTabs({
           {assignedStudents.map((student, index) => {
             const attendance = attendanceStatus[student.id] || null
             const isStudentCompleted = completionStatus[student.id] || false
+            // 2026-07-12 副田さん要望: 欠席は採点不要なので「完了」として表示する。
+            //   ただし出欠ボタンの無効化 (isStudentCompleted) は評価完了時のみとし、
+            //   欠席にした学生は再度ボタンを押して解除できるようにする。
+            const displayCompleted = isStudentCompleted || attendance === "absent"
             const studentScore = calculateScoreFor(student.id)
             const studentAnsweredCount = Object.keys(studentAnswers[student.id] || {}).length
 
@@ -496,7 +503,7 @@ export default function TeacherExamTabs({
                   </Button>
                   <div
                     className={`flex-1 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
-                      isStudentCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      displayCompleted ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     }`}
                   >
                     完了
