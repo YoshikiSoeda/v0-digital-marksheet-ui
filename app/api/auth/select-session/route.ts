@@ -72,6 +72,10 @@ export async function POST(request: NextRequest) {
       .filter((r) => r)
       .sort((a, b) => a.localeCompare(b))
     if (rooms.length === 0) return ""
+    // 2026-07-11 副田さん要望: 複数部屋担当者が部屋選択モーダルで選んだ部屋 (body) を
+    //   自分の割当内であれば最優先で採用する。
+    const requested = (body.assignedRoomNumber || "").trim()
+    if (requested && rooms.includes(requested)) return requested
     const current = (session.assignedRoomNumber || "").trim()
     if (current && rooms.includes(current)) return current
     return rooms[0]
