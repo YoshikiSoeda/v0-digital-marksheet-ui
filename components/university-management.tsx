@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Upload, Plus, Pencil, Trash2, ArrowLeft } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
 import { useRouter } from "next/navigation"
 import { readCsvFile } from "@/lib/csv"
 
@@ -239,14 +240,17 @@ export function UniversityManagement() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">
-                      読み込み中...
+                    <TableCell colSpan={5} className="py-10 text-center">
+                      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                        読み込み中...
+                      </span>
                     </TableCell>
                   </TableRow>
                 ) : universities.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">
-                      大学が登録されていません
+                    <TableCell colSpan={5} className="p-0">
+                      <EmptyState title="大学が登録されていません" description="「大学を追加」または CSV 一括登録から追加してください。" />
                     </TableCell>
                   </TableRow>
                 ) : (

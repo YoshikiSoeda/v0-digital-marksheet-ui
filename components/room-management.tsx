@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Edit, Trash2, Home, Upload, Download } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -425,8 +426,8 @@ export function RoomManagement() {
                 <tbody>
                   {sortedRooms.length === 0 ? (
                     <tr>
-                      <td colSpan={isSpecialMaster ? 5 : 4} className="p-8 text-center text-muted-foreground">
-                        登録されている部屋がありません
+                      <td colSpan={isSpecialMaster ? 5 : 4} className="p-0">
+                        <EmptyState icon={Home} title="登録されている部屋がありません" description="「部屋を追加」または CSV 一括登録から追加してください。" />
                       </td>
                     </tr>
                   ) : (
