@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, Plus, Edit, Trash2, BookOpen } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   Dialog,
   DialogContent,
@@ -341,11 +342,16 @@ export function SubjectManagement() {
           )}
 
           {isLoading ? (
-            <div className="text-center py-8">読み込み中...</div>
-          ) : subjects.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              教科が登録されていません。「教科を追加」ボタンから登録してください。
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+              読み込み中...
             </div>
+          ) : subjects.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="教科が登録されていません"
+              description="「教科を追加」ボタンから最初の教科を登録してください。"
+            />
           ) : (
             <Table>
               <TableHeader>
