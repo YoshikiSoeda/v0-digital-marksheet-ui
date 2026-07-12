@@ -59,6 +59,24 @@ export async function POST(request: NextRequest) {
 
   // 教員 / 患者役: 自分の assignment を junction から引く
   // admin login type には room の概念がないので、testSessionId だけ更新する
+  //
+  // 2026-07-11 副田さん報告バグ修正: PK が (id, test_session_id, assigned_room_number)
+  //   に拡張され (scripts/246)、1 人が同一セッションで複数部屋を担当できるように
+  //   なった。旧実装は .maybeSingle() で 1 行前提だったため、複数部屋割当だと
+  //   「JSON object requested, multiple rows returned」で 500 (Failed to load
+  //   assignment) になっていた。複数行を取得し、現在 Cookie の部屋が候補に
+  //   あればそれを維持、無ければ部屋名昇順で先頭を採用する。
+  const pickRoom = (rows: Array<{ assigned_room_number: string | null }>): string => {
+    const rooms = rows
+      .map((r) => (r.assigned_room_number || "").trim())
+      .filter((r) => r)
+      .sort((a, b) => a.localeCompare(b))
+    if (rooms.length === 0) return ""
+    const current = (session.assignedRoomNumber || "").trim()
+    if (current && rooms.includes(current)) return current
+    return rooms[0]
+  }
+
   let nextRoom = ""
   if (session.loginType === "teacher") {
     const { data, error } = await supabase
@@ -66,24 +84,22 @@ export async function POST(request: NextRequest) {
       .select("assigned_room_number")
       .eq("teacher_id", session.userId)
       .eq("test_session_id", testSessionId)
-      .maybeSingle()
     if (error) {
       console.error("[auth/select-session] teacher junction lookup error:", error)
       return NextResponse.json({ error: "Failed to load assignment" }, { status: 500 })
     }
-    nextRoom = ((data as Record<string, unknown> | null)?.assigned_room_number as string) || ""
+    nextRoom = pickRoom((data as Array<{ assigned_room_number: string | null }>) || [])
   } else if (session.loginType === "patient") {
     const { data, error } = await supabase
       .from("patient_test_session_assignments")
       .select("assigned_room_number")
       .eq("patient_id", session.userId)
       .eq("test_session_id", testSessionId)
-      .maybeSingle()
     if (error) {
       console.error("[auth/select-session] patient junction lookup error:", error)
       return NextResponse.json({ error: "Failed to load assignment" }, { status: 500 })
     }
-    nextRoom = ((data as Record<string, unknown> | null)?.assigned_room_number as string) || ""
+    nextRoom = pickRoom((data as Array<{ assigned_room_number: string | null }>) || [])
   } else {
     // admin: room 概念なし。testSessionId だけ更新する。
     nextRoom = session.assignedRoomNumber
