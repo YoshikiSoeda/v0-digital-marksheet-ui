@@ -32,6 +32,7 @@ import {
 } from "@/lib/data-storage"
 import { computePassResult } from "@/lib/passing"
 import { useSession } from "@/lib/auth/use-session"
+import { StatusPill, type StatusKind } from "@/components/ui/status-pill"
 
 // ADR-005 hotfix: テスト終了ボタンを表示できる accountType / role の集合
 // (api-guard.ts ADMIN_ROLES と意味的に対応)
@@ -537,105 +538,98 @@ export default function StudentsDetailPage() {
             >
               <table className="w-max min-w-full text-sm caption-bottom">
                 <thead className="sticky top-0 z-20 bg-white shadow-sm">
-                  <tr className="border-b">
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">学籍番号</th>
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">氏名</th>
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">部屋</th>
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">メールアドレス</th>
+                  {/* 2026-07-12 デザイン Phase 2-3: ヘッダーをラベル調 (小さめ太字・グレー) に。
+                      数値列は右揃え。 */}
+                  <tr className="border-b-2 border-primary/15">
+                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">学籍番号</th>
+                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">氏名</th>
+                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">部屋</th>
+                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">メールアドレス</th>
                     {contentExpanded && dedupedContentColumns.map((col) => (
                       <th
                         key={`${col.testId}::${col.compositeKey}`}
-                        className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white text-xs "
+                        className="h-10 px-2 text-right align-middle font-medium whitespace-nowrap bg-white text-xs"
                         title={`${col.testTitle} / ${col.sheetTitle} / ${col.categoryTitle} / ${col.questionText}`}
                       >
                         <span className="text-[10px] text-muted-foreground block">
                           {col.roleType === "teacher" ? "教員側" : "患者側"} {col.categoryTitle}
                         </span>
-                        <span className="block truncate ">{col.questionText}</span>
+                        <span className="block truncate">{col.questionText}</span>
                       </th>
                     ))}
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">点数</th>
+                    <th className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">点数</th>
                     {teacherSlotTests.map((_, i) => (
-                      <th key={`th-t-${i}`} className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">
+                      <th key={`th-t-${i}`} className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-primary whitespace-nowrap bg-white">
                         教員{teacherSlotTests.length > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}
                       </th>
                     ))}
                     {patientSlotTests.map((_, i) => (
-                      <th key={`th-p-${i}`} className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">
+                      <th key={`th-p-${i}`} className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-primary/70 whitespace-nowrap bg-white">
                         患者役{patientSlotTests.length > 1 ? ["①", "②"][i] || `(${i + 1})` : ""}
                       </th>
                     ))}
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">割合</th>
-                    <th className="h-10 px-2 text-left align-middle font-medium whitespace-nowrap bg-white">ステータス</th>
+                    <th className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">割合</th>
+                    <th className="h-10 px-2 text-center align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">ステータス</th>
                   </tr>
                 </thead>
                 <tbody>
                   {students.map((student) => {
                     const data = getStudentData(student)
+                    // 2026-07-12 デザイン Phase 2-3: ステータスを StatusPill に対応づけ
+                    const statusKind: StatusKind =
+                      data.status === "完了" ? "complete"
+                        : data.status === "進行中" ? "pending"
+                        : data.status === "欠席" ? "absent"
+                        : "neutral"
                     return (
                       <tr
                         key={student.id}
-                        className={`border-b hover:bg-muted/50 transition-colors ${
-                          data.isBelow50 ? "bg-red-50 hover:bg-red-100" : ""
+                        // 2026-07-12: ゼブラ縞 + 50%未満は critical 帯 (左) + 淡い赤 tint
+                        className={`border-b border-border/50 transition-colors ${
+                          data.isBelow50
+                            ? "bg-critical/[0.05] hover:bg-critical/[0.09] [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-critical)]"
+                            : "even:bg-muted/25 hover:bg-primary/[0.04]"
                         }`}
                       >
-                        <td className="p-2 align-middle whitespace-nowrap">{student.studentId}</td>
-                        <td className="p-2 align-middle whitespace-nowrap">{student.name}</td>
-                        <td className="p-2 align-middle whitespace-nowrap">{student.roomNumber || "-"}</td>
-                        <td className="p-2 align-middle whitespace-nowrap text-xs font-mono">{student.email || "-"}</td>
+                        <td className={`p-2 align-middle whitespace-nowrap font-medium ${data.isBelow50 ? "text-critical" : ""}`}>{student.studentId}</td>
+                        <td className={`p-2 align-middle whitespace-nowrap ${data.isBelow50 ? "text-critical font-medium" : ""}`}>{student.name}</td>
+                        <td className="p-2 align-middle whitespace-nowrap text-muted-foreground">{student.roomNumber || "-"}</td>
+                        <td className="p-2 align-middle whitespace-nowrap text-xs font-mono text-muted-foreground">{student.email || "-"}</td>
                         {contentExpanded && dedupedContentColumns.map((col) => {
                           const val = data.contentScores[`${col.testId}::${col.compositeKey}`]
                           return (
                             <td
                               key={`${student.id}-${col.testId}-${col.compositeKey}`}
-                              className="p-2 align-middle text-center text-sm whitespace-nowrap"
+                              className="p-2 align-middle text-right text-sm whitespace-nowrap tnum"
                             >
-                              {typeof val === "number" ? val : "-"}
+                              {typeof val === "number" ? val : <span className="text-muted-foreground/50">-</span>}
                             </td>
                           )
                         })}
-                        <td className="p-2 align-middle whitespace-nowrap font-semibold">
-                          {typeof data.score === "number" ? data.score : "-"}
+                        <td className="p-2 align-middle whitespace-nowrap text-right font-bold tnum">
+                          {typeof data.score === "number" ? data.score : <span className="text-muted-foreground/50 font-normal">-</span>}
                         </td>
                         {data.teacherSlotScores.map((s, i) => (
-                          <td key={`td-t-${student.id}-${i}`} className="p-2 align-middle whitespace-nowrap">
-                            {typeof s === "number" ? s : "-"}
+                          <td key={`td-t-${student.id}-${i}`} className="p-2 align-middle whitespace-nowrap text-right tnum text-primary">
+                            {typeof s === "number" ? s : <span className="text-muted-foreground/50">-</span>}
                           </td>
                         ))}
                         {data.patientSlotScores.map((s, i) => (
-                          <td key={`td-p-${student.id}-${i}`} className="p-2 align-middle whitespace-nowrap">
-                            {typeof s === "number" ? s : "-"}
+                          <td key={`td-p-${student.id}-${i}`} className="p-2 align-middle whitespace-nowrap text-right tnum text-primary/70">
+                            {typeof s === "number" ? s : <span className="text-muted-foreground/50">-</span>}
                           </td>
                         ))}
-                        <td className="p-2 align-middle whitespace-nowrap">
+                        <td className="p-2 align-middle whitespace-nowrap text-right tnum">
                           {data.percentage != null ? (
-                            <span
-                              className={
-                                data.isBelow50
-                                  ? "font-bold text-red-700"
-                                  : "font-semibold"
-                              }
-                            >
+                            <span className={data.isBelow50 ? "font-extrabold text-critical" : "font-bold"}>
                               {data.percentage}%
                             </span>
                           ) : (
-                            "-"
+                            <span className="text-muted-foreground/50">-</span>
                           )}
                         </td>
-                        <td className="p-2 align-middle whitespace-nowrap">
-                          <Badge
-                            variant={
-                              data.status === "完了"
-                                ? "default"
-                                : data.status === "進行中"
-                                  ? "secondary"
-                                  : data.status === "欠席"
-                                    ? "destructive"
-                                    : "outline"
-                            }
-                          >
-                            {data.status}
-                          </Badge>
+                        <td className="p-2 align-middle whitespace-nowrap text-center">
+                          <StatusPill kind={statusKind}>{data.status}</StatusPill>
                         </td>
                       </tr>
                     )
