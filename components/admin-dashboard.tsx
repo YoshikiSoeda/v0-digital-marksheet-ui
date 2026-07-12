@@ -962,66 +962,36 @@ const AdminDashboard = () => {
   </div>
   )}
 
+        {/* 2026-07-12 デザイン Phase 2-2: サマリー統計。意味色 + 等幅数字 + 左アクセント。 */}
         <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground">総受験者数</span>
-                <Users className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-bold text-primary">{totalPresentCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground">部屋数</span>
-                <DoorOpen className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-bold text-primary">{filteredRooms.length}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground">試験中</span>
-                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-bold text-blue-600">{totalPresentCount - totalCompletedCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground">提出済み</span>
-                <CheckCircle className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-bold text-green-600">{totalCompletedCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground">要注意</span>
-                <XCircle className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-bold text-red-600">{totalAlertCount}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-muted-foreground">合格者</span>
-                <Trophy className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-bold text-amber-600">{totalPassCount}</div>
-            </CardContent>
-          </Card>
+          {[
+            { label: "総受験者数", value: totalPresentCount, Icon: Users, tone: "brand" },
+            { label: "部屋数", value: filteredRooms.length, Icon: DoorOpen, tone: "brand" },
+            { label: "試験中", value: totalPresentCount - totalCompletedCount, Icon: Clock, tone: "brand" },
+            { label: "提出済み", value: totalCompletedCount, Icon: CheckCircle, tone: "success" },
+            { label: "要注意", value: totalAlertCount, Icon: XCircle, tone: "critical" },
+            { label: "合格者", value: totalPassCount, Icon: Trophy, tone: "warning" },
+          ].map(({ label, value, Icon, tone }) => {
+            const toneCls =
+              tone === "success" ? "text-success before:bg-success"
+                : tone === "critical" ? "text-critical before:bg-critical"
+                : tone === "warning" ? "text-warning before:bg-warning"
+                : "text-primary before:bg-primary"
+            return (
+              <Card
+                key={label}
+                className={`relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 ${toneCls}`}
+              >
+                <CardContent className="p-3 pl-3.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+                    <Icon className={`w-3.5 h-3.5 ${toneCls.split(" ")[0]} opacity-70`} />
+                  </div>
+                  <div className={`text-[1.7rem] font-extrabold leading-none tnum ${toneCls.split(" ")[0]}`}>{value}</div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
 
         <Card>
@@ -1034,12 +1004,19 @@ const AdminDashboard = () => {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {filteredRooms.map((room) => (
-                  <Card key={room.roomNumber} className={`transition-colors cursor-pointer ${room.alertCount > 0 ? "bg-red-50 border-red-200 hover:bg-red-100" : "bg-accent/30 hover:bg-accent/50"}`} onClick={() => setSelectedRoom(room.roomNumber)}>
+                  <Card key={room.roomNumber} className={`transition-all cursor-pointer hover:shadow-md ${room.alertCount > 0 ? "bg-critical/[0.04] border-critical/40 ring-1 ring-critical/20 hover:bg-critical/[0.07]" : "bg-card hover:bg-accent/30 hover:border-primary/40"}`} onClick={() => setSelectedRoom(room.roomNumber)}>
                     <CardContent className="p-3">
                       <div className="space-y-1.5">
-                        <div className="text-center border-b pb-1.5">
-                          <div className="font-bold text-sm text-primary">部屋{room.roomNumber}</div>
-                          {room.roomName && <div className="text-xs text-muted-foreground truncate">{room.roomName}</div>}
+                        <div className="flex items-center justify-between border-b pb-1.5">
+                          <div>
+                            <div className="font-bold text-sm text-primary">部屋 {room.roomNumber}</div>
+                            {room.roomName && <div className="text-[11px] text-muted-foreground truncate">{room.roomName}</div>}
+                          </div>
+                          {room.alertCount > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-critical/10 px-1.5 py-0.5 text-[10px] font-bold text-critical">
+                              <span className="h-1 w-1 rounded-full bg-current" />要注意
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs space-y-0.5">
                           {/* 2026-07-03 副田さん要望: 教員①②/患者役 の全員名を可変表示 */}
@@ -1081,42 +1058,42 @@ const AdminDashboard = () => {
                               </div>
                             ))
                           )}
-                          <div className="border-t pt-1.5 mt-1 space-y-0.5">
+                          <div className="border-t pt-1.5 mt-1 space-y-0.5 tnum">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">出席:</span>
-                              <span className="font-semibold text-green-600">{room.presentCount}</span>
+                              <span className="font-semibold text-success">{room.presentCount}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">完了:</span>
                               <span className="font-semibold">
-                                <span className="text-blue-600">教{room.teacherStats.completedCount}</span>
+                                <span className="text-primary">教 {room.teacherStats.completedCount}</span>
                                 <span className="mx-0.5 text-muted-foreground">/</span>
-                                <span className="text-pink-600">患{room.patientStats.completedCount}</span>
+                                <span className="text-primary/70">患 {room.patientStats.completedCount}</span>
                               </span>
                             </div>
                             {(room.teacherStats.alertCount > 0 || room.patientStats.alertCount > 0) && (
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">注意:</span>
-                                <span className="font-semibold">
-                                  <span className="text-red-600">教{room.teacherStats.alertCount}</span>
-                                  <span className="mx-0.5 text-muted-foreground">/</span>
-                                  <span className="text-red-600">患{room.patientStats.alertCount}</span>
+                                <span className="font-semibold text-critical">
+                                  教 {room.teacherStats.alertCount}
+                                  <span className="mx-0.5 opacity-60">/</span>
+                                  患 {room.patientStats.alertCount}
                                 </span>
                               </div>
                             )}
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">合格:</span>
-                              <span className="font-semibold text-amber-600">{room.passCount}</span>
+                              <span className="font-semibold text-warning">{room.passCount}</span>
                             </div>
                             {(room.teacherStats.averageScore > 0 || room.patientStats.averageScore > 0) && (
                               <div className="pt-1 border-t mt-1 space-y-0.5">
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">平均(教):</span>
-                                  <span className="font-bold text-blue-700">{room.teacherStats.averageScore}点</span>
+                                  <span className="font-bold text-primary">{room.teacherStats.averageScore}点</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-muted-foreground">平均(患):</span>
-                                  <span className="font-bold text-pink-700">{room.patientStats.averageScore}点</span>
+                                  <span className="font-bold text-primary/70">{room.patientStats.averageScore}点</span>
                                 </div>
                               </div>
                             )}
