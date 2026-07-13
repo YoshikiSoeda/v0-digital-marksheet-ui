@@ -432,12 +432,22 @@ const AdminDashboard = () => {
             const teachersInRoom = Array.isArray(teachersData)
               ? teachersData
                   .filter((t) => t.assignedRoomNumber === room.roomNumber)
-                  .sort((a, b) => ((a as any).email || "").localeCompare((b as any).email || ""))
+                  .sort((a, b) => {
+                    // 2026-07-13: slot_index (部屋内①②…順) 優先、無ければメール順にフォールバック
+                    const sa = (a as any).slotIndex, sb = (b as any).slotIndex
+                    if (typeof sa === "number" && typeof sb === "number" && sa !== sb) return sa - sb
+                    return ((a as any).email || "").localeCompare((b as any).email || "")
+                  })
               : []
             const patientsInRoom = Array.isArray(patientsData)
               ? patientsData
                   .filter((p) => p.assignedRoomNumber === room.roomNumber)
-                  .sort((a, b) => ((a as any).email || "").localeCompare((b as any).email || ""))
+                  .sort((a, b) => {
+                    // 2026-07-13: slot_index (部屋内①②…順) 優先、無ければメール順にフォールバック
+                    const sa = (a as any).slotIndex, sb = (b as any).slotIndex
+                    if (typeof sa === "number" && typeof sb === "number" && sa !== sb) return sa - sb
+                    return ((a as any).email || "").localeCompare((b as any).email || "")
+                  })
               : []
             const teacherForRoom = teachersInRoom[0]  // 互換用 (主 = 1 名目)
             const patientForRoom = patientsInRoom[0]

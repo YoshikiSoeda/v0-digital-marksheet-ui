@@ -73,7 +73,12 @@ export function ExamResultsScreen() {
           : await loadPatients(universityCode, undefined, testSessionId)
         const inRoom = (Array.isArray(peers) ? peers : [])
           .filter((p: any) => p.assignedRoomNumber === currentRoomNumber)
-          .sort((a: any, b: any) => (a.email || "").localeCompare(b.email || ""))
+          // 2026-07-13: slot_index (部屋内①②…順) 優先、無ければメール順にフォールバック
+          .sort((a: any, b: any) => {
+            const sa = a.slotIndex, sb = b.slotIndex
+            if (typeof sa === "number" && typeof sb === "number" && sa !== sb) return sa - sb
+            return (a.email || "").localeCompare(b.email || "")
+          })
         const idx = inRoom.findIndex((p: any) => (p.email || "").toLowerCase() === effEmail)
         if (isTeacherRole) {
           const marks = ["①", "②", "③", "④"]

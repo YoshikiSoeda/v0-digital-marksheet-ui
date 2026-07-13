@@ -252,8 +252,19 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       if (!res.ok) return matchingTests[0]
       const data = await res.json()
       const items = Array.isArray(data?.items) ? data.items : []
-      const roomPeers: string[] = items
-        .filter((a: { assignedRoomNumber?: string }) => (a.assignedRoomNumber || "") === myRoom)
+      const inRoom = items.filter(
+        (a: { assignedRoomNumber?: string }) => (a.assignedRoomNumber || "") === myRoom,
+      )
+      // 2026-07-13: 自分の slot_index (CSV の教員①②順) が保存されていれば、それを
+      //   そのまま テスト index に使う (教員① → matchingTests[0])。
+      const mine = inRoom.find((a: Record<string, unknown>) => {
+        const nested = a[nestedKey] as { email?: string } | undefined
+        return (nested?.email || "").toLowerCase() === myEmail
+      })
+      const mySlot = mine ? (mine as { slotIndex?: number }).slotIndex : undefined
+      if (typeof mySlot === "number" && matchingTests[mySlot]) return matchingTests[mySlot]
+      // フォールバック (未 backfill 旧データ): 部屋内メール昇順の位置で判定
+      const roomPeers: string[] = inRoom
         .map((a: Record<string, unknown>) => {
           const nested = a[nestedKey] as { email?: string } | undefined
           return (nested?.email || "").toLowerCase()
@@ -293,24 +304,30 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       const teacherData = teacherRes.ok ? await teacherRes.json() : { items: [] }
       const patientData = patientRes.ok ? await patientRes.json() : { items: [] }
 
-      // 部屋ごとに教員/患者役の email 昇順でスロットを組み立てる
-      const teacherByRoom = new Map<string, string[]>()
+      // 2026-07-13: 部屋ごとに教員/患者役を slot_index (CSV の①②順) でスロット化。
+      //   slot_index 未保存 (旧データ) はメール昇順にフォールバック。
+      type Peer = { email: string; slot: number | null }
+      const teacherByRoom = new Map<string, Peer[]>()
       for (const it of teacherData.items || []) {
         const room = (it.assignedRoomNumber || "").trim()
         if (!room) continue
         const email = (it.teacher?.email || "").toLowerCase()
         const arr = teacherByRoom.get(room) || []
-        arr.push(email)
+        arr.push({ email, slot: typeof it.slotIndex === "number" ? it.slotIndex : null })
         teacherByRoom.set(room, arr)
       }
-      const patientByRoom = new Map<string, string[]>()
+      const patientByRoom = new Map<string, Peer[]>()
       for (const it of patientData.items || []) {
         const room = (it.assignedRoomNumber || "").trim()
         if (!room) continue
         const email = (it.patient?.email || "").toLowerCase()
         const arr = patientByRoom.get(room) || []
-        arr.push(email)
+        arr.push({ email, slot: typeof it.slotIndex === "number" ? it.slotIndex : null })
         patientByRoom.set(room, arr)
+      }
+      const bySlot = (a: Peer, b: Peer): number => {
+        if (typeof a.slot === "number" && typeof b.slot === "number" && a.slot !== b.slot) return a.slot - b.slot
+        return a.email.localeCompare(b.email)
       }
 
       // テスト一覧を role_type / createdAt 順で確定
@@ -327,32 +344,35 @@ export function TestSelectionScreen({ examPath, userType }: TestSelectionScreenP
       const roomsSorted = Array.from(rooms).sort()
       const slots: AssignSlot[] = []
       for (const room of roomsSorted) {
-        const teachers = (teacherByRoom.get(room) || []).slice().sort()
-        for (let i = 0; i < teachers.length; i++) {
-          const test = teacherTests[i]
-          if (!test) continue
+        const teachersHere = (teacherByRoom.get(room) || []).slice().sort(bySlot)
+        teachersHere.forEach((peer, pos) => {
+          // slot_index が保存されていればそれを、無ければ並び位置をテスト index に使う
+          const idx = typeof peer.slot === "number" ? peer.slot : pos
+          const test = teacherTests[idx]
+          if (!test) return
           slots.push({
             roomNumber: room,
             roleType: "teacher",
-            slotIndex: i,
+            slotIndex: idx,
             testId: test.id,
-            testTitle: test.title || `教員側テスト${i + 1}`,
-            personEmail: teachers[i] || "",
+            testTitle: test.title || `教員側テスト${idx + 1}`,
+            personEmail: peer.email,
           })
-        }
-        const patients = (patientByRoom.get(room) || []).slice().sort()
-        for (let i = 0; i < patients.length; i++) {
-          const test = patientTests[i]
-          if (!test) continue
+        })
+        const patientsHere = (patientByRoom.get(room) || []).slice().sort(bySlot)
+        patientsHere.forEach((peer, pos) => {
+          const idx = typeof peer.slot === "number" ? peer.slot : pos
+          const test = patientTests[idx]
+          if (!test) return
           slots.push({
             roomNumber: room,
             roleType: "patient",
-            slotIndex: i,
+            slotIndex: idx,
             testId: test.id,
-            testTitle: test.title || `患者側テスト${i + 1}`,
-            personEmail: patients[i] || "",
+            testTitle: test.title || `患者側テスト${idx + 1}`,
+            personEmail: peer.email,
           })
-        }
+        })
       }
       setRoleModalSlots(slots)
     } catch (e) {

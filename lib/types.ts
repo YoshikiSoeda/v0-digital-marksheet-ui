@@ -32,6 +32,7 @@ export interface Teacher {
   password: string // ログインパスワード
   role: TeacherRole // 統合権限
   assignedRoomNumber: string // 担当部屋番号（単一）
+  slotIndex?: number // 部屋内の①②…順（assignments JOIN 取得時のみ。2026-07-13）
   createdAt: string
   universityCode?: string // 大学コード
   subjectCode?: string // 担当教科コード
@@ -50,6 +51,7 @@ export interface Patient {
   password: string // ログインパスワード
   role: "general" // ADR-001 §7-2(b) で patient_admin は廃止、general のみ
   assignedRoomNumber: string // 担当部屋番号（単一）
+  slotIndex?: number // 部屋内の順（assignments JOIN 取得時のみ。2026-07-13）
   createdAt: string
   universityCode?: string // 大学コード
   accountType?: "special_master" | "university_master" | "admin" // アカウントタイプ
