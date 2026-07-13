@@ -22,7 +22,7 @@ type PatientRow = {
 
 function mapPatient(
   row: PatientRow,
-  override?: { test_session_id?: string | null; assigned_room_number?: string | null }
+  override?: { test_session_id?: string | null; assigned_room_number?: string | null; slot_index?: number | null }
 ) {
   return {
     id: row.id,
@@ -37,6 +37,8 @@ function mapPatient(
     accountType: row.account_type as "special_master" | "university_master" | "admin" | undefined,
     subjectCode: row.subject_code ?? undefined,
     testSessionId: (override?.test_session_id ?? row.test_session_id) ?? undefined,
+    // 部屋内の①②…順 (assignments JOIN 時のみ)。
+    slotIndex: override?.slot_index ?? undefined,
   }
 }
 
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
   if (filters.testSessionId) {
     let q = supabase
       .from("patient_test_session_assignments")
-      .select("test_session_id, assigned_room_number, patients!inner(*)")
+      .select("test_session_id, assigned_room_number, slot_index, patients!inner(*)")
       .eq("test_session_id", filters.testSessionId)
       .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
@@ -69,6 +71,7 @@ export async function GET(request: NextRequest) {
       return mapPatient(patientRel, {
         test_session_id: a.test_session_id as string,
         assigned_room_number: a.assigned_room_number as string | null,
+        slot_index: a.slot_index as number | null,
       })
     })
     return NextResponse.json({ items }, { status: 200 })

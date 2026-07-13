@@ -8,6 +8,7 @@ import { getServiceClient, requireAdmin } from "@/lib/api/_shared"
 interface AssignmentItem {
   patientId: string
   assignedRoomNumber?: string | null
+  slotIndex?: number | null
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +17,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data, error } = await supabase
     .from("patient_test_session_assignments")
-    .select("test_session_id, assigned_room_number, patients!inner(*)")
+    .select("test_session_id, assigned_room_number, slot_index, patients!inner(*)")
     .eq("test_session_id", sessionId)
     .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
@@ -38,6 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         subjectCode: p.subject_code as string | undefined,
       },
       assignedRoomNumber: (a.assigned_room_number as string | null) ?? null,
+      slotIndex: (a.slot_index as number | null) ?? null,
     }
   })
   return NextResponse.json({ items }, { status: 200 })
@@ -73,19 +75,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   if (items.length > 0) {
-    const dedup = new Map<string, { patientId: string; assignedRoomNumber: string }>()
+    const dedup = new Map<string, { patientId: string; assignedRoomNumber: string; slotIndex: number | null }>()
     for (const i of items) {
       const room = (i.assignedRoomNumber || "").trim()
       if (!i.patientId || !room) continue
       dedup.set(`${i.patientId}::${room}`, {
         patientId: i.patientId,
         assignedRoomNumber: room,
+        slotIndex: typeof i.slotIndex === "number" ? i.slotIndex : null,
       })
     }
     const rows = Array.from(dedup.values()).map((i) => ({
       patient_id: i.patientId,
       test_session_id: sessionId,
       assigned_room_number: i.assignedRoomNumber,
+      slot_index: i.slotIndex,
       updated_at: new Date().toISOString(),
     }))
     if (rows.length > 0) {

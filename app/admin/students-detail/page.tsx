@@ -25,10 +25,14 @@ import {
   loadEvaluationResults,
   loadAttendanceRecords,
   loadTests,
+  loadTeachers,
+  loadPatients,
   type Student,
   type EvaluationResult,
   type AttendanceRecord,
   type Test,
+  type Teacher,
+  type Patient,
 } from "@/lib/data-storage"
 import { computePassResult } from "@/lib/passing"
 import { useSession } from "@/lib/auth/use-session"
@@ -58,6 +62,9 @@ export default function StudentsDetailPage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [tests, setTests] = useState<Test[]>([])
   const [testSessions, setTestSessions] = useState<any[]>([])
+  // 2026-07-13: 教員①②/患者役の slot 順を assignments の slot_index で決めるため保持
+  const [teacherAssignments, setTeacherAssignments] = useState<Teacher[]>([])
+  const [patientAssignments, setPatientAssignments] = useState<Patient[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isEndingTest, setIsEndingTest] = useState(false)
   const [filterUniversity, setFilterUniversity] = useState<string>("")
@@ -73,7 +80,7 @@ export default function StudentsDetailPage() {
     const university = params.get("university") || ""
     try {
       const testSessionId = sessionStorage.getItem("testSessionId") || ""
-      const [studentsData, evaluationsData, attendanceData, testsData, testSessionsData] = await Promise.all([
+      const [studentsData, evaluationsData, attendanceData, testsData, testSessionsData, teachersData, patientsData] = await Promise.all([
         loadStudents(university || undefined, undefined, testSessionId),
         loadEvaluationResults(university || undefined, testSessionId),
         loadAttendanceRecords(university || undefined, testSessionId),
@@ -81,6 +88,8 @@ export default function StudentsDetailPage() {
         fetch("/api/test-sessions")
           .then((res) => res.json())
           .catch(() => []),
+        testSessionId ? loadTeachers(university || undefined, undefined, testSessionId) : Promise.resolve([]),
+        testSessionId ? loadPatients(university || undefined, undefined, testSessionId) : Promise.resolve([]),
       ])
 
       setStudents(Array.isArray(studentsData) ? studentsData : [])
@@ -88,6 +97,8 @@ export default function StudentsDetailPage() {
       setAttendanceRecords(Array.isArray(attendanceData) ? attendanceData : [])
       setTests(Array.isArray(testsData) ? testsData : [])
       setTestSessions(Array.isArray(testSessionsData) ? testSessionsData : [])
+      setTeacherAssignments(Array.isArray(teachersData) ? teachersData : [])
+      setPatientAssignments(Array.isArray(patientsData) ? patientsData : [])
     } catch (error) {
     } finally {
       if (!opts.silent) setIsLoading(false)
@@ -177,6 +188,35 @@ export default function StudentsDetailPage() {
   // セッションの合計満点 (各問題の実 maxScore を合算)
   const sessionMaxTotal = dedupedContentColumns.reduce((sum, c) => sum + c.maxScore, 0)
 
+  // 2026-07-13: 部屋 → slot 順 (CSV の教員①②順 = slot_index) の採点者メール配列。
+  //   slot_index が揃っていれば実 index として疎配置、無ければメール昇順フォールバック。
+  const buildRoomEmailOrder = (
+    people: Array<{ email?: string; assignedRoomNumber?: string; slotIndex?: number }>,
+  ): Record<string, string[]> => {
+    const byRoom: Record<string, Array<{ email: string; slot: number | null }>> = {}
+    for (const p of people) {
+      const room = p.assignedRoomNumber || ""
+      const email = (p.email || "").toLowerCase()
+      if (!room || !email) continue
+      ;(byRoom[room] ||= []).push({ email, slot: typeof p.slotIndex === "number" ? p.slotIndex : null })
+    }
+    const out: Record<string, string[]> = {}
+    for (const [room, arr] of Object.entries(byRoom)) {
+      const allSlot = arr.length > 0 && arr.every((x) => typeof x.slot === "number")
+      if (allSlot) {
+        const maxSlot = Math.max(...arr.map((x) => x.slot as number))
+        const dense: string[] = new Array(maxSlot + 1).fill("")
+        for (const x of arr) dense[x.slot as number] = x.email
+        out[room] = dense
+      } else {
+        out[room] = arr.slice().sort((a, b) => a.email.localeCompare(b.email)).map((x) => x.email)
+      }
+    }
+    return out
+  }
+  const teacherEmailsByRoom = buildRoomEmailOrder(teacherAssignments)
+  const patientEmailsByRoom = buildRoomEmailOrder(patientAssignments)
+
   const getStudentData = (student: Student) => {
     // ADR-005 F5: attendance_records.student_id / exam_results.student_id は students.id (UUID) を参照する。
     // student.studentId(学籍番号 text)で比較していたため常に miss して全員「未受験」扱いになっていた。
@@ -204,29 +244,35 @@ export default function StudentsDetailPage() {
     const patientScore = patientEvals.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     const combinedScore = teacherScore + patientScore
 
-    // 2026-07-03 副田さん要望: 教員①/教員②/患者役 の個別点数
-    // メール昇順で slot 順に採点者を並べ、それぞれの合計スコアを取得。
-    // 部屋内の教員/患者役のメール昇順が UI と一致するように。
-    const roomTeacherEmails = teacherEvals
-      .map((e: any) => e.evaluatorEmail || e.evaluatorId || "")
-      .filter((email, idx, arr) => email && arr.indexOf(email) === idx)
-      .sort((a, b) => a.localeCompare(b))
-    const roomPatientEmails = patientEvals
-      .map((e: any) => e.evaluatorEmail || e.evaluatorId || "")
-      .filter((email, idx, arr) => email && arr.indexOf(email) === idx)
-      .sort((a, b) => a.localeCompare(b))
+    // 2026-07-13 副田さん要望: 教員①/教員②/患者役 の個別点数。
+    //   slot 順は assignments の slot_index (CSV の教員①②順) を正とする。学生の部屋の
+    //   割当採点者をその順で並べる。割当が取れない場合のみ、採点者メール昇順にフォールバック。
+    const studentRoom = (student as any).roomNumber || ""
+    const roomTeacherEmails =
+      (studentRoom && teacherEmailsByRoom[studentRoom]) ||
+      teacherEvals
+        .map((e: any) => (e.evaluatorEmail || e.evaluatorId || "").toLowerCase())
+        .filter((email, idx, arr) => email && arr.indexOf(email) === idx)
+        .sort((a, b) => a.localeCompare(b))
+    const roomPatientEmails =
+      (studentRoom && patientEmailsByRoom[studentRoom]) ||
+      patientEvals
+        .map((e: any) => (e.evaluatorEmail || e.evaluatorId || "").toLowerCase())
+        .filter((email, idx, arr) => email && arr.indexOf(email) === idx)
+        .sort((a, b) => a.localeCompare(b))
 
+    // 割当メールは小文字化されているので、採点者側も小文字化して照合する
     const teacherSlotScores: (number | "")[] = teacherSlotTests.map((_, slotIdx) => {
       const email = roomTeacherEmails[slotIdx]
       if (!email) return ""
-      const evalsForSlot = teacherEvals.filter((e: any) => (e.evaluatorEmail || e.evaluatorId) === email)
+      const evalsForSlot = teacherEvals.filter((e: any) => (e.evaluatorEmail || e.evaluatorId || "").toLowerCase() === email)
       if (evalsForSlot.length === 0) return ""
       return evalsForSlot.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     })
     const patientSlotScores: (number | "")[] = patientSlotTests.map((_, slotIdx) => {
       const email = roomPatientEmails[slotIdx]
       if (!email) return ""
-      const evalsForSlot = patientEvals.filter((e: any) => (e.evaluatorEmail || e.evaluatorId) === email)
+      const evalsForSlot = patientEvals.filter((e: any) => (e.evaluatorEmail || e.evaluatorId || "").toLowerCase() === email)
       if (evalsForSlot.length === 0) return ""
       return evalsForSlot.reduce((sum, e) => sum + (e.totalScore || 0), 0)
     })
@@ -244,7 +290,7 @@ export default function StudentsDetailPage() {
       let val: number | "" = ""
       if (slotEmail) {
         const ev = completedEvaluations.find(
-          (e: any) => e.evaluatorType === col.roleType && (e.evaluatorEmail || e.evaluatorId) === slotEmail,
+          (e: any) => e.evaluatorType === col.roleType && (e.evaluatorEmail || e.evaluatorId || "").toLowerCase() === slotEmail,
         )
         const answers = (ev as any)?.answers as Record<string, number> | undefined
         const v = answers ? (answers[col.compositeKey] ?? answers[col.questionNumber as any]) : undefined

@@ -114,7 +114,12 @@ export default function TeacherExamTabs({
           if (activeRoomNumber) {
             const teachersInRoom = fetchedTeachers
               .filter((t) => t.assignedRoomNumber === activeRoomNumber)
-              .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
+              // 2026-07-13: slot_index (CSV の教員①②順) 優先、無ければメール順にフォールバック
+              .sort((a, b) => {
+                const sa = a.slotIndex, sb = b.slotIndex
+                if (typeof sa === "number" && typeof sb === "number" && sa !== sb) return sa - sb
+                return (a.email || "").localeCompare(b.email || "")
+              })
             const first = teachersInRoom[0]
             const myEmail = (teacherEmail || "").toLowerCase()
             const amiInRoom = teachersInRoom.some((t) => (t.email || "").toLowerCase() === myEmail)

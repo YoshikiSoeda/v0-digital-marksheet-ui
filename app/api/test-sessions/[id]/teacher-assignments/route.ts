@@ -11,6 +11,7 @@ import { getServiceClient, requireAdmin } from "@/lib/api/_shared"
 interface AssignmentItem {
   teacherId: string
   assignedRoomNumber?: string | null
+  slotIndex?: number | null
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +20,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { data, error } = await supabase
     .from("teacher_test_session_assignments")
-    .select("test_session_id, assigned_room_number, teachers!inner(*)")
+    .select("test_session_id, assigned_room_number, slot_index, teachers!inner(*)")
     .eq("test_session_id", sessionId)
     .order("assigned_room_number", { ascending: true, nullsFirst: false })
 
@@ -41,6 +42,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         subjectCode: t.subject_code as string | undefined,
       },
       assignedRoomNumber: (a.assigned_room_number as string | null) ?? null,
+      // 部屋内の①②…順 (2026-07-13)。null は未 backfill(旧データ)。
+      slotIndex: (a.slot_index as number | null) ?? null,
     }
   })
   return NextResponse.json({ items }, { status: 200 })
@@ -78,19 +81,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (items.length > 0) {
     // 同一 (teacher, room) が重複していないよう de-dup
-    const dedup = new Map<string, { teacherId: string; assignedRoomNumber: string }>()
+    const dedup = new Map<string, { teacherId: string; assignedRoomNumber: string; slotIndex: number | null }>()
     for (const i of items) {
       const room = (i.assignedRoomNumber || "").trim()
       if (!i.teacherId || !room) continue
       dedup.set(`${i.teacherId}::${room}`, {
         teacherId: i.teacherId,
         assignedRoomNumber: room,
+        slotIndex: typeof i.slotIndex === "number" ? i.slotIndex : null,
       })
     }
     const rows = Array.from(dedup.values()).map((i) => ({
       teacher_id: i.teacherId,
       test_session_id: sessionId,
       assigned_room_number: i.assignedRoomNumber,
+      slot_index: i.slotIndex,
       updated_at: new Date().toISOString(),
     }))
     if (rows.length > 0) {
