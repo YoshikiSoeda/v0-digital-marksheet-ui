@@ -22,9 +22,22 @@ interface RenderableQuestion extends QuestionWithGroupingMeta {
   alertOptions?: number[]
   // 2026-07-10 副田さん要望 Phase 1: 有効な配点マップ (flatten 側で解決済み)
   scoreMap?: number[] | null
+  // 2026-07-13 副田さん要望: 選択肢テキスト (はい/いいえ 等)。設定時はボタン表示に使う。
+  option1?: string
+  option2?: string
+  option3?: string
+  option4?: string
+  option5?: string
 }
 
 const DEFAULT_SCORE_MAP = [1, 2, 3, 4, 5]
+
+// scoreMap の位置 (0-based) に対応する選択肢テキストを返す。空なら null。
+function optionLabelAt(question: RenderableQuestion, index: number): string | null {
+  const texts = [question.option1, question.option2, question.option3, question.option4, question.option5]
+  const t = texts[index]
+  return typeof t === "string" && t.trim() !== "" ? t.trim() : null
+}
 
 interface ExamQuestionsRendererProps {
   groupedQuestions: GroupedQuestions<RenderableQuestion>[]
@@ -97,8 +110,12 @@ export function ExamQuestionsRenderer({
                         {(question.scoreMap && question.scoreMap.length > 0
                           ? question.scoreMap
                           : DEFAULT_SCORE_MAP
-                        ).map((option) => {
+                        ).map((option, idx) => {
                           const isOn = selectedOption === option
+                          // 2026-07-13: 選択肢テキスト (はい/いいえ 等) があればラベルに使う。
+                          //   無ければ従来どおり配点値の数字。採点値 (option) は数値のまま。
+                          const label = optionLabelAt(question, idx)
+                          const isText = label != null
                           return (
                             <button
                               key={option}
@@ -106,7 +123,8 @@ export function ExamQuestionsRenderer({
                               onClick={() => onAnswer(compositeKey, isOn ? null : option)}
                               disabled={inputDisabled || !attendancePresent}
                               title={isOn ? "もう一度押すと解除" : undefined}
-                              className={`inline-flex h-11 min-w-[2.75rem] items-center justify-center rounded-xl border text-base font-bold tabular-nums transition-all
+                              className={`inline-flex h-11 min-w-[2.75rem] items-center justify-center rounded-xl border text-base font-bold transition-all
+                                ${isText ? "px-3.5 whitespace-nowrap" : "tabular-nums"}
                                 disabled:cursor-not-allowed disabled:opacity-40
                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1
                                 ${
@@ -115,7 +133,7 @@ export function ExamQuestionsRenderer({
                                     : "border-input bg-card text-foreground hover:border-primary/60 hover:bg-primary/5 active:scale-95"
                                 }`}
                             >
-                              {option}
+                              {label ?? option}
                             </button>
                           )
                         })}

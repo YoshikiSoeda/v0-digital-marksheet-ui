@@ -1314,7 +1314,19 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedRoomData.students.map((student) => (
+                        {/* 2026-07-13 副田さん要望: 学籍番号(数値)の若い順に並べる */}
+                        {selectedRoomData.students
+                          .slice()
+                          .sort((a, b) => {
+                            const na = parseInt(a.id, 10), nb = parseInt(b.id, 10)
+                            const va = Number.isNaN(na) ? null : na
+                            const vb = Number.isNaN(nb) ? null : nb
+                            if (va != null && vb != null && va !== vb) return va - vb
+                            if (va != null && vb == null) return -1
+                            if (va == null && vb != null) return 1
+                            return (a.id || "").localeCompare(b.id || "")
+                          })
+                          .map((student) => (
                           <tr key={student.id} className={`border-b ${student.alertCount > 0 ? "bg-red-50" : ""}`}>
                             <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.id}</td>
                             <td className={`py-2 ${student.alertCount > 0 ? "text-red-900" : ""}`}>{student.name}</td>

@@ -345,6 +345,9 @@ export default function StudentsDetailPage() {
       patientScore: patientEvals.length > 0 ? patientScore : "",
       passResult,
       status,
+      // 2026-07-13 副田さん要望: ステータス列を出欠表示に。present/absent/"" (未確認)
+      attendanceStatus: (studentAttendance?.status as string) || "",
+      hasEvaluations: completedEvaluations.length > 0,
       // 2026-07-03: 新項目
       teacherSlotScores,
       patientSlotScores,
@@ -358,6 +361,33 @@ export default function StudentsDetailPage() {
   const currentSessionId = typeof window !== "undefined" ? (sessionStorage.getItem("testSessionId") || filterTestSessionId) : filterTestSessionId
   const currentSession = testSessions.find((s: any) => s.id === currentSessionId)
   const sessionStatus = currentSession?.status || "not_started"
+
+  // 2026-07-13 副田さん要望: 学籍番号の数値順に並べ、同一学籍番号の重複を排除(採点/出席のある方を優先)。
+  //   重複は架空大学 SMUD4xxx の重複コピー等で起こりうるため、表示側でも防御的に 1 名にまとめる。
+  const studentHasData = (st: Student) =>
+    attendanceRecords.some((a) => a.studentId === st.id) ||
+    evaluations.some((e) => e.studentId === st.id)
+  const dedupedStudents = (() => {
+    const byId = new Map<string, Student>()
+    for (const s of students) {
+      const key = s.studentId
+      const existing = byId.get(key)
+      if (!existing) { byId.set(key, s); continue }
+      if (!studentHasData(existing) && studentHasData(s)) byId.set(key, s)
+    }
+    return Array.from(byId.values())
+  })()
+  const parseSeat = (v: string): number | null => {
+    const n = parseInt(v, 10)
+    return Number.isNaN(n) ? null : n
+  }
+  const sortedStudents = dedupedStudents.slice().sort((a, b) => {
+    const na = parseSeat(a.studentId), nb = parseSeat(b.studentId)
+    if (na != null && nb != null && na !== nb) return na - nb
+    if (na != null && nb == null) return -1
+    if (na == null && nb != null) return 1
+    return (a.studentId || "").localeCompare(b.studentId || "")
+  })
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -437,9 +467,9 @@ export default function StudentsDetailPage() {
       ...teacherHeaders,
       ...patientHeaders,
       "割合",
-      "ステータス",
+      "出欠",
     ]
-    const rows = students.map((student) => {
+    const rows = sortedStudents.map((student) => {
       const data = getStudentData(student)
       return [
         student.studentId,
@@ -454,7 +484,7 @@ export default function StudentsDetailPage() {
         ...data.teacherSlotScores.map((s) => (typeof s === "number" ? String(s) : "")),
         ...data.patientSlotScores.map((s) => (typeof s === "number" ? String(s) : "")),
         data.percentage != null ? `${data.percentage}%` : "",
-        data.status,
+        data.attendanceStatus === "present" ? "出席" : data.attendanceStatus === "absent" ? "欠席" : "未確認",
       ]
     })
 
@@ -619,11 +649,11 @@ export default function StudentsDetailPage() {
                       </th>
                     ))}
                     <th className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">割合</th>
-                    <th className="h-10 px-2 text-center align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">ステータス</th>
+                    <th className="h-10 px-2 text-center align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">出欠</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.length === 0 && (
+                  {sortedStudents.length === 0 && (
                     <tr>
                       <td colSpan={99} className="p-0">
                         <EmptyState
@@ -633,14 +663,17 @@ export default function StudentsDetailPage() {
                       </td>
                     </tr>
                   )}
-                  {students.map((student) => {
+                  {sortedStudents.map((student) => {
                     const data = getStudentData(student)
-                    // 2026-07-12 デザイン Phase 2-3: ステータスを StatusPill に対応づけ
-                    const statusKind: StatusKind =
-                      data.status === "完了" ? "complete"
-                        : data.status === "進行中" ? "pending"
-                        : data.status === "欠席" ? "absent"
+                    // 2026-07-13 副田さん要望: ステータス列を出欠 (出席/欠席/未確認) に。
+                    const attKind: StatusKind =
+                      data.attendanceStatus === "present" ? "present"
+                        : data.attendanceStatus === "absent" ? "absent"
                         : "neutral"
+                    const attLabel =
+                      data.attendanceStatus === "present" ? "出席"
+                        : data.attendanceStatus === "absent" ? "欠席"
+                        : "未確認"
                     return (
                       <tr
                         key={student.id}
@@ -689,7 +722,7 @@ export default function StudentsDetailPage() {
                           )}
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap text-center">
-                          <StatusPill kind={statusKind}>{data.status}</StatusPill>
+                          <StatusPill kind={attKind}>{attLabel}</StatusPill>
                         </td>
                       </tr>
                     )
