@@ -71,6 +71,25 @@ export default function StudentsDetailPage() {
   const [filterTestSessionId, setFilterTestSessionId] = useState<string>("")
   // 2026-07-03 副田さん要望: 「内容」列 (問題ごとの点数) をアコーディオン開閉
   const [contentExpanded, setContentExpanded] = useState(false)
+  // 2026-07-16 副田さん要望: 列名クリックでソート。既定は学籍番号の昇順。
+  const [sortKey, setSortKey] = useState<string>("studentId")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortKey(key)
+      setSortDir("asc")
+    }
+  }
+  // アクティブ列は ▲/▼、非アクティブ列は薄い ⇅ を表示
+  const sortCaret = (key: string) =>
+    sortKey === key ? (
+      <span className="ml-0.5 text-primary">{sortDir === "asc" ? "▲" : "▼"}</span>
+    ) : (
+      <span className="ml-0.5 text-muted-foreground/30">⇅</span>
+    )
+  const SORTABLE_TH = "cursor-pointer select-none hover:text-foreground transition-colors"
 
   // 2026-07-10 副田さん要望 (案 C ハイブリッド自動更新): 受験者一覧を
   //   タブフォーカス時 + 30 秒 polling で自動再取得。fetchData を useCallback
@@ -381,12 +400,61 @@ export default function StudentsDetailPage() {
     const n = parseInt(v, 10)
     return Number.isNaN(n) ? null : n
   }
-  const sortedStudents = dedupedStudents.slice().sort((a, b) => {
-    const na = parseSeat(a.studentId), nb = parseSeat(b.studentId)
+
+  // 2026-07-16 副田さん要望: 列名クリックでソート。
+  //   各行の表示データ (getStudentData) を先に 1 度だけ計算し、その値でソート/描画する。
+  type StudentRow = { student: Student; data: ReturnType<typeof getStudentData> }
+  const studentRows: StudentRow[] = dedupedStudents.map((student) => ({ student, data: getStudentData(student) }))
+
+  // 学籍番号(数値)を第 2 キーにした安定タイブレーク
+  const seatCompare = (a: StudentRow, b: StudentRow): number => {
+    const na = parseSeat(a.student.studentId), nb = parseSeat(b.student.studentId)
     if (na != null && nb != null && na !== nb) return na - nb
     if (na != null && nb == null) return -1
     if (na == null && nb != null) return 1
-    return (a.studentId || "").localeCompare(b.studentId || "")
+    return (a.student.studentId || "").localeCompare(b.student.studentId || "")
+  }
+  // ソートキーごとの比較値 (number は数値、string は文字列、未入力は null=常に末尾)
+  const sortValueFor = (row: StudentRow, key: string): number | string | null => {
+    const { student, data } = row
+    if (key === "studentId") return parseSeat(student.studentId)
+    if (key === "name") return student.name || ""
+    if (key === "room") return student.roomNumber || ""
+    if (key === "email") return student.email || ""
+    if (key === "score") return typeof data.score === "number" ? data.score : null
+    if (key === "percentage") return data.percentage ?? null
+    if (key === "attendance") {
+      // 出席 → 欠席 → 未確認 の順
+      return data.attendanceStatus === "present" ? 0 : data.attendanceStatus === "absent" ? 1 : 2
+    }
+    if (key.startsWith("teacher:")) {
+      const v = data.teacherSlotScores[Number(key.slice(8))]
+      return typeof v === "number" ? v : null
+    }
+    if (key.startsWith("patient:")) {
+      const v = data.patientSlotScores[Number(key.slice(8))]
+      return typeof v === "number" ? v : null
+    }
+    if (key.startsWith("content:")) {
+      const v = data.contentScores[key.slice(8)]
+      return typeof v === "number" ? v : null
+    }
+    return null
+  }
+  const sortedRows = studentRows.slice().sort((a, b) => {
+    const va = sortValueFor(a, sortKey)
+    const vb = sortValueFor(b, sortKey)
+    const aEmpty = va == null || va === ""
+    const bEmpty = vb == null || vb === ""
+    // 未入力は方向に関わらず常に末尾へ
+    if (aEmpty && bEmpty) return seatCompare(a, b)
+    if (aEmpty) return 1
+    if (bEmpty) return -1
+    let c: number
+    if (typeof va === "number" && typeof vb === "number") c = va - vb
+    else c = String(va).localeCompare(String(vb), "ja")
+    if (c === 0) return seatCompare(a, b)
+    return sortDir === "asc" ? c : -c
   })
 
   const getStatusLabel = (status: string) => {
@@ -469,8 +537,7 @@ export default function StudentsDetailPage() {
       "割合",
       "出欠",
     ]
-    const rows = sortedStudents.map((student) => {
-      const data = getStudentData(student)
+    const rows = sortedRows.map(({ student, data }) => {
       return [
         student.studentId,
         student.name,
@@ -620,40 +687,45 @@ export default function StudentsDetailPage() {
                 <thead className="sticky top-0 z-20 bg-white shadow-sm">
                   {/* 2026-07-12 デザイン Phase 2-3: ヘッダーをラベル調 (小さめ太字・グレー) に。
                       数値列は右揃え。 */}
+                  {/* 2026-07-16 副田さん要望: 列名クリックでソート (再クリックで昇順⇔降順) */}
                   <tr className="border-b-2 border-primary/15">
-                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">学籍番号</th>
-                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">氏名</th>
-                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">部屋</th>
-                    <th className="h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">メールアドレス</th>
-                    {contentExpanded && dedupedContentColumns.map((col) => (
+                    <th onClick={() => toggleSort("studentId")} className={`h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>学籍番号{sortCaret("studentId")}</th>
+                    <th onClick={() => toggleSort("name")} className={`h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>氏名{sortCaret("name")}</th>
+                    <th onClick={() => toggleSort("room")} className={`h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>部屋{sortCaret("room")}</th>
+                    <th onClick={() => toggleSort("email")} className={`h-10 px-2 text-left align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>メールアドレス{sortCaret("email")}</th>
+                    {contentExpanded && dedupedContentColumns.map((col) => {
+                      const ckey = `content:${col.testId}::${col.compositeKey}`
+                      return (
                       <th
                         key={`${col.testId}::${col.compositeKey}`}
-                        className="h-10 px-2 text-right align-middle font-medium whitespace-nowrap bg-white text-xs"
+                        onClick={() => toggleSort(ckey)}
+                        className={`h-10 px-2 text-right align-middle font-medium whitespace-nowrap bg-white text-xs ${SORTABLE_TH}`}
                         title={`${col.testTitle} / ${col.sheetTitle} / ${col.categoryTitle} / ${col.questionText}`}
                       >
                         <span className="text-[10px] text-muted-foreground block">
                           {col.roleType === "teacher" ? "教員側" : "患者側"} {col.categoryTitle}
                         </span>
-                        <span className="block truncate">{col.questionText}</span>
+                        <span className="block truncate">{col.questionText}{sortCaret(ckey)}</span>
                       </th>
-                    ))}
-                    <th className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">点数</th>
+                      )
+                    })}
+                    <th onClick={() => toggleSort("score")} className={`h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>点数{sortCaret("score")}</th>
                     {teacherSlotTests.map((_, i) => (
-                      <th key={`th-t-${i}`} className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-primary whitespace-nowrap bg-white">
-                        教員{teacherSlotTests.length > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}
+                      <th key={`th-t-${i}`} onClick={() => toggleSort(`teacher:${i}`)} className={`h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-primary whitespace-nowrap bg-white ${SORTABLE_TH}`}>
+                        教員{teacherSlotTests.length > 1 ? ["①", "②", "③"][i] || `(${i + 1})` : ""}{sortCaret(`teacher:${i}`)}
                       </th>
                     ))}
                     {patientSlotTests.map((_, i) => (
-                      <th key={`th-p-${i}`} className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-primary/70 whitespace-nowrap bg-white">
-                        患者役{patientSlotTests.length > 1 ? ["①", "②"][i] || `(${i + 1})` : ""}
+                      <th key={`th-p-${i}`} onClick={() => toggleSort(`patient:${i}`)} className={`h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-primary/70 whitespace-nowrap bg-white ${SORTABLE_TH}`}>
+                        患者役{patientSlotTests.length > 1 ? ["①", "②"][i] || `(${i + 1})` : ""}{sortCaret(`patient:${i}`)}
                       </th>
                     ))}
-                    <th className="h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">割合</th>
-                    <th className="h-10 px-2 text-center align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white">出欠</th>
+                    <th onClick={() => toggleSort("percentage")} className={`h-10 px-2 text-right align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>割合{sortCaret("percentage")}</th>
+                    <th onClick={() => toggleSort("attendance")} className={`h-10 px-2 text-center align-middle text-[11px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap bg-white ${SORTABLE_TH}`}>出欠{sortCaret("attendance")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedStudents.length === 0 && (
+                  {sortedRows.length === 0 && (
                     <tr>
                       <td colSpan={99} className="p-0">
                         <EmptyState
@@ -663,8 +735,7 @@ export default function StudentsDetailPage() {
                       </td>
                     </tr>
                   )}
-                  {sortedStudents.map((student) => {
-                    const data = getStudentData(student)
+                  {sortedRows.map(({ student, data }) => {
                     // 2026-07-13 副田さん要望: ステータス列を出欠 (出席/欠席/未確認) に。
                     const attKind: StatusKind =
                       data.attendanceStatus === "present" ? "present"
