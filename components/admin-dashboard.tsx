@@ -1144,7 +1144,8 @@ const AdminDashboard = () => {
       </div>
 
       <Dialog open={!!selectedRoom} onOpenChange={(open) => !open && setSelectedRoom(null)}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
+        {/* 2026-07-16 副田さん要望: 全項目が改行されずに収まるよう横幅を拡大 (最大 72rem) */}
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[min(72rem,95vw)]">
           <DialogHeader>
             <DialogTitle>部屋 {selectedRoom} の詳細</DialogTitle>
           </DialogHeader>
@@ -1290,9 +1291,10 @@ const AdminDashboard = () => {
 
               <div className="border-t pt-4">
                 <h4 className="font-medium mb-2">学生一覧</h4>
-                <div className="space-y-2">
+                {/* 2026-07-16: 各セルは折り返さず、収まらない場合のみ横スクロール */}
+                <div className="space-y-2 overflow-x-auto">
                   {selectedRoomData.students && selectedRoomData.students.length > 0 ? (
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_th]:px-2 [&_td]:px-2">
                       <thead>
                         <tr className="border-b">
                           <th className="text-left py-2">学籍番号</th>
