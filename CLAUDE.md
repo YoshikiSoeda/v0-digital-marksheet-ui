@@ -370,6 +370,45 @@ exam_results (test_session_id, student_id, evaluator_type, evaluator_email,
 
 ---
 
+## 12-2. バージョン管理 / リリース手順(2026-07-21 v1.0.0 より運用開始)
+
+**v1.0.0 を初回リリースとして、以後セマンティックバージョニングで管理する**(副田さん方針)。
+
+### バージョン番号の上げ方
+
+| 種別 | 例 | 対象 |
+|---|---|---|
+| **MAJOR** | 1.0.0 → **2**.0.0 | 運用の作法が変わる大きな仕様変更、データ構造の刷新 |
+| **MINOR** | 1.0.0 → 1.**1**.0 | 新機能・新しい画面の追加(既存の使い方は変わらない) |
+| **PATCH** | 1.0.0 → 1.0.**1** | バグ修正・表示の微調整 |
+
+### バージョンの単一情報源
+
+**`package.json` の `version` だけが正**。`next.config.mjs` がこれを読んで
+`NEXT_PUBLIC_APP_VERSION` として配布し、`components/app-version.tsx` が全画面右下に表示する。
+**バージョン定数を別ファイルに書き足さないこと**(更新漏れで食い違うため)。
+
+### リリース手順
+
+1. 機能・修正の PR を通常どおり merge する(この時点ではバージョンは上げない)
+2. リリースするタイミングで、バージョン上げ用の PR を作る:
+   - `package.json` の `version` を更新
+   - `CHANGELOG.md` に新しい見出し(`## [x.y.z] - YYYY-MM-DD`)と変更内容を**日本語で**追記
+3. その PR を merge
+4. merge 後の main にタグを打ち、GitHub Release を作成:
+   ```bash
+   git fetch origin main
+   git tag -a vX.Y.Z <main の最新 SHA> -m "vX.Y.Z"
+   git push origin vX.Y.Z
+   gh release create vX.Y.Z --title "vX.Y.Z" --notes "(CHANGELOG の該当節)"
+   ```
+5. Vercel のデプロイ完了後、画面右下の表示が新バージョンになっていることを確認
+
+> 問題が起きた場合は、Vercel のダッシュボードから該当タグ時点のデプロイに
+> Instant Rollback できる。タグはその目印として機能する。
+
+---
+
 ## 13. 既知の問題・要注意点
 
 1. **`components/exam-screen.tsx` は V0 由来のデッドコード**(2026-04-25 に削除済)。`/student/results` というルートは存在しない

@@ -1,5 +1,15 @@
+import { readFileSync } from "node:fs"
+
+// 2026-07-16: バージョンの単一情報源は package.json。
+// ここで読み取って NEXT_PUBLIC_APP_VERSION として全画面に配布する
+// (別ファイルに定数を置くと更新漏れで食い違うため)。
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"))
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
+  },
   // typescript.ignoreBuildErrors を解除した(2026-04-25, type-fix Phase 6)
   // ビルド時に型エラーがあれば即失敗させ、CI で品質保証する
   typescript: {
